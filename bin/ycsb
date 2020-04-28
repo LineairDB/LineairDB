@@ -1,0 +1,50 @@
+#! /bin/bash
+
+#
+#   Copyright (C) 2020 Nippon Telegraph and Telephone Corporation.
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+
+set -e
+if [ "$#" -ne "1" ]; then
+    echo "ycsb wrapper requires one arguments: number of max threads."
+    exit 1
+fi
+cd $(dirname $0)
+cd ../build
+
+rm -f *.json
+rm -f *.png
+
+mkdir -p artifacts/ycsb/json
+mkdir -p artifacts/ycsb/figures
+
+ulimit -c unlimited
+
+# Variable Thread
+for workload in a b c wo; do
+    for contention in 3 6 9; do
+        for number_of_thread in $(seq 1 $1); do
+            if [ $(expr $number_of_thread % 2) == 1 ]; then
+                continue
+            fi
+
+            for times in 1 2 3; do
+                for protocol in Silo SiloNWR; do
+                    bench/ycsb -w $workload -c $protocol -t $number_of_thread -q 4 -d 10000 -C 0.$contention -o artifacts/ycsb/json/$(git log -n1 --format=%H | cut -c 1-5)-YCSB-$workload-Contention$contention-Thread$number_of_thread-$times.json
+                done
+            done
+        done
+    done
+done
