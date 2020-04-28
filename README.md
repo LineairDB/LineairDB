@@ -97,6 +97,31 @@ and open `docs/build/html/index.html`.
 Technical detail of concurrency control protocols such as SiloNWR is also available in the research paper [at this link](https://arxiv.org/abs/1904.08119).
 The project roadmap is [here](./docs/roadmap.md).
 
+### Benchmark Results
+
+The followings are our benchmark results.
+This is a modified benchmark of [YCSB-A](https://github.com/brianfrankcooper/YCSB); unlike official YCSB in which a transaction operates a single key, each transaction operates on four keys in our benchmark.
+
+This benchmark is executed in the following environments:
+
+|                              |                                                   |
+| ---------------------------- | ------------------------------------------------- |
+| CPU                          | four Intel Xeon E7-8870 (total 144 logical cores) |
+| Memory                       | 1TB (no swap-out)                                 |
+| YCSB Table size              | 100K                                              |
+| YCSB Record size             | 8-bytes                                           |
+| Epoch size                   | 1000ms                                            |
+| Contention (θ)               | 0.9 (highly contended)                            |
+| # of threads to process txns | 70                                                |
+
+#### YCSB-A
+
+<img src=./docs/image/epoch1000.json.png width=400px/>
+
+SiloNWR, our novel concurrency control protocol, achieves excellent performance over 10 Million transaction per seconds (TPS) by omitting transactions without exclusive lockings.
+Note that YCSB-A has an operation ratio of Read 50% and (Blind) Write 50%; that is, this is a fairly favorable setting for NWR-protocols.
+If your use case is such a blind write-intensive, then LineairDB can be a great solution.
+
 ### Contributing
 
 This project welcomes contributions, issues, suggestions, and feature requests.
