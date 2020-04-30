@@ -84,9 +84,9 @@ We have been tested LineairDB in the following environments:
 
 ### Documentation
 
----
+[The LineairDB library documentation](https://lineairdb.github.io/LineairDB/) is available.
 
-You can get the LineairDB library documentation by simply running
+You can also build it by simply running
 
 ```
 doxygen
