@@ -206,7 +206,6 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload) {
 
   SPDLOG_INFO("YCSB: Benchmark completed. commits: {0}, aborts: {1}, tps: {2}",
               total_commits, total_aborts, tps);
-  assert(0 <= tps);
 
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();

@@ -36,6 +36,14 @@ enum NWRValidationResult {
   NOT_YET_VALIDATED = 6
 };
 
+/**
+ * @brief PivotObject used by NWR-protocols.
+ * @ref index
+ * @note On some environment that does not provide 128-bits atomic operations
+ *  such as CMPXCHG16B, manipulating the PivotObject instances may result in
+ *  the pefromance degradation.
+ *
+ */
 class NWRPivotObject {
  public:
   using VersionedSet = HalfWordSet<4>;
@@ -82,10 +90,6 @@ class NWRPivotObject {
 
   NWRPivotObject() noexcept : versions(), msets() {}
 };
-static_assert(std::atomic<NWRPivotObject>::is_always_lock_free,
-              "Error: 128-bits atomic operations is not provided in this "
-              "environment. NWR needs 128 bits atomic operations such as "
-              "CMPXCHG16B to manipulate the pivot objects.");
 
 }  // namespace LineairDB
 #endif

@@ -31,7 +31,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ### Compiler Options
 set(CMAKE_C_FLAGS "--std=c99")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -mcx16 -fPIC -march=native -Wno-unused-command-line-argument")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -mcx16 -fPIC -march=native")
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
