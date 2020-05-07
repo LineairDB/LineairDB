@@ -62,21 +62,21 @@ DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
 }
 
 // return false if a corresponding entry already exists
-bool ConcurrentTable::Put(const std::string_view key, DataItem* value) {
+bool ConcurrentTable::Put(const std::string_view key, const DataItem& rhs) {
+  auto* value  = new DataItem(rhs);
   bool success = container_->Put(key, value);
   if (!success) delete value;
   return success;
 }
 
 DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
-  auto new_item = new DataItem();
-  if (Put(key, new_item)) {
-    return new_item;
-  } else {
-    auto* current = Get(key);
-    assert(current != nullptr);
-    return current;
-  }
+  // NOTE We assume that derived table has set semantics;
+  // i.e., concurrent #put operations always result in a single winner
+  // and the other operations return false.
+  Put(key, {});
+  auto current = Get(key);
+  assert(current != nullptr);
+  return current;
 }
 }  // namespace Index
 }  // namespace LineairDB

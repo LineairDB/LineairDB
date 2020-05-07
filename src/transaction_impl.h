@@ -34,8 +34,8 @@ namespace LineairDB {
  * Transaction::Impl controls users' requests of the four operation of the page
  * model, and delegate these requests to concurrency control protocols.
  * Note that all concurrency control protocols assumes the followings:
- *   - A transaction's read or write operation into the same data item are
- *     never be duplicated.
+ *   - A transaction cannot issue the same type of operation (read or write) to
+ *     the same data item.
  *   - write-after-read into the same data item is valid.
  *     but read-after-write is invalid.
  * It is the important parts of the definition of "schedule" in the theory of

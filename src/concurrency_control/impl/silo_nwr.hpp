@@ -73,7 +73,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         continue;
       }
 
-      snapshot.Reset(item->value, item->size);
+      snapshot.data_item_copy.Reset(item->value, item->size);
 
       if (item->transaction_id.load() == tx_id) {
         validation_set_.push_back({item, tx_id});
@@ -154,7 +154,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     /** Buffer Update (Copy to index from user defined function **/
     for (auto& snapshot : tx_ref_.write_set_ref_) {
       auto* item = snapshot.index_cache;
-      item->Reset(snapshot.value_copy, snapshot.size);
+      item->Reset(snapshot.data_item_copy.value, snapshot.data_item_copy.size);
     }
 
     return true;

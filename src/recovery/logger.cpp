@@ -172,11 +172,9 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
               SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
                            kvp.key, kvp.version_with_epoch & (~0llu >> 32),
                            kvp.version_with_epoch >> 32);
-              recovery_set.push_back(
-                  {kvp.key, nullptr, 0,
-                   new DataItem(reinterpret_cast<std::byte*>(&kvp.value),
-                                kvp.size, kvp.version_with_epoch),
-                   kvp.version_with_epoch});
+              Snapshot snapshot = {kvp.key, &kvp.value[0], kvp.size, nullptr,
+                                   kvp.version_with_epoch};
+              recovery_set.emplace_back(std::move(snapshot));
             }
           }
         }

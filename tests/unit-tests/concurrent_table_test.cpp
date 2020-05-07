@@ -27,15 +27,14 @@ TEST(ConcurrentTableTest, Instantiate) {
 
 TEST(ConcurrentTableTest, Put) {
   LineairDB::Index::ConcurrentTable table;
-  table.Put("alice", new LineairDB::DataItem);
+  table.Put("alice", LineairDB::DataItem{});
 }
 
 TEST(ConcurrentTableTest, Get) {
   LineairDB::Index::ConcurrentTable table;
   ASSERT_EQ(nullptr, table.Get("alice"));
-  auto* item = new LineairDB::DataItem;
-  table.Put("alice", item);
-  ASSERT_EQ(item, table.Get("alice"));
+  table.Put("alice", {});
+  ASSERT_NE(nullptr, table.Get("alice"));
 }
 
 TEST(ConcurrentTableTest, GetOrInsert) {
@@ -45,35 +44,28 @@ TEST(ConcurrentTableTest, GetOrInsert) {
 
 TEST(ConcurrentTableTest, ConcurrentInserting) {
   std::vector<std::thread> threads;
-  std::vector<LineairDB::DataItem*> items;
-  for (size_t i = 0; i < 10; i++) {
-    items.emplace_back(new LineairDB::DataItem);
-  }
   LineairDB::Index::ConcurrentTable table;
   for (size_t i = 0; i < 10; i++) {
-    threads.emplace_back([&, i]() { table.Put(std::to_string(i), items[i]); });
+    threads.emplace_back([&, i]() { table.Put(std::to_string(i), {}); });
   }
   for (auto& thread : threads) { thread.join(); }
   for (size_t i = 0; i < 10; i++) {
-    ASSERT_EQ(items[i], table.Get(std::to_string(i)));
+    ASSERT_NE(nullptr, table.Get(std::to_string(i)));
   }
 }
 
 TEST(ConcurrentTableTest, ConcurrentAndConflictedInserting) {
   std::vector<std::thread> threads;
-  std::vector<LineairDB::DataItem*> items;
-  for (size_t i = 0; i < 10; i++) {
-    items.emplace_back(new LineairDB::DataItem);
-  }
+  std::vector<LineairDB::DataItem> items(10);
   LineairDB::Index::ConcurrentTable table;
   for (size_t i = 0; i < 10; i++) {
-    threads.emplace_back([&, i]() { table.Put("alice", items[i]); });
+    threads.emplace_back([&]() { table.Put("alice", {}); });
   }
   for (auto& thread : threads) { thread.join(); }
   bool some_item_were_inserted = false;
   auto* item                   = table.Get("alice");
   for (size_t i = 0; i < 10; i++) {
-    if (item == items[i]) some_item_were_inserted = true;
+    if (item != nullptr) some_item_were_inserted = true;
   }
 
   ASSERT_TRUE(some_item_were_inserted);
@@ -88,7 +80,7 @@ TEST(ConcurrentTableTest, TremendousPut) {
     threads.emplace_back([&, i]() {
       for (size_t j = i * working_set_size; j < (i + 1) * working_set_size;
            j++) {
-        table.Put(std::to_string(j), new LineairDB::DataItem);
+        table.Put(std::to_string(j), {});
       }
     });
   }
@@ -105,7 +97,7 @@ TEST(ConcurrentTableTest, TremendousGetAndPut) {
       for (size_t j = i * working_set_size; j < (i + 1) * working_set_size;
            j++) {
         table.Get(std::to_string(j - working_set_size));
-        table.Put(std::to_string(j), new LineairDB::DataItem);
+        table.Put(std::to_string(j), {});
       }
     });
   }

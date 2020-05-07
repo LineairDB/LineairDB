@@ -67,18 +67,20 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.value_copy, snapshot.size);
+      return std::make_pair(snapshot.data_item_copy.value,
+                            snapshot.data_item_copy.size);
     }
   }
 
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.value_copy, snapshot.size);
+      return std::make_pair(snapshot.data_item_copy.value,
+                            snapshot.data_item_copy.size);
     }
   }
   const auto result = concurrency_control_->Read(key);
   read_set_.emplace_back(std::move(result));
-  return {result.value_copy, result.size};
+  return {result.data_item_copy.value, result.data_item_copy.size};
 }  // namespace LineairDB
 
 void Transaction::Impl::Write(const std::string_view key,
@@ -95,7 +97,7 @@ void Transaction::Impl::Write(const std::string_view key,
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key != key) continue;
-    snapshot.Reset(value, size);
+    snapshot.data_item_copy.Reset(value, size);
     if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }

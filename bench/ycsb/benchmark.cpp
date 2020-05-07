@@ -163,7 +163,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload) {
   std::atomic<bool> start_flag(false);
   std::atomic<size_t> waits_count(0);
   for (size_t i = 0; i < workload.client_thread_size; ++i) {
-    clients.emplace_back(std::thread([&, i]() {
+    clients.emplace_back(std::thread([&]() {
       std::byte buffer[workload.payload_size];
       RandomGenerator* rand = thread_local_random.Get();
       rand->Init(workload.recordcount, workload.zipfian_theta);

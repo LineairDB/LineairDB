@@ -28,7 +28,7 @@
 
 namespace LineairDB {
 
-typedef uint32_t EpochNumber;
+using EpochNumber = uint32_t;
 
 // TODO set this parameter by configuration
 constexpr size_t ValueBufferSize = 512;
@@ -45,6 +45,17 @@ struct DataItem {
       : transaction_id(tid), size(0), pivot_object() {
     Reset(v, s);
   }
+  DataItem(const DataItem& rhs)
+      : transaction_id(rhs.transaction_id.load()),
+        pivot_object(rhs.pivot_object.load()) {
+    Reset(rhs.value, rhs.size);
+  }
+  DataItem& operator=(const DataItem& rhs) {
+    transaction_id.store(rhs.transaction_id.load());
+    Reset(rhs.value, rhs.size);
+    pivot_object.store(rhs.pivot_object.load());
+    return *this;
+  }
 
   void Reset(const std::byte* v, size_t s) {
     if (ValueBufferSize < s) {
@@ -59,8 +70,7 @@ struct DataItem {
 
 struct Snapshot {
   std::string key;
-  std::byte value_copy[ValueBufferSize];
-  size_t size;
+  DataItem data_item_copy;
   DataItem* index_cache;
   uint64_t version_in_epoch;
   bool is_read_modify_write;
@@ -68,30 +78,21 @@ struct Snapshot {
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
            DataItem* const i, const uint64_t ver = 0)
       : key(k),
-        size(s),
         index_cache(i),
         version_in_epoch(ver),
         is_read_modify_write(false) {
-    if (v != nullptr) Reset(v, s);
+    if (v != nullptr) data_item_copy.Reset(v, s);
   }
+
+  Snapshot(const Snapshot& rhs) = default;
 
   static bool Compare(Snapshot& left, Snapshot& right) {
     return left.key < right.key;
   }
-
-  void Reset(const std::byte* v, size_t s) {
-    if (ValueBufferSize < s) {
-      SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
-                   ValueBufferSize);
-      exit(EXIT_FAILURE);
-    }
-    size = s;
-    std::memcpy(value_copy, v, s);
-  }
 };
 
-typedef std::vector<Snapshot> ReadSetType;
-typedef std::vector<Snapshot> WriteSetType;
+using ReadSetType  = std::vector<Snapshot>;
+using WriteSetType = std::vector<Snapshot>;
 
 }  // namespace LineairDB
 

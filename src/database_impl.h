@@ -148,7 +148,7 @@ class Database::Impl {
           std::max(highest_epoch,
                    static_cast<EpochNumber>(entry.version_in_epoch >> 32));
 
-      point_index_.Put(entry.key, entry.index_cache);
+      point_index_.Put(entry.key, entry.data_item_copy);
     }
     SPDLOG_DEBUG("  Global epoch is resumed from {0}", highest_epoch);
     epoch_framework_.SetGlobalEpoch(highest_epoch);
