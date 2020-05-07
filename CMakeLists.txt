@@ -57,7 +57,7 @@ else()
 endif()
 
 set(JEMALLOC_USE_STATIC ON)
-find_package(JeMalloc)
+find_package(jemalloc)
 if(JEMALLOC_FOUND)
   target_link_libraries(${PROJECT_NAME} PUBLIC jemalloc)
 else()
