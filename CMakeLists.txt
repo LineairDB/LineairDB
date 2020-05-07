@@ -21,6 +21,8 @@ project(lineairdb
   DESCRIPTION "Transactional key-value storage with linearizability and linear-scale performance."
   LANGUAGES CXX)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/modules")
+
 ### Options
 option(BUILD_TESTS "Build testing executables" ON)
 option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
@@ -49,9 +51,17 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_library(${PROJECT_NAME} ${SOURCES})
 
 if(APPLE)
-  target_link_libraries(${PROJECT_NAME} PUBLIC pthread jemalloc)
+  target_link_libraries(${PROJECT_NAME} PUBLIC pthread)
 else()
-  target_link_libraries(${PROJECT_NAME} PUBLIC stdc++fs atomic pthread jemalloc)
+  target_link_libraries(${PROJECT_NAME} PUBLIC stdc++fs atomic pthread)
+endif()
+
+set(JEMALLOC_USE_STATIC ON)
+find_package(JeMalloc)
+if(JEMALLOC_FOUND)
+  target_link_libraries(${PROJECT_NAME} PUBLIC jemalloc)
+else()
+  message("warning: jemalloc is not found in this environment.")
 endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC
