@@ -80,7 +80,8 @@ Then you can use LineairDB by including the header `include/lineairdb/lineairdb.
 We have been tested LineairDB in the following environments:
 
 - Apple clang version 11.0.3
-- Clang 6 and 9 on Linux
+- Clang >= 6 on Linux
+- GCC >= 9
 
 ### Documentation
 
