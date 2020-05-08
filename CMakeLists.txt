@@ -50,10 +50,14 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -march=native -Ofast -ffast-math
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_library(${PROJECT_NAME} ${SOURCES})
 
-if(APPLE)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
   target_link_libraries(${PROJECT_NAME} PUBLIC pthread)
 else()
-  target_link_libraries(${PROJECT_NAME} PUBLIC stdc++fs atomic pthread)
+  if(APPLE) # Use libc++
+    target_link_libraries(${PROJECT_NAME} PUBLIC c++ stdc++fs atomic pthread)
+  else() # Use libstdc++
+    target_link_libraries(${PROJECT_NAME} PUBLIC stdc++ stdc++fs atomic pthread)
+  endif()
 endif()
 
 set(JEMALLOC_USE_STATIC ON)
