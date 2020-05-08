@@ -67,23 +67,12 @@ TEST(ThreadPoolTest, ResumeAcceptingTransactions) {
 
 TEST(ThreadPoolTest, UseMultipleThreads) {
   LineairDB::ThreadPool thread_pool(10);
-  std::thread::id t_id;
-  std::atomic<bool> some_txns_are_executed_in_different_threads = false;
   std::atomic<size_t> num_of_running_txns(10);
 
-  thread_pool.Enqueue([&]() { t_id = std::this_thread::get_id(); });
-
   for (size_t i = 0; i < 10; i++) {
-    ASSERT_TRUE(thread_pool.Enqueue([&]() {
-      auto this_thread_id = std::this_thread::get_id();
-      if (t_id != this_thread_id) {
-        some_txns_are_executed_in_different_threads = true;
-      }
-      num_of_running_txns--;
-    }));
+    ASSERT_TRUE(thread_pool.Enqueue([&]() { num_of_running_txns--; }));
   }
   Blocking(num_of_running_txns);
-  ASSERT_TRUE(some_txns_are_executed_in_different_threads);
 }
 
 TEST(ThreadPoolTest, EnqueueForAllThreads) {
