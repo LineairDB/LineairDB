@@ -71,7 +71,6 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
 
   if (!my_storage->log_records.empty()) {
     msgpack::pack(my_storage->log_file, my_storage->log_records);
-    my_storage->log_file << std::endl;
     my_storage->log_file.flush();
     my_storage->log_records.clear();
   }

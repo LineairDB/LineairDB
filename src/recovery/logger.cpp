@@ -131,21 +131,35 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   for (auto filename : logfiles) {
     std::ifstream file(filename, std::ifstream::in | std::ifstream::binary);
     SPDLOG_DEBUG(" Recovery filename {0}", filename);
-    if (!file.good()) exit(EXIT_FAILURE);
-    LogRecord log_record;
+    if (!file.good()) {
+      SPDLOG_ERROR(
+          "  Stop recovery procedure: file {0} is broken. Some records may not "
+          "be recovered.");
+      return recovery_set;
+    };
 
-    std::string line;
-    while (std::getline(file, line)) {
-      LogRecords log_records;
+    std::string buffer((std::istreambuf_iterator<char>(file)),
+                       std::istreambuf_iterator<char>());
+    if (buffer.empty()) continue;
+
+    LogRecords log_records;
+    size_t offset = 0;
+    for (;;) {
+      if (offset == buffer.size()) break;
       try {
-        // TODO FIXME:
-        // msgpack::unpack sometimes hang-up.
-        msgpack::object_handle oh = msgpack::unpack(line.data(), line.size());
-        msgpack::object obj       = oh.get();
+        auto oh  = msgpack::unpack(buffer.data(), buffer.size(), offset);
+        auto obj = oh.get();
         obj.convert(log_records);
       } catch (const std::bad_cast& e) {
-        SPDLOG_ERROR("    msgpack deserialize failure: {0}", e.what());
-        exit(EXIT_FAILURE);
+        SPDLOG_ERROR(
+            "  Stop recovery procedure: msgpack deserialize failure on file "
+            "{0}. Some records may not be recovered.");
+        return recovery_set;
+      } catch (...) {
+        SPDLOG_ERROR(
+            "  Stop recovery procedure: msgpack deserialize failure on file "
+            "{0}. Some records may not be recovered.");
+        return recovery_set;
       }
 
       for (auto& log_record : log_records) {

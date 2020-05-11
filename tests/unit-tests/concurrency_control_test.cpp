@@ -23,15 +23,16 @@
 #include <chrono>
 #include <cstdlib>
 #include <experimental/filesystem>
+#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
 
+#include "../test_helper.hpp"
 #include "gtest/gtest.h"
 #include "magic_enum.hpp"
 #include "spdlog/spdlog.h"
 
-typedef std::function<void(LineairDB::Transaction&)> TransactionProcedure;
 class ConcurrencyControlTest
     : public ::testing::TestWithParam<LineairDB::Config::ConcurrencyControl> {
  protected:
@@ -46,53 +47,6 @@ class ConcurrencyControlTest
   virtual void TearDown() {
     std::experimental::filesystem::remove_all("lineairdb_logs");
   }
-
-  void DoTransactions(const std::vector<TransactionProcedure> txns) {
-    std::atomic<size_t> terminated(0);
-    for (auto& tx : txns) {
-      db_->ExecuteTransaction(tx,
-                              [&](const LineairDB::TxStatus) { terminated++; });
-      db_->Fence();
-    }
-
-    size_t msec_elapsed_for_termination = 0;
-    while (terminated != txns.size()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      msec_elapsed_for_termination++;
-      bool too_long_time_elapsed = (db_->GetConfig().epoch_duration_ms * 1000) <
-                                   msec_elapsed_for_termination;
-      EXPECT_FALSE(too_long_time_elapsed);
-      if (too_long_time_elapsed) break;
-    }
-  }
-
-  size_t DoTransactionsOnMultiThreads(
-      const std::vector<TransactionProcedure> txns) {
-    std::atomic<size_t> terminated(0);
-    std::atomic<size_t> committed(0);
-    std::vector<std::thread> threads;
-    for (auto& tx : txns) {
-      threads.push_back(std::thread([&]() {
-        db_->ExecuteTransaction(tx, [&](const LineairDB::TxStatus status) {
-          terminated++;
-          if (status == LineairDB::TxStatus::Committed) { committed++; }
-        });
-      }));
-    }
-
-    size_t msec_elapsed_for_termination = 0;
-    while (terminated != txns.size()) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      msec_elapsed_for_termination++;
-      bool too_long_time_elapsed = (db_->GetConfig().epoch_duration_ms * 1000) <
-                                   msec_elapsed_for_termination;
-      EXPECT_FALSE(too_long_time_elapsed);
-      if (too_long_time_elapsed) break;
-    }
-
-    for (auto& thread : threads) { thread.join(); }
-    return committed;
-  }
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -106,9 +60,9 @@ TEST_P(ConcurrencyControlTest, Instantiate) {}
 
 TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   int initial_value = 1;
-  DoTransactions({[&](LineairDB::Transaction& tx) {
-    tx.Write<int>("alice", initial_value);
-  }});
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.Write<int>("alice", initial_value);
+                             }});
   db_->Fence();
 
   TransactionProcedure increment([](LineairDB::Transaction& tx) {
@@ -120,16 +74,18 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
     tx.Write<int>("alice", current_value);
   });
 
-  size_t committed_count = DoTransactionsOnMultiThreads({increment, increment});
+  size_t committed_count = TestHelper::DoTransactionsOnMultiThreads(
+      db_.get(), {increment, increment});
   db_->Fence();
 
-  DoTransactions({[&](LineairDB::Transaction& tx) {
-    auto alice = tx.Read<int>("alice");
-    ASSERT_TRUE(alice.has_value());
-    auto expected_value = initial_value + committed_count;
-    auto current_value  = alice.value();
-    ASSERT_EQ(expected_value, current_value);
-  }});
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               auto alice = tx.Read<int>("alice");
+                               ASSERT_TRUE(alice.has_value());
+                               auto expected_value =
+                                   initial_value + committed_count;
+                               auto current_value = alice.value();
+                               ASSERT_EQ(expected_value, current_value);
+                             }});
 }
 
 TEST_P(ConcurrencyControlTest, AvodingDirtyReadAnomaly) {
@@ -147,7 +103,8 @@ TEST_P(ConcurrencyControlTest, AvodingDirtyReadAnomaly) {
     }
   });
   ASSERT_NO_THROW({
-    DoTransactionsOnMultiThreads(
+    TestHelper::DoTransactionsOnMultiThreads(
+        db_.get(),
         {insertTenTimes, insertTenTimes, readTenTimes, readTenTimes});
   });
 }
@@ -170,16 +127,17 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
     }
   });
   ASSERT_NO_THROW({
-    DoTransactionsOnMultiThreads(
+    TestHelper::DoTransactionsOnMultiThreads(
+        db_.get(),
         {updateTenTimes, updateTenTimes, repeatableRead, repeatableRead});
   });
 }
 TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** initialize **/
-  DoTransactions({[](LineairDB::Transaction& tx) {
-    tx.Write<int>("alice", 0);
-    tx.Write<int>("bob", 1);
-  }});
+  TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                               tx.Write<int>("alice", 0);
+                               tx.Write<int>("bob", 1);
+                             }});
 
   TransactionProcedure readAliceWriteBob([](LineairDB::Transaction& tx) {
     auto result = tx.Read<int>("alice");
@@ -192,21 +150,22 @@ TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
     tx.Write<int>("alice", result.value() += 1);
   });
 
-  DoTransactionsOnMultiThreads({readAliceWriteBob, readAliceWriteBob,
-                                readAliceWriteBob, readAliceWriteBob,
-                                readBobWriteAlice, readBobWriteAlice,
-                                readBobWriteAlice, readBobWriteAlice});
+  TestHelper::DoTransactionsOnMultiThreads(
+      db_.get(), {readAliceWriteBob, readAliceWriteBob, readAliceWriteBob,
+                  readAliceWriteBob, readBobWriteAlice, readBobWriteAlice,
+                  readBobWriteAlice, readBobWriteAlice});
 
   db_->Fence();
 
   /** validation **/
-  DoTransactions({[](LineairDB::Transaction& tx) {
-    auto alice = tx.Read<int>("alice");
-    auto bob   = tx.Read<int>("bob");
-    ASSERT_TRUE(alice.has_value());
-    ASSERT_TRUE(bob.has_value());
-    ASSERT_EQ(1, std::abs(alice.value() - bob.value()));
-  }});
+  TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                               auto alice = tx.Read<int>("alice");
+                               auto bob   = tx.Read<int>("bob");
+                               ASSERT_TRUE(alice.has_value());
+                               ASSERT_TRUE(bob.has_value());
+                               ASSERT_EQ(1,
+                                         std::abs(alice.value() - bob.value()));
+                             }});
 }
 
 TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
@@ -257,12 +216,13 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   while (committed != 3) {
     waits.store(true);
     /** initialize **/
-    DoTransactions({[](LineairDB::Transaction& tx) {
-      tx.Write<int>("x", 0);
-      tx.Write<int>("y", 0);
-    }});
+    TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                                 tx.Write<int>("x", 0);
+                                 tx.Write<int>("y", 0);
+                               }});
 
-    committed = DoTransactionsOnMultiThreads({T1, T2, T3});
+    committed =
+        TestHelper::DoTransactionsOnMultiThreads(db_.get(), {T1, T2, T3});
     if (committed == 3) {
       auto x = x_value_read_by_t3.load();
       auto y = y_value_read_by_t3.load();

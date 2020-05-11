@@ -42,7 +42,7 @@ class Database::Impl {
         logger_(c),
         callback_manager_(c),
         point_index_(c),
-        epoch_framework_(c.epoch_duration_ms, DispatchEpochIsUpdated()) {
+        epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
     } else {
@@ -110,7 +110,7 @@ class Database::Impl {
   /**
    * NOTE: Called by a special thread managed by EpochFramework.
    */
-  std::function<void(EpochNumber)> DispatchEpochIsUpdated() {
+  std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {
     return [&](EpochNumber old_epoch) {
       // Logging
       if (config_.enable_logging) {
