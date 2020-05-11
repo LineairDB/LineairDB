@@ -8,6 +8,8 @@
   <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">
     <img alt="License: Apache--2.0" src="https://img.shields.io/badge/License-Apache--2.0-yellow.svg" />
   </a>
+  <img alt="CI" src="https://github.com/LineairDB/LineairDB/workflows/C/C++ CI/badge.svg" />
+
 </p>
 
 **LineairDB is a fast transactional key-value storage library. It provides transaction processing for multiple keys with strict serializability.**
