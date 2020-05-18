@@ -22,6 +22,7 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+#include <any>
 
 #include "concurrency_control/pivot_object.hpp"
 #include "util/logger.hpp"
@@ -57,7 +58,7 @@ struct DataItem {
     return *this;
   }
 
-  void Reset(const std::byte* v, size_t s) {
+  void Reset(const std::byte* v, size_t s, uint64_t tid = 0) {
     if (ValueBufferSize < s) {
       SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
                    ValueBufferSize);
@@ -65,6 +66,7 @@ struct DataItem {
     }
     size = s;
     std::memcpy(value, v, s);
+    if (tid != 0) transaction_id.store(tid);
   }
 };
 
@@ -72,16 +74,14 @@ struct Snapshot {
   std::string key;
   DataItem data_item_copy;
   DataItem* index_cache;
-  uint64_t version_in_epoch;
   bool is_read_modify_write;
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
            DataItem* const i, const uint64_t ver = 0)
       : key(k),
         index_cache(i),
-        version_in_epoch(ver),
         is_read_modify_write(false) {
-    if (v != nullptr) data_item_copy.Reset(v, s);
+    if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
 
   Snapshot(const Snapshot& rhs) = default;
