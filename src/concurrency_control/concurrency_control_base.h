@@ -28,7 +28,6 @@
 
 namespace LineairDB {
 struct TransactionReferences {
-  Index::ConcurrentTable& table_ref_;
   ReadSetType& read_set_ref_;
   WriteSetType& write_set_ref_;
   const EpochNumber& my_epoch_ref_;
@@ -37,9 +36,9 @@ class ConcurrencyControlBase {
  public:
   ConcurrencyControlBase(TransactionReferences&& tx) : tx_ref_(tx) {}
   virtual ~ConcurrencyControlBase(){};
-  virtual const Snapshot Read(std::string_view) = 0;
+  virtual const DataItem Read(std::string_view, const DataItem*) = 0;
   virtual void Write(const std::string_view key, const std::byte* const value,
-                     const size_t size)         = 0;
+                     const size_t size, const DataItem*)         = 0;
   virtual void Abort()                          = 0;
   virtual bool Precommit()                      = 0;
   virtual void PostProcessing(TxStatus)         = 0;

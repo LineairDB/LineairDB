@@ -22,7 +22,6 @@
 #include <string>
 #include <type_traits>
 #include <vector>
-#include <any>
 
 #include "concurrency_control/pivot_object.hpp"
 #include "util/logger.hpp"
@@ -38,23 +37,23 @@ struct DataItem {
   std::atomic<uint64_t> transaction_id;
   std::byte value[ValueBufferSize];
   size_t size;
-  std::atomic<NWRPivotObject>
-      pivot_object;  // Used by only NWR-extended protocols
+  enum class CCTag { NWR } cc_tag;
+  union {
+    std::atomic<NWRPivotObject> pivot_object;
+  };
 
-  DataItem() : transaction_id(0), size(0), pivot_object() {}
+  DataItem() : transaction_id(0), size(0), cc_tag(CCTag::NWR) {}
   DataItem(const std::byte* v, size_t s, uint64_t tid = 0)
-      : transaction_id(tid), size(0), pivot_object() {
+      : transaction_id(tid), size(0), cc_tag(CCTag::NWR) {
     Reset(v, s);
   }
   DataItem(const DataItem& rhs)
-      : transaction_id(rhs.transaction_id.load()),
-        pivot_object(rhs.pivot_object.load()) {
+      : transaction_id(rhs.transaction_id.load()), cc_tag(CCTag::NWR) {
     Reset(rhs.value, rhs.size);
   }
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
     Reset(rhs.value, rhs.size);
-    pivot_object.store(rhs.pivot_object.load());
     return *this;
   }
 
@@ -68,6 +67,11 @@ struct DataItem {
     std::memcpy(value, v, s);
     if (tid != 0) transaction_id.store(tid);
   }
+
+  std::atomic<NWRPivotObject>& GetNWRPivotObjectRef() {
+    if (cc_tag != CCTag::NWR) { pivot_object.store({}); }
+    return pivot_object;
+  }
 };
 
 struct Snapshot {
@@ -78,12 +82,9 @@ struct Snapshot {
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
            DataItem* const i, const uint64_t ver = 0)
-      : key(k),
-        index_cache(i),
-        is_read_modify_write(false) {
+      : key(k), index_cache(i), is_read_modify_write(false) {
     if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
-
   Snapshot(const Snapshot& rhs) = default;
 
   static bool Compare(Snapshot& left, Snapshot& right) {
