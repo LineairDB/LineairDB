@@ -55,8 +55,8 @@ class Logger {
       std::string key;
       std::array<std::byte, 256> value;
       size_t size;
-      uint64_t version_with_epoch;
-      MSGPACK_DEFINE(key, value, size, version_with_epoch);
+      TransactionId tid;
+      MSGPACK_DEFINE(key, value, size, tid);
     };
 
     EpochNumber epoch;

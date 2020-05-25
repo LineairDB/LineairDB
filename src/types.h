@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <msgpack.hpp>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -33,17 +34,42 @@ using EpochNumber = uint32_t;
 // TODO set this parameter by configuration
 constexpr size_t ValueBufferSize = 512;
 
+struct TransactionId {
+  EpochNumber epoch;
+  uint32_t tid;
+
+  TransactionId() noexcept : epoch(0), tid(0) {}
+  TransactionId(const EpochNumber e, uint32_t t) : epoch(e), tid(t) {}
+  // TransactionId(const TransactionId& rhs) : epoch(rhs.epoch), tid(rhs.tid) {}
+  TransactionId(const TransactionId& rhs) = default;
+  bool IsEmpty() { return (epoch == 0 && tid == 0); }
+  TransactionId(uint64_t n) : epoch(n >> 32), tid(n & ~1llu >> 32) {}
+  bool operator==(const TransactionId& rhs) {
+    return (epoch == rhs.epoch && tid == rhs.tid);
+  }
+  bool operator!=(const TransactionId& rhs) { return !(*this == rhs); }
+  bool operator<(const TransactionId& rhs) {
+    if (epoch == rhs.epoch) {
+      return tid < rhs.tid;
+    } else {
+      return epoch < rhs.epoch;
+    }
+  }
+  MSGPACK_DEFINE(epoch, tid);
+};
+
 struct DataItem {
-  std::atomic<uint64_t> transaction_id;
+  std::atomic<TransactionId> transaction_id;
   std::byte value[ValueBufferSize];
   size_t size;
   enum class CCTag { NWR } cc_tag;
   union {
-    std::atomic<NWRPivotObject> pivot_object;
+    std::atomic<NWRPivotObject> pivot_object;  // for NWR
+    // @TODO REMOVE QueueRWLock queue_rw_lock;                 // for 2PL
   };
 
-  DataItem() : transaction_id(0), size(0), cc_tag(CCTag::NWR) {}
-  DataItem(const std::byte* v, size_t s, uint64_t tid = 0)
+  DataItem() : size(0), cc_tag(CCTag::NWR) {}
+  DataItem(const std::byte* v, size_t s, TransactionId tid)
       : transaction_id(tid), size(0), cc_tag(CCTag::NWR) {
     Reset(v, s);
   }
@@ -57,7 +83,7 @@ struct DataItem {
     return *this;
   }
 
-  void Reset(const std::byte* v, size_t s, uint64_t tid = 0) {
+  void Reset(const std::byte* v, const size_t s, TransactionId tid = 0) {
     if (ValueBufferSize < s) {
       SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
                    ValueBufferSize);
@@ -65,7 +91,7 @@ struct DataItem {
     }
     size = s;
     std::memcpy(value, v, s);
-    if (tid != 0) transaction_id.store(tid);
+    if (!tid.IsEmpty()) transaction_id.store(tid);
   }
 
   std::atomic<NWRPivotObject>& GetNWRPivotObjectRef() {
@@ -81,7 +107,7 @@ struct Snapshot {
   bool is_read_modify_write;
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
-           DataItem* const i, const uint64_t ver = 0)
+           DataItem* const i, const TransactionId ver = 0)
       : key(k), index_cache(i), is_read_modify_write(false) {
     if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }

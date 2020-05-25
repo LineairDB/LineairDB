@@ -171,23 +171,20 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
             for (auto& item : recovery_set) {
               if (item.key == kvp.key) {
                 not_found = false;
-                if (item.index_cache->transaction_id.load() <
-                    kvp.version_with_epoch) {
+                if (item.index_cache->transaction_id.load() < kvp.tid) {
                   item.index_cache->Reset(
                       reinterpret_cast<std::byte*>(&kvp.value), kvp.size);
-                  item.index_cache->transaction_id = kvp.version_with_epoch;
+                  item.index_cache->transaction_id = kvp.tid;
                   SPDLOG_DEBUG("    update-> key {0}, version {1} in epoch {2}",
-                               kvp.key, kvp.version_with_epoch & (~0llu >> 32),
-                               kvp.version_with_epoch >> 32);
+                               kvp.key, kvp.tid.tid, kvp.tid.epoch);
                 }
               }
             }
             if (not_found) {
               SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
-                           kvp.key, kvp.version_with_epoch & (~0llu >> 32),
-                           kvp.version_with_epoch >> 32);
+                           kvp.key, kvp.tid.tid, kvp.tid.epoch);
               Snapshot snapshot = {kvp.key, &kvp.value[0], kvp.size, nullptr,
-                                   kvp.version_with_epoch};
+                                   kvp.tid};
               recovery_set.emplace_back(std::move(snapshot));
             }
           }

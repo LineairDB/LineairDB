@@ -144,9 +144,8 @@ class Database::Impl {
     auto&& recovery_set =
         Recovery::Logger::GetRecoverySetFromLogs(durable_epoch);
     for (auto& entry : recovery_set) {
-      highest_epoch =
-          std::max(highest_epoch,
-                   static_cast<EpochNumber>(entry.data_item_copy.transaction_id.load() >> 32));
+      highest_epoch = std::max(
+          highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
 
       point_index_.Put(entry.key, entry.data_item_copy);
     }

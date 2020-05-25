@@ -57,8 +57,8 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch) {
     kvp.key = snapshot.key;
     std::memcpy(reinterpret_cast<void*>(&kvp.value),
                 snapshot.data_item_copy.value, snapshot.data_item_copy.size);
-    kvp.size               = snapshot.data_item_copy.size;
-    kvp.version_with_epoch = snapshot.data_item_copy.transaction_id.load();
+    kvp.size = snapshot.data_item_copy.size;
+    kvp.tid  = snapshot.data_item_copy.transaction_id.load();
 
     record.key_value_pairs.emplace_back(std::move(kvp));
   }

@@ -75,7 +75,7 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   });
 
   size_t committed_count = TestHelper::DoTransactionsOnMultiThreads(
-      db_.get(), {increment, increment});
+      db_.get(), {increment, increment, increment, increment});
   db_->Fence();
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
