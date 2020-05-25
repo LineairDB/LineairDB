@@ -146,7 +146,7 @@ class Database::Impl {
     for (auto& entry : recovery_set) {
       highest_epoch =
           std::max(highest_epoch,
-                   static_cast<EpochNumber>(entry.version_in_epoch >> 32));
+                   static_cast<EpochNumber>(entry.data_item_copy.transaction_id.load() >> 32));
 
       point_index_.Put(entry.key, entry.data_item_copy);
     }

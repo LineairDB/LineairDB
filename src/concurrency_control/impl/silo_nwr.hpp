@@ -73,7 +73,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         continue;
       }
 
-      snapshot.data_item_copy.Reset(item->value, item->size);
+      snapshot.data_item_copy.Reset(item->value, item->size, tx_id);
 
       if (item->transaction_id.load() == tx_id) {
         validation_set_.push_back({item, tx_id});
@@ -125,7 +125,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         bool lock_acquired =
             item->transaction_id.compare_exchange_weak(current, current | 1llu);
         if (lock_acquired) {
-          snapshot.version_in_epoch += 1;
+          snapshot.data_item_copy.transaction_id = current | 1llu;
           // If this item is in readset, add 1 (lockflag) into snapshot for
           // validation
           for (auto& read_item : validation_set_) {
@@ -170,21 +170,21 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
 
       /** Unlock **/
       for (auto& snapshot : tx_ref_.write_set_ref_) {
-        auto* item                   = snapshot.index_cache;
-        EpochNumber written_in_epoch = snapshot.version_in_epoch >> 32;
+        auto* item = snapshot.index_cache;
+        EpochNumber written_in_epoch =
+            snapshot.data_item_copy.transaction_id.load() >> 32;
 
         if (current_epoch != written_in_epoch) {
           const auto rotated_id =
               (static_cast<uint64_t>(current_epoch) << 32) | 2;
           item->transaction_id.store(rotated_id);
-          snapshot.version_in_epoch = rotated_id;
+          snapshot.data_item_copy.transaction_id.store(rotated_id);
         } else {
           [[maybe_unused]] const auto id = item->transaction_id.fetch_add(1llu);
           // Modify the version in snapshot, for logging and updating the pivot
           // objects
 
-          assert(id == snapshot.version_in_epoch);
-          snapshot.version_in_epoch++;
+          snapshot.data_item_copy.transaction_id++;
         }
       }
     }
@@ -265,7 +265,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       // MergedRS
       for (auto& snapshot : tx_ref_.read_set_ref_) {
         const auto value_ptr = snapshot.index_cache;
-        auto version         = snapshot.version_in_epoch;
+        auto version         = snapshot.data_item_copy.transaction_id.load();
         assert(value_ptr != nullptr);
 
         // Store the version number x_k read by t_j.
@@ -410,7 +410,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       // MergedRS
       for (auto& snapshot : tx_ref_.read_set_ref_) {
         const auto* value_ptr = snapshot.index_cache;
-        auto version          = snapshot.version_in_epoch;
+        auto version          = snapshot.data_item_copy.transaction_id.load();
         assert(value_ptr != nullptr);
         if (version >> 32 == current_epoch) {
           my_pivot_object_.msets.rset.PutLowerside(value_ptr,
@@ -424,7 +424,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       for (auto& snapshot : tx_ref_.write_set_ref_) {
         const auto* value_ptr = snapshot.index_cache;
         assert(value_ptr != nullptr);
-        auto version = snapshot.version_in_epoch;
+        auto version = snapshot.data_item_copy.transaction_id.load();
         assert(version & 1llu);  // is locked
 
         uint32_t new_version = version & (~0llu >> 32);
@@ -459,7 +459,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         auto new_snapshot = my_pivot_object_;
         assert(new_snapshot.versions.epoch == current_epoch);
         new_snapshot.versions.target_id =
-            ws_entry_for_this_snapshot->version_in_epoch & (~0llu >> 32);
+            ws_entry_for_this_snapshot->data_item_copy.transaction_id.load() &
+            (~0llu >> 32);
         data_item_p->pivot_object.store(new_snapshot);
         continue;
       }
