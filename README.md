@@ -83,7 +83,7 @@ We have been tested LineairDB in the following environments:
 
 - Apple clang version 11.0.3
 - Clang >= 6 on Linux
-- GCC >= 9
+- GCC >= 7.5
 
 ### Documentation
 

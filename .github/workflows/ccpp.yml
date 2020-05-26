@@ -12,7 +12,7 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest]
-        compiler: [g++-9, clang++]
+        compiler: [g++-7, g++-9, clang++]
         build: [Debug, Release]
 
     runs-on: ${{ matrix.os }}
@@ -21,6 +21,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: checkout submodules
         shell: bash
+        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           auth_header="$(git config --local --get http.https://github.com/.extraheader)"
           git submodule sync --recursive
@@ -30,14 +31,16 @@ jobs:
         env:
           CXX: ${{ matrix.compiler }}
           BUILDTYPE: ${{ matrix.build }}
-
+        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           mkdir -p build
           cd build
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
           make
           sudo make install
+
       - name: ${{ matrix.build }} test
+        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           cd build
           ctest -V

@@ -15,12 +15,11 @@ Licenses of 3rd party libraries
 
 ## MIT
 
-| Name       | Copyright                                                           | URL                                   |
-| ---------- | ------------------------------------------------------------------- | ------------------------------------- |
-| cxxopts    | Copyright (c) 2014 Jarryd Beck                                      | https://github.com/jarro2783/cxxopts  |
-| magic_enum | Copyright (c) 2019 - 2020 Daniil Goncharov                          | https://github.com/Neargye/magic_enum |
-| RapidJSON  | Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip | https://github.com/Tencent/rapidjson  |
-| spdlog     | Copyright (c) 2016 Gabi Melman                                      | https://github.com/gabime/spdlog      |
+| Name      | Copyright                                                           | URL                                  |
+| --------- | ------------------------------------------------------------------- | ------------------------------------ |
+| cxxopts   | Copyright (c) 2014 Jarryd Beck                                      | https://github.com/jarro2783/cxxopts |
+| RapidJSON | Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip | https://github.com/Tencent/rapidjson |
+| spdlog    | Copyright (c) 2016 Gabi Melman                                      | https://github.com/gabime/spdlog     |
 
 ## Boost
 
