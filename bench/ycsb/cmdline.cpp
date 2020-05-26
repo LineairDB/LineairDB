@@ -26,7 +26,7 @@
 #include <experimental/filesystem>
 #include <fstream>
 #include <iostream>
-#include <magic_enum.hpp>
+#include <map>
 #include <set>
 #include <thread>
 
@@ -38,6 +38,11 @@ void PopulateDatabase(LineairDB::Database&, YCSB::Workload&, size_t);
 rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&);
 
 }  // namespace YCSB
+
+const std::map<std::string, LineairDB::Config::ConcurrencyControl> Protocols = {
+    {"Silo", LineairDB::Config::ConcurrencyControl::Silo},
+    {"SiloNWR", LineairDB::Config::ConcurrencyControl::SiloNWR},
+};
 
 int main(int argc, char** argv) {
   cxxopts::Options options(
@@ -83,14 +88,12 @@ int main(int argc, char** argv) {
 
   /** Initialize LineairDB **/
   LineairDB::Config config;
-  auto protocol = result["cc"].as<std::string>();
-  config.concurrency_control_protocol =
-      magic_enum::enum_cast<LineairDB::Config::ConcurrencyControl>(protocol)
-          .value();
-  config.enable_recovery   = false;
-  config.enable_logging    = result["log"].as<bool>();
-  config.max_thread        = result["thread"].as<size_t>();
-  config.epoch_duration_ms = result["epoch"].as<size_t>();
+  auto protocol                       = result["cc"].as<std::string>();
+  config.concurrency_control_protocol = Protocols.find(protocol)->second;
+  config.enable_recovery              = false;
+  config.enable_logging               = result["log"].as<bool>();
+  config.max_thread                   = result["thread"].as<size_t>();
+  config.epoch_duration_ms            = result["epoch"].as<size_t>();
   LineairDB::Database db(config);
 
   /** Configure the workload **/

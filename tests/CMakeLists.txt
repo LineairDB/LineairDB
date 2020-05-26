@@ -19,7 +19,6 @@ macro(register_test testfile testfilepath)
   target_link_libraries(${testfile} ${PROJECT_NAME} gtest_main)
   target_include_directories(${testfile} PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/magic_enum/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/concurrentqueue>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
   )

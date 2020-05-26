@@ -30,8 +30,7 @@
 
 #include "../test_helper.hpp"
 #include "gtest/gtest.h"
-#include "magic_enum.hpp"
-#include "spdlog/spdlog.h"
+#include "util/logger.hpp"
 
 class ConcurrencyControlTest
     : public ::testing::TestWithParam<LineairDB::Config::ConcurrencyControl> {
@@ -49,12 +48,13 @@ class ConcurrencyControlTest
   }
 };
 
+const std::array<std::string, 2> Protocols{"Silo", "SiloNWR"};
 INSTANTIATE_TEST_SUITE_P(
     ForEachProtocol, ConcurrencyControlTest,
     ::testing::Values(LineairDB::Config::ConcurrencyControl::Silo,
                       LineairDB::Config::ConcurrencyControl::SiloNWR),
     [](const testing::TestParamInfo<LineairDB::Config::ConcurrencyControl>&
-           param) { return std::string(magic_enum::enum_name(param.param)); });
+           param) { return Protocols[param.index]; });
 
 TEST_P(ConcurrencyControlTest, Instantiate) {}
 
@@ -229,9 +229,8 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
       ASSERT_EQ(x, -11);
       ASSERT_EQ(y, 20);
     } else {
-      SPDLOG_DEBUG(
-          "Only {0} transactions has been committed. Retrying testcase...",
-          committed);
+      SPDLOG_DEBUG("Only {0} transactions has committed. Retrying testcase...",
+                   committed);
       retry++;
       if (100 < retry) {
         SPDLOG_WARN(
