@@ -40,8 +40,21 @@ jobs:
           make
           sudo make install
 
+      - name: Set core dump
+        if: matrix.os != 'macos-latest'
+        run: |
+          sudo mkdir -p /cores
+          ulimit -c unlimited
+          echo '/cores/core.%h.%e.%t' | sudo tee -a /proc/sys/kernel/core_pattern
+
       - name: ${{ matrix.build }} test
         if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           cd build
           ctest -V
+
+      - uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: core
+          path: /cores
