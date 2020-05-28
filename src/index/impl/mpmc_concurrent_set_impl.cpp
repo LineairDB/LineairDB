@@ -92,12 +92,8 @@ bool MPMCConcurrentSetImpl::Put(const std::string_view key,
         const size_t current_stored = populated_count_.fetch_add(1);
         const double current_fill_rate =
             (current_stored / static_cast<double>(table->size()));
-        if (RehashThreshold < current_fill_rate) {
-          // NOTE MakeMeOffline() was invoked in #Rehash.
-          Rehash();
-        } else {
-          epoch_framework_.MakeMeOffline();
-        }
+        epoch_framework_.MakeMeOffline();
+        if (RehashThreshold < current_fill_rate) { Rehash(); }
         return true;
       } else {
         continue;
@@ -118,7 +114,6 @@ bool MPMCConcurrentSetImpl::Put(const std::string_view key,
 
 // FYI: https://preshing.com/20160222/a-resizable-concurrent-map/
 bool MPMCConcurrentSetImpl::Rehash() {
-  epoch_framework_.MakeMeOffline();
   std::lock_guard<std::mutex> lock(table_lock_);
   auto* table = table_.load();
   if ((populated_count_.load() / static_cast<double>(table->size())) <
@@ -163,14 +158,13 @@ bool MPMCConcurrentSetImpl::Rehash() {
                         // be deleted and updated.
   }
 
-  for (;;) {
-    if (table_.compare_exchange_strong(table, new_table)) {
-      // QSBR-based garbage collection
-      epoch_framework_.Sync();
-      delete table;
-      return true;
-    }
-  }
+  auto table_exchanged = table_.compare_exchange_strong(table, new_table);
+  assert(table_exchanged);
+
+  // QSBR-based garbage collection
+  epoch_framework_.Sync();
+  delete table;
+  return true;
 }
 
 void MPMCConcurrentSetImpl::ForAllWithExclusiveLock(

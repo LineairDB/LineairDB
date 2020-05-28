@@ -53,7 +53,7 @@ class MPMCConcurrentSetImpl final : public ConcurrentPointIndexBase {
   static constexpr size_t InitialTableSize = 1024;
   static constexpr double RehashThreshold  = 0.75;
 
-  typedef std::vector<std::atomic<TableNode*>> TableType;
+  using TableType = std::vector<std::atomic<TableNode*>>;
 
  public:
   MPMCConcurrentSetImpl()
