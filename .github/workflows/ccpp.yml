@@ -16,6 +16,7 @@ jobs:
         build: [Debug, Release]
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v2
