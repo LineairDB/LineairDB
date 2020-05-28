@@ -25,7 +25,6 @@ target_compile_features(ycsb
 target_link_libraries(ycsb ${PROJECT_NAME})
 target_include_directories(ycsb PRIVATE
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/cxxopts/include>
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/magic_enum/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/rapidjson/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
