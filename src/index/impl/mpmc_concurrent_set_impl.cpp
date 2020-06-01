@@ -69,9 +69,9 @@ DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
 bool MPMCConcurrentSetImpl::Put(const std::string_view key,
                                 const DataItem* const value_p) {
   epoch_framework_.MakeMeOnline();
-  auto* table         = table_.load();
-  size_t hash         = Hash(key, table);
-  TableNode* new_node = new TableNode(key, value_p);
+  auto* table    = table_.load();
+  size_t hash    = Hash(key, table);
+  auto* new_node = new TableNode(key, value_p);
 
   // lineair probing
   for (;;) {
@@ -158,7 +158,8 @@ bool MPMCConcurrentSetImpl::Rehash() {
                         // be deleted and updated.
   }
 
-  auto table_exchanged = table_.compare_exchange_strong(table, new_table);
+  [[maybe_unused]] auto table_exchanged =
+      table_.compare_exchange_strong(table, new_table);
   assert(table_exchanged);
 
   // QSBR-based garbage collection

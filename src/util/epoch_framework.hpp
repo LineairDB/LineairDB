@@ -64,7 +64,8 @@ class EpochFramework {
 
   EpochNumber GetGlobalEpoch() { return global_epoch_.load(); }
   EpochNumber& GetMyThreadLocalEpoch() {
-    EpochNumber* my_epoch = tls_.Get();
+    EpochNumber* my_epoch =
+        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     return *my_epoch;
   }
 
@@ -76,19 +77,32 @@ class EpochFramework {
   }
 
   void MakeMeOffline() {
-    EpochNumber* my_epoch = tls_.Get();
+    EpochNumber* my_epoch =
+        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     assert(*my_epoch != THREAD_OFFLINE);
     *my_epoch = THREAD_OFFLINE;
   }
 
   EpochNumber Sync() {
-    auto current_epoch = global_epoch_.load();
-    auto reload_epoch  = global_epoch_.load();
-    while (current_epoch == reload_epoch) {
-      std::this_thread::yield();
-      reload_epoch = global_epoch_.load();
+    assert(GetMyThreadLocalEpoch() == THREAD_OFFLINE);
+    size_t reload_count = 0;
+    for (;;) {
+      auto current_epoch = global_epoch_.load();
+      auto reload_epoch  = global_epoch_.load();
+      while (current_epoch == reload_epoch) {
+        std::this_thread::yield();
+        reload_epoch = global_epoch_.load();
+      }
+      reload_count++;
+
+      // Note that each thread always belongs to either one of the two epochs,
+      // the old one and the one that matches the global epoch.
+      // The first while loop waits for all threads that are in the old epoch
+      // when Sync() is called. The next while loop waits for all threads to
+      // progress to the next epoch.
+
+      if (reload_count == 2) return reload_epoch;
     }
-    return reload_epoch;
   }
 
   void Start() { start_.store(true); }
