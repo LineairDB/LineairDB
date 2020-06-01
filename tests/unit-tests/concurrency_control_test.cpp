@@ -41,6 +41,9 @@ class ConcurrencyControlTest
     config_.concurrency_control_protocol = ConcurrencyControlTest::GetParam();
     config_.enable_recovery              = false;
     config_.enable_logging               = false;
+    // NOTE: The testcase AvoidingReadOnlyAnomaly requires to be executed on 3
+    // threads in parallel.
+    if (config_.max_thread < 3) { config_.max_thread = 4; }
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
   virtual void TearDown() {
