@@ -62,19 +62,19 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   std::byte value[ValueBufferSize];
   size_t size;
-  enum class CCTag { NWR } cc_tag;
+  enum class CCTag { NotInitialized, NWR } cc_tag;
   union {
     std::atomic<NWRPivotObject> pivot_object;  // for NWR
-    // @TODO REMOVE QueueRWLock queue_rw_lock;                 // for 2PL
   };
 
-  DataItem() : size(0), cc_tag(CCTag::NWR) {}
+  DataItem() : size(0), cc_tag(CCTag::NotInitialized) {}
   DataItem(const std::byte* v, size_t s, TransactionId tid)
-      : transaction_id(tid), size(0), cc_tag(CCTag::NWR) {
+      : transaction_id(tid), size(0), cc_tag(CCTag::NotInitialized) {
     Reset(v, s);
   }
   DataItem(const DataItem& rhs)
-      : transaction_id(rhs.transaction_id.load()), cc_tag(CCTag::NWR) {
+      : transaction_id(rhs.transaction_id.load()),
+        cc_tag(CCTag::NotInitialized) {
     Reset(rhs.value, rhs.size);
   }
   DataItem& operator=(const DataItem& rhs) {
