@@ -35,8 +35,8 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : user_aborted_(false),
       db_pimpl_(db_pimpl),
       config_ref_(db_pimpl_->GetConfig()) {
-  TransactionReferences&& tx = {db_pimpl_->GetPointIndex(), read_set_,
-                                write_set_, db_pimpl_->GetMyThreadLocalEpoch()};
+  TransactionReferences&& tx = {read_set_, write_set_,
+                                db_pimpl_->GetMyThreadLocalEpoch()};
 
   // WANTFIX for performance
   // Here we allocate one (derived) concurrency control instance per
@@ -78,9 +78,13 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size);
     }
   }
-  const auto result = concurrency_control_->Read(key);
-  read_set_.emplace_back(std::move(result));
-  return {result.data_item_copy.value, result.data_item_copy.size};
+  auto* index_leaf  = db_pimpl_->GetPointIndex().GetOrInsert(key);
+  Snapshot snapshot = {key, nullptr, 0, index_leaf};
+
+  const auto& result      = concurrency_control_->Read(key, index_leaf);
+  snapshot.data_item_copy = result;
+  read_set_.emplace_back(std::move(snapshot));
+  return {result.value, result.size};
 }  // namespace LineairDB
 
 void Transaction::Impl::Write(const std::string_view key,
@@ -102,8 +106,9 @@ void Transaction::Impl::Write(const std::string_view key,
     return;
   }
 
-  concurrency_control_->Write(key, value, size);
-  Snapshot sp(key, value, size, nullptr);
+  auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
+  concurrency_control_->Write(key, value, size, index_leaf);
+  Snapshot sp(key, value, size, index_leaf);
   write_set_.emplace_back(std::move(sp));
 }
 
