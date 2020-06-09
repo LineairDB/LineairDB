@@ -71,16 +71,24 @@ class Database::Impl {
 
   void ExecuteTransaction(ProcedureType proc, CallbackType clbk) {
     for (;;) {
-      bool success = thread_pool_.Enqueue(
-          [&, transaction_procedure = proc, callback = clbk]() {
-            epoch_framework_.MakeMeOnline();
-            Transaction tx(this);
+      bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
+                                           callback = clbk]() {
+        epoch_framework_.MakeMeOnline();
+        Transaction tx(this);
 
-            transaction_procedure(tx);
-            PrecommitTransaction(tx, std::forward<decltype(clbk)>(clbk));
+        transaction_procedure(tx);
+        bool committed = tx.Precommit();
+        if (committed) {
+          if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
+          const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
+          logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
+          callback_manager_.Enqueue(std::move(callback), current_epoch);
+        } else {
+          callback(LineairDB::TxStatus::Aborted);
+        }
 
-            epoch_framework_.MakeMeOffline();
-          });
+        epoch_framework_.MakeMeOffline();
+      });
       if (success) break;
     }
   }
@@ -91,12 +99,19 @@ class Database::Impl {
   }
 
   bool EndTransaction(Transaction& tx, CallbackType clbk) {
-    bool cc_result =
-        PrecommitTransaction(tx, std::forward<decltype(clbk)>(clbk));
+    bool committed = tx.Precommit();
+    if (committed) {
+      if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
+      const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
+      logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
+      callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
+    } else {
+      clbk(LineairDB::TxStatus::Aborted);
+    }
     epoch_framework_.MakeMeOffline();
 
     delete &tx;
-    return cc_result;
+    return committed;
   }
 
   void RequestCallbacks() {
@@ -134,18 +149,6 @@ class Database::Impl {
   }
 
  private:
-  bool PrecommitTransaction(Transaction& tx, CallbackType clbk) {
-    bool committed = tx.Precommit();
-    if (committed) {
-      if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
-      const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-      logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
-      callback_manager_.Enqueue(std::move(clbk), current_epoch);
-    } else {
-      clbk(LineairDB::TxStatus::Aborted);
-    }
-    return committed;
-  }
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
     // Start recovery from logfiles

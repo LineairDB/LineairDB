@@ -21,6 +21,7 @@
 #include <queue>
 
 #include "callback/callback_manager_base.h"
+#include "concurrentqueue.h"  // moodycamel::concurrentqueue
 #include "types.h"
 #include "util/thread_key_storage.h"
 
@@ -31,7 +32,7 @@ namespace Callback {
 class ThreadLocalCallbackManager final : public CallbackManagerBase {
  public:
   void Enqueue(const LineairDB::Database::CallbackType& callback,
-               EpochNumber epoch) final override;
+               EpochNumber epoch, bool entrusting) final override;
   void ExecuteCallbacks(EpochNumber new_epoch) final override;
   void WaitForAllCallbacksToBeExecuted() final override;
 
@@ -47,6 +48,9 @@ class ThreadLocalCallbackManager final : public CallbackManagerBase {
 
  private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
+  moodycamel::ConcurrentQueue<
+      std::pair<EpochNumber, LineairDB::Database::CallbackType>>
+      work_steal_queue_;
 };
 
 }  // namespace Callback

@@ -25,26 +25,48 @@ namespace LineairDB {
 namespace Callback {
 
 void ThreadLocalCallbackManager::Enqueue(
-    const LineairDB::Database::CallbackType& callback, EpochNumber epoch) {
-  /** Add callback into callbackqueue **/
-  auto* my_storage = thread_key_storage_.Get();
-  my_storage->callback_queue.push({epoch, callback});
+    const LineairDB::Database::CallbackType& callback, EpochNumber epoch,
+    bool entrusting) {
+  if (entrusting) {
+    // The callee thread is not willing to manage this callback.
+    // Enqueue to work-stealing queue.
+    work_steal_queue_.enqueue({epoch, callback});
+  } else {
+    // The caller thread manages the callback. Enqueue to thread-local queue.
+    auto* my_storage = thread_key_storage_.Get();
+    my_storage->callback_queue.push({epoch, callback});
+  }
 }
 void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
   auto* queues         = thread_key_storage_.Get();
   auto& callback_queue = queues->callback_queue;
 
-  for (;;) {
-    if (callback_queue.empty()) break;
-    auto& entry = callback_queue.front();
-    if (entry.first < stable_epoch) {
-      entry.second(TxStatus::Committed);
-      callback_queue.pop();
-    } else {
-      break;
+  if (callback_queue.empty()) {
+    // my thread-local callback queue is empty.
+    // helping to the jobs on the work-stealing queue.
+    for (;;) {
+      std::pair<EpochNumber, LineairDB::Database::CallbackType> pair;
+      auto dequeued = work_steal_queue_.try_dequeue(pair);
+      if (!dequeued) break;
+      if (pair.first < stable_epoch) {
+        pair.second(TxStatus::Committed);
+      } else {
+        work_steal_queue_.enqueue(std::move(pair));
+      }
+    }
+  } else {
+    for (;;) {
+      if (callback_queue.empty()) break;
+      auto& entry = callback_queue.front();
+      if (entry.first < stable_epoch) {
+        entry.second(TxStatus::Committed);
+        callback_queue.pop();
+      } else {
+        break;
+      }
     }
   }
-}
+}  // namespace Callback
 void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
   // NOTE DO NOT CALL FROM WORKER THREAD
   thread_key_storage_.ForEach(

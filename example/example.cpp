@@ -42,6 +42,20 @@ int main() {
 
   {
     LineairDB::Database db;
+    LineairDB::TxStatus status;
+
+    // Handler interface: execute a transaction on this thread
+    auto& tx = db.BeginTransaction();
+    tx.Read<int>("alice");
+    tx.Write<int>("alice", 1);
+    db.EndTransaction(tx, [&](auto s) { status = s; });
+    // Fence: Block-wait until all running transactions are terminated
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+  }
+
+  {
+    LineairDB::Database db;
     // Example of failures: database instance is not copy-constructable.
     //    NG: auto db2 = db;
     // Example of failures: we cannot allocate two Database instance at the same

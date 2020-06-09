@@ -47,7 +47,7 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
     auto& tx = db->BeginTransaction();
     tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
              sizeof(int));
-    db->EndTransaction(tx, [&](auto status) {
+    db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
     });
   }
@@ -55,12 +55,12 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
   {
     auto& tx   = db->BeginTransaction();
     auto alice = tx.Read("alice");
-    db->EndTransaction(tx, [&](auto status) {
-      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
-    });
-
     ASSERT_NE(alice.first, nullptr);
     ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
+
+    db->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
+    });
   }
 }
 
@@ -70,7 +70,7 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
   {
     auto& tx = db->BeginTransaction();
     tx.Write<int>("alice", value_of_alice);
-    db->EndTransaction(tx, [&](auto status) {
+    db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
     });
   }
@@ -80,7 +80,7 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
     auto alice = tx.Read<int>("alice");
     ASSERT_TRUE(alice.has_value());
     ASSERT_EQ(value_of_alice, alice.value());
-    db->EndTransaction(tx, [&](auto status) {
+    db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
     });
   }
