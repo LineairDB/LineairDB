@@ -71,28 +71,37 @@ class Database::Impl {
 
   void ExecuteTransaction(ProcedureType proc, CallbackType clbk) {
     for (;;) {
-      bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
-                                           callback = clbk]() {
-        epoch_framework_.MakeMeOnline();
+      bool success = thread_pool_.Enqueue(
+          [&, transaction_procedure = proc, callback = clbk]() {
+            epoch_framework_.MakeMeOnline();
+            Transaction tx(this);
 
-        Transaction tx(this);
+            transaction_procedure(tx);
+            PrecommitTransaction(tx, std::forward<decltype(clbk)>(clbk));
 
-        transaction_procedure(tx);
-        bool committed = tx.Precommit();
-
-        if (committed) {
-          if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
-          const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-          logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
-          callback_manager_.Enqueue(std::move(callback), current_epoch);
-        } else {
-          callback(LineairDB::TxStatus::Aborted);
-        }
-
-        epoch_framework_.MakeMeOffline();
-      });
+            epoch_framework_.MakeMeOffline();
+          });
       if (success) break;
     }
+  }
+
+  Transaction& BeginTransaction() {
+    epoch_framework_.MakeMeOnline();
+    return *(new Transaction(this));
+  }
+
+  bool EndTransaction(Transaction& tx, CallbackType clbk) {
+    bool cc_result =
+        PrecommitTransaction(tx, std::forward<decltype(clbk)>(clbk));
+    epoch_framework_.MakeMeOffline();
+
+    delete &tx;
+    return cc_result;
+  }
+
+  void RequestCallbacks() {
+    const auto current_epoch = epoch_framework_.GetGlobalEpoch();
+    callback_manager_.ExecuteCallbacks(current_epoch);
   }
 
   const EpochNumber& GetMyThreadLocalEpoch() {
@@ -107,9 +116,7 @@ class Database::Impl {
   const Config& GetConfig() const { return config_; }
   Index::ConcurrentTable& GetPointIndex() { return point_index_; }
 
-  /**
-   * NOTE: Called by a special thread managed by EpochFramework.
-   */
+  // NOTE: Called by a special thread managed by EpochFramework.
   std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {
     return [&](EpochNumber old_epoch) {
       // Logging
@@ -127,6 +134,18 @@ class Database::Impl {
   }
 
  private:
+  bool PrecommitTransaction(Transaction& tx, CallbackType clbk) {
+    bool committed = tx.Precommit();
+    if (committed) {
+      if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
+      const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
+      logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
+      callback_manager_.Enqueue(std::move(clbk), current_epoch);
+    } else {
+      clbk(LineairDB::TxStatus::Aborted);
+    }
+    return committed;
+  }
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
     // Start recovery from logfiles
