@@ -121,7 +121,7 @@ class ThreadKeyStorage {
     return &reinterpret_cast<TlsNode*>(ptr)->payload;
   }
 
-  void ForEach(std::function<void(const T*)>&& f) {
+  void ForEach(std::function<void(T*)>&& f) {
     TlsNode* ptr = head_node_.load();
     while (ptr != nullptr) {
       f(&ptr->payload);

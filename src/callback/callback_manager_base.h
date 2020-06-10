@@ -29,9 +29,9 @@ class CallbackManagerBase {
  public:
   virtual ~CallbackManagerBase() {}
   virtual void Enqueue(const LineairDB::Database::CallbackType& callback,
-                       EpochNumber epoch)              = 0;
-  virtual void ExecuteCallbacks(EpochNumber new_epoch) = 0;
-  virtual void WaitForAllCallbacksToBeExecuted()       = 0;
+                       EpochNumber epoch, bool entrusting) = 0;
+  virtual void ExecuteCallbacks(EpochNumber new_epoch)     = 0;
+  virtual void WaitForAllCallbacksToBeExecuted()           = 0;
 };
 
 }  // namespace Callback

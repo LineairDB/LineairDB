@@ -30,13 +30,13 @@ namespace LineairDB {
 class Database {
  public:
   /**
-   * @brief Construct a new Database object. Thread-unsafe.
+   * @brief Construct a new Database object. Thread-safe.
    * Note that a default-constructed Config object will be passed.
    */
   Database() noexcept;
 
   /**
-   * @brief Construct a new Database object. Thread-unsafe.
+   * @brief Construct a new Database object. Thread-safe.
    * @param config See Config for more details of configuration.
    */
   Database(const Config& config) noexcept;
@@ -49,8 +49,8 @@ class Database {
 
   /**
    * @brief Return the Config object set by constructor.
-   * Note that the returned Config object is a value not an lvalue reference
-   * and you can not reset your config given to the database.
+   * @return Config object. Note that it is not an lvalue reference
+   * and you cannot change the configuration with it.
    * Thread-safe.
    */
   const Config GetConfig() const noexcept;
@@ -59,14 +59,51 @@ class Database {
   using CallbackType  = std::function<void(const TxStatus)>;
   /**
    * @brief
-   *  LineairDB processes a transaction given by a transaction procedure proc,
-   * then returns the result typed TxStatus via the callback fucntion clbk.
+   * Processes a transaction given by a transaction procedure proc,
+   * and afterwards process callback function with the resulting TxStatus.
+   * It enqueues these two functions into LineairDB's thread pool.
    * Thread-safe.
    * @param[in] proc A transaction procedure processed by LineairDB.
-   * @param[out] clbk A callback function accepts a result(Committed or
+   * @param[out] clbk A callback function accepts a result (Committed or
    * Aborted).
    */
   void ExecuteTransaction(ProcedureType proc, CallbackType clbk);
+
+  /**
+   * @brief
+   * Creates a new transaction.
+   * Via this interface, the callee thread of this method can manipulate
+   * LineairDB's key-value storage directly. Note that the behavior and
+   * performance characteristics will affect from the selected callback manager
+   * and log manager; For example, if you have set Config::CallbackManager to
+   * ThreadLocal, the callee thread of this method may have to call
+   * Database::RequestCommit more frequently, in order to resolve the congestion
+   * of the thread-local commit callback queue.
+   *
+   * @return Transaction
+   */
+  Transaction& BeginTransaction();
+
+  /**
+   * @brief
+   * Terminates the transaction.
+   * If Transaction::Abort has not been called, LineairDB tries to commit `tx`.
+   * @pre To achieve user abort, Transaction::Abort must be called before this
+   * method.
+   * @post The first argument `tx` might have been deleted.
+   * @param[in] tx A transaction wants to terminate.
+   * @param[out] clbk A callback function accepts a result (Committed or
+   * @return true if the LineairDB's concurrency control protocol **decides** to
+   * commit the given `tx`. Note that it does not mean that `tx has been
+   * committed`; `tx` will be committed if it goes without crash, disaster, or
+   * something accident, however, the commit cannot be determined until
+   * recoverability is guaranteed by persistent logs. Use clbk to find out
+   * whether you have really committed or not.
+   * @return false if the LineairDB's concurrency control protocol decides to
+   * abort the given `tx`. In contrast with the true case, this result will not
+   * be overturned.
+   */
+  bool EndTransaction(Transaction& tx, CallbackType clbk);
 
   /**
    * @brief
@@ -79,6 +116,16 @@ class Database {
    * them. Thread-safe.
    */
   void Fence() const noexcept;
+
+  /**
+   * @brief
+   * Requests executions of callback functions of already completed (committed
+   * or (aborted) transactions. Note that LineairDB's callback queues may be
+   * overloading in some combination of configurations (e.g., too long epoch
+   * size, too small thread-pool size, or weird implementation of the selected
+   * CallbackManager).
+   */
+  void RequestCallbacks();
 
  private:
   class Impl;

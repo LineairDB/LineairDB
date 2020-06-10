@@ -33,9 +33,20 @@ class CallbackManager {
   CallbackManager(const Config& c);
   ~CallbackManager();
 
-  // Methods that pass (delegate) to callback_manager_base_
+  /**
+   * @brief Enqueue a callback function which will be invoked after the
+   * recoverability is satisfied.
+   *
+   * @param callback A callback function.
+   * @param epoch A epoch number which includes the transaction related to
+   * callback.
+   * @param entrusting Flag to delegate the management of this callback
+function. We can decide here whether the callee thread is willing to manage the
+callback or not. If it is set to false, it is expected the other threads to
+manage this callback as work-stealing.
+   */
   void Enqueue(const LineairDB::Database::CallbackType& callback,
-               EpochNumber epoch);
+               EpochNumber epoch, bool entrusting = false);
   void ExecuteCallbacks(EpochNumber new_epoch);
   void WaitForAllCallbacksToBeExecuted();
 

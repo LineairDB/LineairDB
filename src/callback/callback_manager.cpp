@@ -51,9 +51,9 @@ CallbackManager::CallbackManager(const Config& config) {
 CallbackManager::~CallbackManager() = default;
 
 void CallbackManager::Enqueue(const LineairDB::Database::CallbackType& callback,
-                              EpochNumber epoch) {
+                              EpochNumber epoch, bool entrusting) {
   callback_manager_pimpl_->Enqueue(std::forward<decltype(callback)>(callback),
-                                   epoch);
+                                   epoch, entrusting);
 }
 void CallbackManager::ExecuteCallbacks(EpochNumber new_epoch) {
   callback_manager_pimpl_->ExecuteCallbacks(new_epoch);

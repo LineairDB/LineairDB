@@ -44,6 +44,18 @@ void Database::ExecuteTransaction(
     std::function<void(TxStatus)> callback) {
   db_pimpl_->ExecuteTransaction(transaction_procedure, callback);
 }
+
+Transaction& Database::BeginTransaction() {
+  return db_pimpl_->BeginTransaction();
+}
+
+bool Database::EndTransaction(Transaction& tx, CallbackType clbk) {
+  return db_pimpl_->EndTransaction(std::forward<decltype(tx)>(tx),
+                                   std::forward<decltype(clbk)>(clbk));
+}
+
+void Database::RequestCallbacks() { db_pimpl_->RequestCallbacks(); }
+
 void Database::Fence() const noexcept { db_pimpl_->Fence(); }
 
 }  // namespace LineairDB
