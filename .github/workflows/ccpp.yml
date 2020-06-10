@@ -20,6 +20,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      # install dependencies
+      - name: install dependencies (Mac)
+        if: matrix.os == 'macos-latest'
+        run: brew install boost
+      - name: install dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt update && sudo apt install -yq libboost1.65-dev
       - name: checkout submodules
         shell: bash
         if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'

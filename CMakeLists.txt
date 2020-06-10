@@ -26,7 +26,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/modules"
 ### Options
 option(BUILD_TESTS "Build testing executables" ON)
 option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
-option(BUILD_SANITIZER "Build with clang's thread sanitizer" ON)
+option(BUILD_SANITIZER "Build with clang's address sanitizer" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,7 +39,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-fram
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics")
   if (BUILD_SANITIZER)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
   endif()
 endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
@@ -49,6 +49,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -march=native -Ofast -ffast-math
 ### Build as library
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_library(${PROJECT_NAME} ${SOURCES})
+
+find_package(Boost REQUIRED)
 
 set(JEMALLOC_USE_STATIC ON)
 find_package(jemalloc)
@@ -79,6 +81,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 ### Third-party libraries
 target_include_directories(${PROJECT_NAME} PRIVATE
+  ${Boost_INCLUDE_DIRS}
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/rapidjson/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/libcuckoo>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/concurrentqueue>
