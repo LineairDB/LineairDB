@@ -26,7 +26,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/modules"
 ### Options
 option(BUILD_TESTS "Build testing executables" ON)
 option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
-option(BUILD_SANITIZER "Build with clang's address sanitizer" ON)
+option(BUILD_SANITIZER "Build with clang's thread sanitizer" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,7 +39,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-fram
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics")
   if (BUILD_SANITIZER)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread")
   endif()
 endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
@@ -78,7 +78,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 ### Third-party libraries
-add_subdirectory(third_party/msgpack)
 target_include_directories(${PROJECT_NAME} PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/rapidjson/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/libcuckoo>
