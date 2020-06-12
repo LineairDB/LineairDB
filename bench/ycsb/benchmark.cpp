@@ -70,19 +70,18 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
     size_t to   = workload.recordcount * (i + 1) / worker_threads;
     failed.emplace_back(0);
     workers.emplace_back([&, from, to]() {
-      db.ExecuteTransaction(
-          [&, from, to](LineairDB::Transaction& tx) {
-            std::byte ptr[workload.payload_size];
-            for (size_t idx = from; idx < to; idx++) {
-              tx.Write(std::to_string(idx), ptr, workload.payload_size);
-            }
-          },
-          [](LineairDB::TxStatus status) {
-            if (status != LineairDB::TxStatus::Committed) {
-              SPDLOG_ERROR("YCSB: a database population query is aborted");
-              exit(1);
-            }
-          });
+      std::byte ptr[workload.payload_size];
+      auto& tx = db.BeginTransaction();
+      for (size_t idx = from; idx < to; idx++) {
+        tx.Write(std::to_string(idx), ptr, workload.payload_size);
+      }
+      db.EndTransaction(tx, [](LineairDB::TxStatus status) {
+        if (status != LineairDB::TxStatus::Committed) {
+          SPDLOG_ERROR("YCSB: a database population query is aborted");
+          exit(1);
+        }
+      });
+      db.RequestCallbacks();
     });
   }
   SPDLOG_INFO("YCSB: Database population queries are enqueued");
@@ -98,7 +97,8 @@ struct ThreadLocalResult {
 ThreadKeyStorage<ThreadLocalResult> thread_local_result;
 
 void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
-                     RandomGenerator* rand, void* payload) {
+                     RandomGenerator* rand, void* payload,
+                     bool use_handler = true) {
   std::function<void(LineairDB::Transaction&, std::string, void*, size_t)>
       operation;
 
@@ -137,25 +137,40 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     }
   }
 
-  // do operations while transaction will commit.
-  db.ExecuteTransaction(
-      [operation, keys, payload, workload](LineairDB::Transaction& tx) {
-        for (auto& key : keys) {
-          operation(tx, key, payload, workload.payload_size);
-        }
-      },
-      [&](LineairDB::TxStatus status) {
-        auto* result = thread_local_result.Get();
+  if (use_handler) {
+    auto& tx = db.BeginTransaction();
+    for (auto& key : keys) {
+      operation(tx, key, payload, workload.payload_size);
+    }
+    db.EndTransaction(tx, [&](LineairDB::TxStatus status) {
+      auto* result = thread_local_result.Get();
+      if (status == LineairDB::TxStatus::Committed) {
+        result->commits++;
+      } else {
+        result->aborts++;
+      }
+    });
+  } else {
+    db.ExecuteTransaction(
+        [operation, keys, payload, workload](LineairDB::Transaction& tx) {
+          for (auto& key : keys) {
+            operation(tx, key, payload, workload.payload_size);
+          }
+        },
+        [&](LineairDB::TxStatus status) {
+          auto* result = thread_local_result.Get();
 
-        if (status == LineairDB::TxStatus::Committed) {
-          result->commits++;
-        } else {
-          result->aborts++;
-        }
-      });
+          if (status == LineairDB::TxStatus::Committed) {
+            result->commits++;
+          } else {
+            result->aborts++;
+          }
+        });
+  }
 }
 
-rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload) {
+rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
+                                 bool use_handler = true) {
   std::vector<std::thread> clients;
   ThreadKeyStorage<RandomGenerator> thread_local_random;
 
@@ -171,7 +186,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload) {
       waits_count.fetch_add(1);
 
       while (finish_flag.load() == false) {
-        ExecuteWorkload(db, workload, rand, buffer);
+        ExecuteWorkload(db, workload, rand, buffer, use_handler);
       }
     }));
   }

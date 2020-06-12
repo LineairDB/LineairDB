@@ -35,7 +35,7 @@
 namespace YCSB {
 
 void PopulateDatabase(LineairDB::Database&, YCSB::Workload&, size_t);
-rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&);
+rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&, bool);
 
 }  // namespace YCSB
 
@@ -68,10 +68,13 @@ int main(int argc, char** argv) {
       ("p,payload", "Size (bytes) of each record",
        cxxopts::value<size_t>()->default_value("8"))  //
       ("t,thread", "The number of threads working on LineairDB",
-       cxxopts::value<size_t>()->default_value(
-           std::to_string(std::thread::hardware_concurrency())))  //
+       cxxopts::value<size_t>()->default_value("1"))  //
       ("q,clients", "The number of threads queueing the jobs into LineairDB",
        cxxopts::value<size_t>()->default_value("1"))  //
+      // std::to_string(std::thread::hardware_concurrency())))  //
+      ("H,handler",
+       "Use handler interface: queueing threads also execute transactions",
+       cxxopts::value<bool>()->default_value("true"))  //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
        cxxopts::value<size_t>()->default_value("2000"))  //
       ("o,output", "Output JSON filename",
@@ -112,8 +115,9 @@ int main(int argc, char** argv) {
   YCSB::PopulateDatabase(db, workload, std::thread::hardware_concurrency());
 
   /** Run the benchmark **/
-  auto result_json = YCSB::RunBenchmark(db, workload);
-  auto& allocator  = result_json.GetAllocator();
+  const auto use_handler = result["handler"].as<bool>();
+  auto result_json       = YCSB::RunBenchmark(db, workload, use_handler);
+  auto& allocator        = result_json.GetAllocator();
 
   result_json.AddMember("workload",
                         rapidjson::Value(workload_type.c_str(), allocator),

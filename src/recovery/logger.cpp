@@ -65,7 +65,7 @@ EpochNumber Logger::FlushDurableEpoch() {
   auto min_flushed_epoch = logger_->GetMinDurableEpochForAllThreads();
   if (min_flushed_epoch == EpochFramework::THREAD_OFFLINE ||
       min_flushed_epoch == durable_epoch_) {
-    return NumberIsNotUpdated;
+    return durable_epoch_;
   }
 
   assert(durable_epoch_ < min_flushed_epoch);
