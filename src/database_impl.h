@@ -136,15 +136,15 @@ class Database::Impl {
     return [&](EpochNumber old_epoch) {
       // Logging
       if (config_.enable_logging) {
+        EpochNumber durable_epoch = logger_.FlushDurableEpoch();
         thread_pool_.EnqueueForAllThreads(
             [&, old_epoch]() { logger_.FlushLogs(old_epoch); });
-
-        EpochNumber durable_epoch = logger_.FlushDurableEpoch();
-        if (durable_epoch == Recovery::Logger::NumberIsNotUpdated) { return; }
+        callback_manager_.ExecuteCallbacks(durable_epoch);
       }
       // Execute Callbacks
       thread_pool_.EnqueueForAllThreads(
           [&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
+      callback_manager_.ExecuteCallbacks(old_epoch);
     };
   }
 

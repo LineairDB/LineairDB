@@ -45,6 +45,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
     // my thread-local callback queue is empty.
     // helping to the jobs on the work-stealing queue.
     for (;;) {
+      if (work_steal_queue_.size_approx() == 0) break;
       std::pair<EpochNumber, LineairDB::Database::CallbackType> pair;
       auto dequeued = work_steal_queue_.try_dequeue(pair);
       if (!dequeued) break;
@@ -52,6 +53,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
         pair.second(TxStatus::Committed);
       } else {
         work_steal_queue_.enqueue(std::move(pair));
+        break;
       }
     }
   } else {
@@ -77,6 +79,11 @@ void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
           std::this_thread::yield();
         }
       });
+
+  for (;;) {
+    if (work_steal_queue_.size_approx() == 0) break;
+    std::this_thread::yield();
+  }
   // Here we observed empty queue for all thread.
 }
 
