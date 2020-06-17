@@ -16,3 +16,4 @@
 [submodule "third_party/msgpack"]
 	path = third_party/msgpack
 	url = https://github.com/msgpack/msgpack-c.git
+	branch = cpp_master
