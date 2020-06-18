@@ -61,7 +61,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
   ~SiloNWRTyped() final override{};
 
   const DataItem Read(const std::string_view,
-                      const DataItem* index_leaf) final override {
+                      DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
 
     DataItem snapshot;
@@ -84,7 +84,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
   };
   void Write(const std::string_view, const std::byte* const, const size_t,
-             const DataItem*) final override{};
+             DataItem*) final override{};
   void Abort() final override{};
   bool Precommit() final override {
     /** Sorting write set to prevent deadlock **/
@@ -216,7 +216,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         auto* value_ptr = snapshot.index_cache;
         assert(value_ptr != nullptr);
 
-        const auto pivot_object = value_ptr->GetNWRPivotObjectRef().load();
+        const auto pivot_object               = value_ptr->pivot_object.load();
         const PivotObjectSnapshot pv_snapshot = {value_ptr, pivot_object,
                                                  PivotObjectSnapshot::WRITESET};
         pivot_object_snapshots_.emplace_back(pv_snapshot);
@@ -227,7 +227,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       for (auto& snapshot : tx_ref_.read_set_ref_) {
         auto* value_ptr = snapshot.index_cache;
         assert(value_ptr != nullptr);
-        const auto pivot_object = value_ptr->GetNWRPivotObjectRef().load();
+        const auto pivot_object               = value_ptr->pivot_object.load();
         const PivotObjectSnapshot pv_snapshot = {value_ptr, pivot_object,
                                                  PivotObjectSnapshot::READSET};
         pivot_object_snapshots_.emplace_back(pv_snapshot);
@@ -322,7 +322,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     bool all_cas_succeed = true;
     for (auto& snapshot : pivot_object_snapshots_) {
       auto* data_item_p  = snapshot.item_p_cache;
-      auto& atomic_ref   = data_item_p->GetNWRPivotObjectRef();
+      auto& atomic_ref   = data_item_p->pivot_object;
       auto& old_snapshot = snapshot.pv_snapshot;
       auto new_snapshot  = old_snapshot;
 
@@ -436,7 +436,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // Updating mRS and mWS
     for (auto& snapshot : pivot_object_snapshots_) {
       auto* data_item_p = snapshot.item_p_cache;
-      auto& atomic_ref  = data_item_p->GetNWRPivotObjectRef();
+      auto& atomic_ref  = data_item_p->pivot_object;
       auto old_snapshot = atomic_ref.load();
 
       // If this transaction performs the first-blind write into the data item

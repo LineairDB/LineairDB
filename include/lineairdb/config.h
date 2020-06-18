@@ -51,7 +51,7 @@ struct Config {
    */
   size_t epoch_duration_ms;
 
-  enum ConcurrencyControl { Silo, SiloNWR };
+  enum ConcurrencyControl { Silo, SiloNWR, TwoPhaseLocking };
   /**
    * @brief
    * Set a concurrency control algorithm.

@@ -51,11 +51,12 @@ class ConcurrencyControlTest
   }
 };
 
-const std::array<std::string, 2> Protocols{"Silo", "SiloNWR"};
+const std::array<std::string, 3> Protocols{"Silo", "SiloNWR", "2PL"};
 INSTANTIATE_TEST_SUITE_P(
     ForEachProtocol, ConcurrencyControlTest,
     ::testing::Values(LineairDB::Config::ConcurrencyControl::Silo,
-                      LineairDB::Config::ConcurrencyControl::SiloNWR),
+                      LineairDB::Config::ConcurrencyControl::SiloNWR,
+                      LineairDB::Config::ConcurrencyControl::TwoPhaseLocking),
     [](const testing::TestParamInfo<LineairDB::Config::ConcurrencyControl>&
            param) { return Protocols[param.index]; });
 
@@ -91,7 +92,10 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
                              }});
 }
 
-TEST_P(ConcurrencyControlTest, AvodingDirtyReadAnomaly) {
+TEST_P(ConcurrencyControlTest, AvoidingDeadLock) {
+  // TODO Impl
+}
+TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
@@ -180,8 +184,8 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   /** T1: r1(y0) w1(y1) **/
   TransactionProcedure T1([&](LineairDB::Transaction& tx) {
     auto y = tx.Read<int>("y");
-    ASSERT_TRUE(y.has_value());
-    ASSERT_EQ(0, y.value());
+    EXPECT_TRUE(y.has_value());
+    EXPECT_EQ(0, y.value());
 
     while (waits) { std::this_thread::yield(); }
 
@@ -191,9 +195,9 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   TransactionProcedure T2([&](LineairDB::Transaction& tx) {
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
-    ASSERT_TRUE(x.has_value() && y.has_value());
-    ASSERT_EQ(0, x.value());
-    ASSERT_EQ(0, y.value());
+    EXPECT_TRUE(x.has_value() && y.has_value());
+    EXPECT_EQ(0, x.value());
+    EXPECT_EQ(0, y.value());
 
     waits.store(false);
     std::this_thread::yield();
@@ -208,7 +212,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
     std::this_thread::yield();
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
-    ASSERT_TRUE(x.has_value() && y.has_value());
+    EXPECT_TRUE(x.has_value() && y.has_value());
     if (y.value() != 20) return tx.Abort();
     x_value_read_by_t3.store(x.value());
     y_value_read_by_t3.store(y.value());

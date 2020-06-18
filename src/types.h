@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "concurrency_control/pivot_object.hpp"
+#include "lock/impl/readers_writers_lock.hpp"
 #include "util/logger.hpp"
 
 namespace LineairDB {
@@ -62,9 +63,10 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   std::byte value[ValueBufferSize];
   size_t size;
-  enum class CCTag { NotInitialized, NWR } cc_tag;
+  std::atomic<NWRPivotObject> pivot_object;  // for NWR
+  enum class CCTag { NotInitialized, RW_LOCK } cc_tag;
   union {
-    std::atomic<NWRPivotObject> pivot_object;  // for NWR
+    Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
   };
 
   DataItem() : size(0), cc_tag(CCTag::NotInitialized) {}
@@ -94,9 +96,12 @@ struct DataItem {
     if (!tid.IsEmpty()) transaction_id.store(tid);
   }
 
-  std::atomic<NWRPivotObject>& GetNWRPivotObjectRef() {
-    if (cc_tag != CCTag::NWR) { pivot_object.store({}); }
-    return pivot_object;
+  decltype(readers_writers_lock)& GetRWLockRef() {
+    if (cc_tag != CCTag::RW_LOCK) {
+      pivot_object.store({});
+      cc_tag = CCTag::RW_LOCK;
+    }
+    return readers_writers_lock;
   }
 };
 

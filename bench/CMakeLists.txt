@@ -29,3 +29,20 @@ target_include_directories(ycsb PRIVATE
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
 )
+
+# lockbench
+file(GLOB_RECURSE SOURCES "microbench/*.cpp")
+add_executable(lockbench ${SOURCES})
+target_link_libraries(lockbench ${PROJECT_NAME} pthread)
+target_compile_features(lockbench
+  PUBLIC
+    cxx_std_17
+    cxx_return_type_deduction
+    cxx_rvalue_references)
+target_include_directories(lockbench PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/cxxopts/include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/rapidjson/include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+)
+

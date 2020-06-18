@@ -27,6 +27,7 @@
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/impl/silo_nwr.hpp"
+#include "concurrency_control/impl/two_phase_locking.hpp"
 #include "database_impl.h"
 #include "types.h"
 namespace LineairDB {
@@ -51,6 +52,12 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
       concurrency_control_ = std::make_unique<ConcurrencyControl::Silo>(
           std::forward<TransactionReferences>(tx));
       break;
+    case Config::ConcurrencyControl::TwoPhaseLocking:
+      concurrency_control_ =
+          std::make_unique<ConcurrencyControl::TwoPhaseLocking>(
+              std::forward<TransactionReferences>(tx));
+      break;
+
     default:
       concurrency_control_ = std::make_unique<ConcurrencyControl::SiloNWR>(
           std::forward<TransactionReferences>(tx));
