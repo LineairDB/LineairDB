@@ -213,7 +213,6 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
     std::this_thread::yield();
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
-    EXPECT_TRUE(x.has_value() && y.has_value());
     if (y.value() != 20) return tx.Abort();
     x_value_read_by_t3.store(x.value());
     y_value_read_by_t3.store(y.value());
