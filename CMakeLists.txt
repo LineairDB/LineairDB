@@ -55,8 +55,12 @@ find_package(Boost REQUIRED)
 set(JEMALLOC_USE_STATIC ON)
 find_package(jemalloc)
 if(JEMALLOC_FOUND)
-  message(STATUS "JEMALLOC ${JEMALLOC_LIBRARIES}")
-  target_link_libraries(${PROJECT_NAME} ${JEMALLOC_LIBRARIES})
+  if(NOT APPLE) # WANTFIX: it seems that googletest's TYPED_TEST,
+                # that are built with static linking of jemalloc,
+                # always result in SIGSEGV on OSX.
+    message(STATUS "JEMALLOC ${JEMALLOC_LIBRARIES}")
+    target_link_libraries(${PROJECT_NAME} ${JEMALLOC_LIBRARIES})
+  endif()
 else()
   message("warning: jemalloc is not found in this environment.")
 endif()
