@@ -69,13 +69,20 @@ struct DataItem {
     Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
   };
 
-  DataItem() : size(0), cc_tag(CCTag::NotInitialized) {}
+  DataItem()
+      : size(0),
+        pivot_object(NWRPivotObject()),
+        cc_tag(CCTag::NotInitialized) {}
   DataItem(const std::byte* v, size_t s, TransactionId tid)
-      : transaction_id(tid), size(0), cc_tag(CCTag::NotInitialized) {
+      : transaction_id(tid),
+        size(0),
+        pivot_object(NWRPivotObject()),
+        cc_tag(CCTag::NotInitialized) {
     Reset(v, s);
   }
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
+        pivot_object(NWRPivotObject()),
         cc_tag(CCTag::NotInitialized) {
     Reset(rhs.value, rhs.size);
   }
@@ -96,7 +103,7 @@ struct DataItem {
     if (!tid.IsEmpty()) transaction_id.store(tid);
   }
 
-  decltype(readers_writers_lock)& GetRWLockRef() {
+  auto& GetRWLockRef() {
     if (cc_tag != CCTag::RW_LOCK) {
       new (&readers_writers_lock) decltype(readers_writers_lock);
       cc_tag = CCTag::RW_LOCK;

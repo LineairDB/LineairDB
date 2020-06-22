@@ -22,6 +22,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstring>
+#include <set>
 #include <vector>
 
 #include "concurrency_control/concurrency_control_base.h"
@@ -33,19 +34,39 @@ namespace LineairDB {
 
 namespace ConcurrencyControl {
 
-class TwoPhaseLocking final : public ConcurrencyControlBase {
- public:
-  TwoPhaseLocking(TransactionReferences&& tx)
-      : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)) {}
+enum class DeadLockAvoidanceType { NoWait, WaitDie, WoundWait };
 
-  ~TwoPhaseLocking() final override{};
+template <DeadLockAvoidanceType deadlock_avoidance_type =
+              DeadLockAvoidanceType::NoWait>
+class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
+ public:
+  TwoPhaseLockingImpl(TransactionReferences&& tx)
+      : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)),
+        is_aborted_(false) {}
+
+  ~TwoPhaseLockingImpl() final override{};
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
+    if (is_aborted_)
+      return {};  // NOTE: it means that 2PL does not ensure opacity.
     auto& rw_lock = index_leaf->GetRWLockRef();
-    rw_lock.Lock(
+
+    auto lock_acquired = rw_lock.TryLock(
         std::remove_reference<decltype(rw_lock)>::type::LockType::Shared);
+
+    if (!lock_acquired) {
+      if constexpr (deadlock_avoidance_type == DeadLockAvoidanceType::NoWait) {
+        is_aborted_ = true;
+        return {};
+      } else {
+        SPDLOG_ERROR(
+            "Selected deadlock-avoidance algorithm is not implemented.");
+        exit(EXIT_FAILURE);
+      }
+    }
+    read_lock_set_.emplace(index_leaf);
     DataItem snapshot_item = *index_leaf;
 
     return snapshot_item;
@@ -53,6 +74,7 @@ class TwoPhaseLocking final : public ConcurrencyControlBase {
   void Write(const std::string_view key, const std::byte* const value,
              const size_t size, DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
+    if (is_aborted_) return;
 
     auto& rw_lock             = index_leaf->GetRWLockRef();
     bool is_read_modify_write = false;
@@ -63,13 +85,26 @@ class TwoPhaseLocking final : public ConcurrencyControlBase {
       }
     }
 
+    bool lock_acquired = false;
     if (is_read_modify_write) {
       // it has already been acquired shared lock. request upgrade.
-      rw_lock.Lock(
+      assert(read_lock_set_.find(index_leaf) != read_lock_set_.end());
+      lock_acquired = rw_lock.TryLock(
           std::remove_reference<decltype(rw_lock)>::type::LockType::Upgrade);
+      if (lock_acquired) read_lock_set_.erase(index_leaf);
     } else {
-      rw_lock.Lock(
+      lock_acquired = rw_lock.TryLock(
           std::remove_reference<decltype(rw_lock)>::type::LockType::Exclusive);
+    }
+    if (!lock_acquired) {
+      if constexpr (deadlock_avoidance_type == DeadLockAvoidanceType::NoWait) {
+        is_aborted_ = true;
+        return;
+      } else {
+        SPDLOG_ERROR(
+            "Selected deadlock-avoidance algorithm is not implemented.");
+        exit(EXIT_FAILURE);
+      }
     }
 
     auto copy_for_undo = *index_leaf;
@@ -78,8 +113,11 @@ class TwoPhaseLocking final : public ConcurrencyControlBase {
     index_leaf->Reset(value, size);
   };
 
-  void Abort() final override { Undo(); };
-  bool Precommit() final override { return true; };
+  void Abort() final override {
+    is_aborted_ = true;
+    Undo();
+  };
+  bool Precommit() final override { return !is_aborted_; };
 
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 
@@ -90,18 +128,17 @@ class TwoPhaseLocking final : public ConcurrencyControlBase {
     }
   }
   void UnlockAll() {
-    for (auto& item : tx_ref_.read_set_ref_) {
-      item.index_cache->GetRWLockRef().UnLock();
-    }
-    for (auto& item : tx_ref_.write_set_ref_) {
-      if (item.is_read_modify_write) continue;
-      item.index_cache->GetRWLockRef().UnLock();
-    }
+    for (auto* item : read_lock_set_) { item->GetRWLockRef().UnLock(); }
+    for (auto& item : undo_set_) { item.first->GetRWLockRef().UnLock(); }
   }
 
  private:
   std::vector<std::pair<DataItem*, DataItem>> undo_set_;
+  std::set<DataItem*> read_lock_set_;
+  bool is_aborted_;
 };
+
+using TwoPhaseLocking = TwoPhaseLockingImpl<DeadLockAvoidanceType::NoWait>;
 
 }  // namespace ConcurrencyControl
 }  // namespace LineairDB
