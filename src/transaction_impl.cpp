@@ -123,12 +123,10 @@ void Transaction::Impl::Write(const std::string_view key,
 void Transaction::Impl::Abort() {
   user_aborted_ = true;
   concurrency_control_->Abort();
+  concurrency_control_->PostProcessing(TxStatus::Aborted);
 }
 bool Transaction::Impl::Precommit() {
-  if (user_aborted_) {
-    concurrency_control_->PostProcessing(TxStatus::Aborted);
-    return false;
-  }
+  assert(!user_aborted_);
 
   bool committed = concurrency_control_->Precommit();
   if (committed) {

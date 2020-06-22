@@ -446,9 +446,9 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         Snapshot* ws_entry_for_this_snapshot;
         for (auto& ws_entry : tx_ref_.write_set_ref_) {
           if (ws_entry.index_cache != snapshot.item_p_cache) continue;
-          if (ws_entry.is_read_modify_write) break;
           ws_entry_for_this_snapshot = &ws_entry;
         }
+        if (!ws_entry_for_this_snapshot->is_read_modify_write) continue;
 
         // It is the first blind write into the data item in this epoch
         auto new_snapshot = my_pivot_object_;

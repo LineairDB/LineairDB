@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const auto threads              = result["thread"].as<size_t>();
+  const uint64_t threads          = result["thread"].as<size_t>();
   const auto measurement_duration = result["duration"].as<size_t>();
   const auto algorithm            = result["algorithm"].as<std::string>();
 
