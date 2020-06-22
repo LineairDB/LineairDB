@@ -80,6 +80,7 @@ class TwoPhaseLocking final : public ConcurrencyControlBase {
 
   void Abort() final override { Undo(); };
   bool Precommit() final override { return true; };
+
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 
  private:
@@ -93,6 +94,7 @@ class TwoPhaseLocking final : public ConcurrencyControlBase {
       item.index_cache->GetRWLockRef().UnLock();
     }
     for (auto& item : tx_ref_.write_set_ref_) {
+      if (item.is_read_modify_write) continue;
       item.index_cache->GetRWLockRef().UnLock();
     }
   }

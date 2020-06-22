@@ -103,6 +103,7 @@ TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
     }
     tx.Abort();
   });
+
   TransactionProcedure readTenTimes([](LineairDB::Transaction& tx) {
     for (size_t idx = 0; idx <= 10; idx++) {
       auto result = tx.Read<int>("alice" + std::to_string(idx));

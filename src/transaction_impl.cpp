@@ -116,10 +116,14 @@ void Transaction::Impl::Write(const std::string_view key,
   auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
+  if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
 
-void Transaction::Impl::Abort() { user_aborted_ = true; }
+void Transaction::Impl::Abort() {
+  user_aborted_ = true;
+  concurrency_control_->Abort();
+}
 bool Transaction::Impl::Precommit() {
   if (user_aborted_) {
     concurrency_control_->PostProcessing(TxStatus::Aborted);

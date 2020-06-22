@@ -24,6 +24,7 @@
 #include <thread>
 
 #include "lock/lock.h"
+#include "util/backoff.hpp"
 
 namespace LineairDB {
 
@@ -36,12 +37,11 @@ class ReadersWritersLockImpl
   enum class LockType { Exclusive, Shared, Upgrade };
   ReadersWritersLockImpl() : lock_bit_(UnLocked) {}
   void Lock(LockType type = LockType::Exclusive) {
-    [[maybe_unused]] size_t sleep_ns = 100;
-    while (!TryLock(type)) {
-      if constexpr (EnableBackoff) {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_ns));
-        sleep_ns *= 2;  // Exponential Backoff
-      } else {
+    if constexpr (EnableBackoff) {
+      Util::RetryWithExponentialBackoff([&]() { return TryLock(type); });
+    } else {
+      for (;;) {
+        if (TryLock(type)) break;
         std::this_thread::yield();
       }
     }
@@ -56,33 +56,47 @@ class ReadersWritersLockImpl
       }
       auto desired = AddReader(current);
       return lock_bit_.compare_exchange_weak(current, desired);
-    } else {
+    } else if (type == LockType::Exclusive) {
       /** Acquire Writer (exclusive) Lock **/
       if (lock_bit_.load() != UnLocked) return false;
 
       auto unlocked = UnLocked;
       return lock_bit_.compare_exchange_weak(unlocked, ExclusivelyLocked);
+    } else {
+      assert(type == LockType::Upgrade);
+      auto current = lock_bit_.load();
+      assert(IsThereAnyReader(current));
+
+      /** Upgrade to Writer (exclusive) Lock **/
+      if (GetNumberOfReaders(current) == 1) {
+        // it seems that I am the only reader
+        return lock_bit_.compare_exchange_weak(current, ExclusivelyLocked);
+      } else {
+        return false;
+      }
     }
   }
 
   void UnLock() {
     auto current = lock_bit_.load();
+    assert(!IsUnlocked(current));
     if (IsExclusivelyLocked(current)) {
       lock_bit_.store(UnLocked);
       return;
     }
 
-    [[maybe_unused]] size_t sleep_ns = 100;
-    for (;;) {
-      current = lock_bit_.load();
-      assert(IsThereAnyReader(current));
-      auto desired = SubReader(current);
-      if (lock_bit_.compare_exchange_weak(current, desired)) return;
-      if constexpr (EnableBackoff) {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_ns));
-        sleep_ns *= 2;  // Exponential Backoff
-      } else {
-        std::this_thread::yield();
+    if constexpr (EnableBackoff) {
+      Util::RetryWithExponentialBackoff([&]() {
+        assert(IsThereAnyReader(current));
+        auto desired = SubReader(current);
+        return lock_bit_.compare_exchange_weak(current, desired);
+      });
+    } else {
+      for (;;) {
+        current = lock_bit_.load();
+        assert(IsThereAnyReader(current));
+        auto desired = SubReader(current);
+        if (lock_bit_.compare_exchange_weak(current, desired)) break;
       }
     }
   }
@@ -100,6 +114,7 @@ class ReadersWritersLockImpl
   constexpr static uint64_t Reader            = 1llu << 1;
   constexpr static uint64_t ReadersFull       = ~1llu;
 
+  inline static bool IsUnlocked(const uint64_t n) { return n == UnLocked; }
   inline static bool IsExclusivelyLocked(const uint64_t n) {
     return n == ExclusivelyLocked;
   }
@@ -111,6 +126,9 @@ class ReadersWritersLockImpl
   }
   inline static uint64_t AddReader(const uint64_t n) { return n + Reader; }
   inline static uint64_t SubReader(const uint64_t n) { return n - Reader; }
+  inline static uint64_t GetNumberOfReaders(const uint64_t n) {
+    return n >> ExclusivelyLocked;
+  }
 };
 using ReadersWritersLock     = ReadersWritersLockImpl<false, false>;
 using ReadersWritersLockBO   = ReadersWritersLockImpl<true, false>;

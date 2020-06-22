@@ -98,7 +98,7 @@ struct DataItem {
 
   decltype(readers_writers_lock)& GetRWLockRef() {
     if (cc_tag != CCTag::RW_LOCK) {
-      pivot_object.store({});
+      new (&readers_writers_lock) decltype(readers_writers_lock);
       cc_tag = CCTag::RW_LOCK;
     }
     return readers_writers_lock;
