@@ -93,7 +93,17 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
 }
 
 TEST_P(ConcurrencyControlTest, AvoidingDeadLock) {
-  // TODO Impl
+  TransactionProcedure readX_writeY([](LineairDB::Transaction& tx) {
+    tx.Read<int>("x");
+    tx.Write<int>("y", 0xDEADBEEF);
+  });
+  TransactionProcedure readY_writeX([](LineairDB::Transaction& tx) {
+    tx.Read<int>("y");
+    tx.Write<int>("x", 0xDEADBEEF);
+  });
+
+  TestHelper::DoTransactionsOnMultiThreads(
+      db_.get(), {readX_writeY, readX_writeY, readY_writeX, readY_writeX});
 }
 TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
@@ -129,7 +139,7 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
       auto first_value = first_result.value();
       for (size_t idx = 0; idx <= 10; idx++) {
         auto result = tx.Read<int>("alice");
-        ASSERT_TRUE(result.has_value());
+        if (!result.has_value()) return tx.Abort();
         ASSERT_EQ(result.value(), first_value);
       }
     }
@@ -149,12 +159,12 @@ TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
 
   TransactionProcedure readAliceWriteBob([](LineairDB::Transaction& tx) {
     auto result = tx.Read<int>("alice");
-    ASSERT_TRUE(result.has_value());
+    if (!result.has_value()) return tx.Abort();
     tx.Write<int>("bob", result.value() += 1);
   });
   TransactionProcedure readBobWriteAlice([](LineairDB::Transaction& tx) {
     auto result = tx.Read<int>("bob");
-    ASSERT_TRUE(result.has_value());
+    if (!result.has_value()) return tx.Abort();
     tx.Write<int>("alice", result.value() += 1);
   });
 
