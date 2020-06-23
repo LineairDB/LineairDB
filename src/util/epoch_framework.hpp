@@ -22,6 +22,7 @@
 #include <atomic>
 #include <thread>
 
+#include "spdlog/spdlog.h"
 #include "util/thread_key_storage.h"
 
 namespace LineairDB {

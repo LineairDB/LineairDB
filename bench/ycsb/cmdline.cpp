@@ -42,6 +42,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&, bool);
 const std::map<std::string, LineairDB::Config::ConcurrencyControl> Protocols = {
     {"Silo", LineairDB::Config::ConcurrencyControl::Silo},
     {"SiloNWR", LineairDB::Config::ConcurrencyControl::SiloNWR},
+    {"2PL", LineairDB::Config::ConcurrencyControl::TwoPhaseLocking},
 };
 
 int main(int argc, char** argv) {

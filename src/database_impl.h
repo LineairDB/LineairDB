@@ -77,6 +77,12 @@ class Database::Impl {
         Transaction tx(this);
 
         transaction_procedure(tx);
+        if (tx.tx_pimpl_->user_aborted_) {
+          callback(LineairDB::TxStatus::Aborted);
+          epoch_framework_.MakeMeOffline();
+          return;
+        }
+
         bool committed = tx.Precommit();
         if (committed) {
           if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
@@ -99,6 +105,13 @@ class Database::Impl {
   }
 
   bool EndTransaction(Transaction& tx, CallbackType clbk) {
+    if (tx.tx_pimpl_->user_aborted_) {
+      clbk(LineairDB::TxStatus::Aborted);
+      epoch_framework_.MakeMeOffline();
+      delete &tx;
+      return false;
+    }
+
     bool committed = tx.Precommit();
     if (committed) {
       if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }

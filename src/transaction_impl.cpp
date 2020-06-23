@@ -27,6 +27,7 @@
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/impl/silo_nwr.hpp"
+#include "concurrency_control/impl/two_phase_locking.hpp"
 #include "database_impl.h"
 #include "types.h"
 namespace LineairDB {
@@ -51,6 +52,12 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
       concurrency_control_ = std::make_unique<ConcurrencyControl::Silo>(
           std::forward<TransactionReferences>(tx));
       break;
+    case Config::ConcurrencyControl::TwoPhaseLocking:
+      concurrency_control_ =
+          std::make_unique<ConcurrencyControl::TwoPhaseLocking>(
+              std::forward<TransactionReferences>(tx));
+      break;
+
     default:
       concurrency_control_ = std::make_unique<ConcurrencyControl::SiloNWR>(
           std::forward<TransactionReferences>(tx));
@@ -109,15 +116,17 @@ void Transaction::Impl::Write(const std::string_view key,
   auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
+  if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
 
-void Transaction::Impl::Abort() { user_aborted_ = true; }
+void Transaction::Impl::Abort() {
+  user_aborted_ = true;
+  concurrency_control_->Abort();
+  concurrency_control_->PostProcessing(TxStatus::Aborted);
+}
 bool Transaction::Impl::Precommit() {
-  if (user_aborted_) {
-    concurrency_control_->PostProcessing(TxStatus::Aborted);
-    return false;
-  }
+  assert(!user_aborted_);
 
   bool committed = concurrency_control_->Precommit();
   if (committed) {

@@ -51,11 +51,12 @@ class ConcurrencyControlTest
   }
 };
 
-const std::array<std::string, 2> Protocols{"Silo", "SiloNWR"};
+const std::array<std::string, 3> Protocols{"Silo", "SiloNWR", "2PL"};
 INSTANTIATE_TEST_SUITE_P(
     ForEachProtocol, ConcurrencyControlTest,
     ::testing::Values(LineairDB::Config::ConcurrencyControl::Silo,
-                      LineairDB::Config::ConcurrencyControl::SiloNWR),
+                      LineairDB::Config::ConcurrencyControl::SiloNWR,
+                      LineairDB::Config::ConcurrencyControl::TwoPhaseLocking),
     [](const testing::TestParamInfo<LineairDB::Config::ConcurrencyControl>&
            param) { return Protocols[param.index]; });
 
@@ -91,7 +92,20 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
                              }});
 }
 
-TEST_P(ConcurrencyControlTest, AvodingDirtyReadAnomaly) {
+TEST_P(ConcurrencyControlTest, AvoidingDeadLock) {
+  TransactionProcedure readX_writeY([](LineairDB::Transaction& tx) {
+    tx.Read<int>("x");
+    tx.Write<int>("y", 0xDEADBEEF);
+  });
+  TransactionProcedure readY_writeX([](LineairDB::Transaction& tx) {
+    tx.Read<int>("y");
+    tx.Write<int>("x", 0xDEADBEEF);
+  });
+
+  TestHelper::DoTransactionsOnMultiThreads(
+      db_.get(), {readX_writeY, readX_writeY, readY_writeX, readY_writeX});
+}
+TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
@@ -99,6 +113,7 @@ TEST_P(ConcurrencyControlTest, AvodingDirtyReadAnomaly) {
     }
     tx.Abort();
   });
+
   TransactionProcedure readTenTimes([](LineairDB::Transaction& tx) {
     for (size_t idx = 0; idx <= 10; idx++) {
       auto result = tx.Read<int>("alice" + std::to_string(idx));
@@ -124,7 +139,7 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
       auto first_value = first_result.value();
       for (size_t idx = 0; idx <= 10; idx++) {
         auto result = tx.Read<int>("alice");
-        ASSERT_TRUE(result.has_value());
+        if (!result.has_value()) return tx.Abort();
         ASSERT_EQ(result.value(), first_value);
       }
     }
@@ -144,12 +159,12 @@ TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
 
   TransactionProcedure readAliceWriteBob([](LineairDB::Transaction& tx) {
     auto result = tx.Read<int>("alice");
-    ASSERT_TRUE(result.has_value());
+    if (!result.has_value()) return tx.Abort();
     tx.Write<int>("bob", result.value() += 1);
   });
   TransactionProcedure readBobWriteAlice([](LineairDB::Transaction& tx) {
     auto result = tx.Read<int>("bob");
-    ASSERT_TRUE(result.has_value());
+    if (!result.has_value()) return tx.Abort();
     tx.Write<int>("alice", result.value() += 1);
   });
 
@@ -180,8 +195,8 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   /** T1: r1(y0) w1(y1) **/
   TransactionProcedure T1([&](LineairDB::Transaction& tx) {
     auto y = tx.Read<int>("y");
-    ASSERT_TRUE(y.has_value());
-    ASSERT_EQ(0, y.value());
+    EXPECT_TRUE(y.has_value());
+    EXPECT_EQ(0, y.value());
 
     while (waits) { std::this_thread::yield(); }
 
@@ -191,9 +206,9 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   TransactionProcedure T2([&](LineairDB::Transaction& tx) {
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
-    ASSERT_TRUE(x.has_value() && y.has_value());
-    ASSERT_EQ(0, x.value());
-    ASSERT_EQ(0, y.value());
+    EXPECT_TRUE(x.has_value() && y.has_value());
+    EXPECT_EQ(0, x.value());
+    EXPECT_EQ(0, y.value());
 
     waits.store(false);
     std::this_thread::yield();
@@ -208,7 +223,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
     std::this_thread::yield();
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
-    ASSERT_TRUE(x.has_value() && y.has_value());
+    if (!(x.has_value() && y.has_value())) return tx.Abort();
     if (y.value() != 20) return tx.Abort();
     x_value_read_by_t3.store(x.value());
     y_value_read_by_t3.store(y.value());
