@@ -195,6 +195,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   /** T1: r1(y0) w1(y1) **/
   TransactionProcedure T1([&](LineairDB::Transaction& tx) {
     auto y = tx.Read<int>("y");
+    if (!y.has_value()) return tx.Abort();
     EXPECT_TRUE(y.has_value());
     EXPECT_EQ(0, y.value());
 
@@ -206,7 +207,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   TransactionProcedure T2([&](LineairDB::Transaction& tx) {
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
-    EXPECT_TRUE(x.has_value() && y.has_value());
+    if (!(x.has_value() && y.has_value())) return tx.Abort();
     EXPECT_EQ(0, x.value());
     EXPECT_EQ(0, y.value());
 
