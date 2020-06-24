@@ -87,6 +87,7 @@ class ReadersWritersLockImpl
 
     if constexpr (EnableBackoff) {
       Util::RetryWithExponentialBackoff([&]() {
+        current = lock_bit_.load();
         assert(IsThereAnyReader(current));
         auto desired = SubReader(current);
         return lock_bit_.compare_exchange_weak(current, desired);

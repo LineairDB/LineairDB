@@ -201,8 +201,8 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
       std::chrono::milliseconds(workload.measurement_duration));
   finish_flag.store(true);
   auto end = std::chrono::high_resolution_clock::now();
-  for (auto& worker : clients) { worker.join(); }
   SPDLOG_INFO("YCSB: Benchmark end.");
+  for (auto& worker : clients) { worker.join(); }
 
   db.Fence();
   SPDLOG_INFO("YCSB: DB Fenced.");
