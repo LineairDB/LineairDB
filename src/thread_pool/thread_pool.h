@@ -45,7 +45,7 @@ class ThreadPool {
 
  private:
   size_t GetIdxByThreadId();
-  void Dequeue();
+  bool Dequeue();
 
  private:
   bool stop_;

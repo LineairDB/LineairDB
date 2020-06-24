@@ -117,6 +117,7 @@ void Transaction::Impl::Write(const std::string_view key,
   }
 
   auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
+  assert(index_leaf != nullptr);
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
   if (is_rmf) sp.is_read_modify_write = true;

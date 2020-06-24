@@ -26,6 +26,8 @@
 #include <thread>
 #include <vector>
 
+#include "util/backoff.hpp"
+
 namespace LineairDB {
 ThreadPool::ThreadPool(size_t pool_size)
     : stop_(false),
@@ -35,9 +37,17 @@ ThreadPool::ThreadPool(size_t pool_size)
   assert(work_queues_.size() == pool_size);
   for (size_t i = 0; i < pool_size; i++) {
     worker_threads_.emplace_back([&]() {
+      bool stop = false;
       for (;;) {
-        Dequeue();
-        if (stop_ && IsEmpty() && shutdown_) { break; }
+        Util::RetryWithExponentialBackoff([&]() {
+          if (stop_ && IsEmpty() && shutdown_) {
+            stop = true;
+            return true;
+          }
+
+          return Dequeue();
+        });
+        if (stop) { break; }
       }
     });
   }
@@ -92,10 +102,11 @@ void ThreadPool::WaitForQueuesToBecomeEmpty() {
       if (success) break;
     }
   }
-  while (ends.load() < worker_threads_.size()) std::this_thread::yield();
+  Util::RetryWithExponentialBackoff(
+      [&]() { return ends.load() < worker_threads_.size(); });
 }
 
-void ThreadPool::Dequeue() {
+bool ThreadPool::Dequeue() {
   size_t idx              = GetIdxByThreadId();
   auto* my_queue          = &work_queues_[idx];
   auto* my_no_steal_queue = &no_steal_queues_[idx];
@@ -111,10 +122,7 @@ void ThreadPool::Dequeue() {
       selected_queue = &work_queues_[idx];
 
       // It seems that there does not exist any transaction
-      if (my_queue == selected_queue) {
-        std::this_thread::yield();
-        return;
-      }
+      if (my_queue == selected_queue) { return false; }
     }
   }
   std::function<void()> f;
@@ -123,6 +131,7 @@ void ThreadPool::Dequeue() {
     assert(f);
     f();
   }
+  return dequeued;
 }
 
 size_t ThreadPool::GetIdxByThreadId() {

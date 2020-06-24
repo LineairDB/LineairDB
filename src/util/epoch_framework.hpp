@@ -23,6 +23,7 @@
 #include <thread>
 
 #include "spdlog/spdlog.h"
+#include "util/backoff.hpp"
 #include "util/thread_key_storage.h"
 
 namespace LineairDB {
@@ -49,15 +50,15 @@ class EpochFramework {
   EpochFramework(size_t epoch_duration_ms = 40)
       : start_(false),
         stop_(false),
-        global_epoch_(1),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }),
+        global_epoch_(1) {}
   EpochFramework(size_t epoch_duration_ms,
                  std::function<void(EpochNumber)>&& pt)
       : start_(false),
         stop_(false),
-        global_epoch_(1),
         publish_target_(pt),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }),
+        global_epoch_(1) {}
 
   ~EpochFramework() { Stop(); }
 
@@ -86,15 +87,10 @@ class EpochFramework {
 
   EpochNumber Sync() {
     assert(GetMyThreadLocalEpoch() == THREAD_OFFLINE);
-    size_t reload_count = 0;
-    for (;;) {
-      auto current_epoch = global_epoch_.load();
-      auto reload_epoch  = global_epoch_.load();
-      while (current_epoch == reload_epoch) {
-        std::this_thread::yield();
-        reload_epoch = global_epoch_.load();
-      }
-      reload_count++;
+    auto current_epoch = global_epoch_.load();
+    auto reload_epoch  = current_epoch;
+    Util::RetryWithExponentialBackoff([&]() {
+      reload_epoch = global_epoch_.load();
 
       // Note that each thread always belongs to either one of the two epochs,
       // the old one and the one that matches the global epoch.
@@ -102,8 +98,9 @@ class EpochFramework {
       // when Sync() is called. The next while loop waits for all threads to
       // progress to the next epoch.
 
-      if (reload_count == 2) return reload_epoch;
-    }
+      return current_epoch + 2 <= reload_epoch;
+    });
+    return reload_epoch;
   }
 
   void Start() { start_.store(true); }
@@ -142,9 +139,9 @@ class EpochFramework {
  private:
   std::atomic<bool> start_;
   std::atomic<bool> stop_;
-  std::atomic<EpochNumber> global_epoch_;
   const std::function<void(EpochNumber)> publish_target_;
   std::thread epoch_writer_;
+  std::atomic<EpochNumber> global_epoch_;
   ThreadKeyStorage<EpochNumber> tls_;
 };
 
