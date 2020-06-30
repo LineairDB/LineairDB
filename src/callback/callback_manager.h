@@ -45,8 +45,8 @@ function. We can decide here whether the callee thread is willing to manage the
 callback or not. If it is set to false, it is expected the other threads to
 manage this callback as work-stealing.
    */
-  void Enqueue(const LineairDB::Database::CallbackType& callback,
-               EpochNumber epoch, bool entrusting = false);
+  void Enqueue(const Database::CallbackType& callback, EpochNumber epoch,
+               bool entrusting = false);
   void ExecuteCallbacks(EpochNumber new_epoch);
   void WaitForAllCallbacksToBeExecuted();
 
