@@ -71,7 +71,7 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
 
   TransactionProcedure increment([](LineairDB::Transaction& tx) {
     auto alice = tx.Read<int>("alice");
-    ASSERT_TRUE(alice.has_value());
+    if (!alice.has_value()) return tx.Abort();
     int current_value = alice.value();
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     current_value++;

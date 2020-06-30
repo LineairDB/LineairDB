@@ -443,21 +443,23 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       // in this epoch, update the pivot version.
       if (old_snapshot.versions.epoch != current_epoch &&
           snapshot.set_type == PivotObjectSnapshot::WRITESET) {
-        Snapshot* ws_entry_for_this_snapshot;
+        Snapshot* ws_entry_for_this_snapshot = nullptr;
         for (auto& ws_entry : tx_ref_.write_set_ref_) {
           if (ws_entry.index_cache != snapshot.item_p_cache) continue;
+          if (ws_entry.is_read_modify_write) break;
+
           ws_entry_for_this_snapshot = &ws_entry;
         }
-        if (!ws_entry_for_this_snapshot->is_read_modify_write) continue;
-
-        // It is the first blind write into the data item in this epoch
-        auto new_snapshot = my_pivot_object_;
-        assert(new_snapshot.versions.epoch == current_epoch);
-        new_snapshot.versions.target_id =
-            ws_entry_for_this_snapshot->data_item_copy.transaction_id.load()
-                .tid;
-        data_item_p->pivot_object.store(new_snapshot);
-        continue;
+        if (ws_entry_for_this_snapshot != nullptr) {
+          // It is the first blind write into the data item in this epoch
+          auto new_snapshot = my_pivot_object_;
+          assert(new_snapshot.versions.epoch == current_epoch);
+          new_snapshot.versions.target_id =
+              ws_entry_for_this_snapshot->data_item_copy.transaction_id.load()
+                  .tid;
+          data_item_p->pivot_object.store(new_snapshot);
+          continue;
+        }
       }
 
       bool cas_success = false;
