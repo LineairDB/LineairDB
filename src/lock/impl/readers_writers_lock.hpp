@@ -107,7 +107,7 @@ class ReadersWritersLockImpl
 
  private:
   std::atomic<uint64_t> lock_bit_;
-  [[maybe_unused]] char cacheline_padding_[63];
+  char cacheline_padding_[63];
   static_assert(decltype(lock_bit_)::is_always_lock_free);
 
   constexpr static uint64_t ExclusivelyLocked = 1llu;
