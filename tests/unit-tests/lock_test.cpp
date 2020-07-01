@@ -59,7 +59,7 @@ TYPED_TEST(LockTest, MultiThreaded) {
     while (barrier.load()) std::this_thread::yield();
     ASSERT_TRUE(lock.TryLock());
   });
-  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   lock.UnLock();
   barrier.store(false);
   the_other_thread.wait();
