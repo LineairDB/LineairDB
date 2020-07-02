@@ -77,7 +77,7 @@ class Database::Impl {
         Transaction tx(this);
 
         transaction_procedure(tx);
-        if (tx.tx_pimpl_->user_aborted_) {
+        if (tx.IsAborted()) {
           callback(LineairDB::TxStatus::Aborted);
           epoch_framework_.MakeMeOffline();
           return;
@@ -105,8 +105,8 @@ class Database::Impl {
   }
 
   bool EndTransaction(Transaction& tx, CallbackType clbk) {
-    if (tx.tx_pimpl_->user_aborted_) {
-      clbk(LineairDB::TxStatus::Aborted);
+    if (tx.IsAborted()) {
+      clbk(TxStatus::Aborted);
       epoch_framework_.MakeMeOffline();
       delete &tx;
       return false;
@@ -114,12 +114,13 @@ class Database::Impl {
 
     bool committed = tx.Precommit();
     if (committed) {
+      tx.tx_pimpl_->current_status_ = TxStatus::Committed;
       if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
       const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
       logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
       callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
     } else {
-      clbk(LineairDB::TxStatus::Aborted);
+      clbk(TxStatus::Aborted);
     }
     epoch_framework_.MakeMeOffline();
 

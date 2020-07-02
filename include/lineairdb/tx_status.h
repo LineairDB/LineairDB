@@ -22,7 +22,7 @@ namespace LineairDB {
   @brief When a transaction terminates, database must return Committed or
   Aborted. The following enum describes them.
  */
-enum TxStatus { NotYetTerminated, Committed, Aborted };
+enum TxStatus { Running, Committed, Aborted };
 
 }  // namespace LineairDB
 

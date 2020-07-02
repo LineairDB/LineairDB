@@ -16,6 +16,8 @@
 #ifndef LINEAIRDB_TRANSACTION_H
 #define LINEAIRDB_TRANSACTION_H
 
+#include <lineairdb/tx_status.h>
+
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -46,6 +48,18 @@ namespace LineairDB {
  **/
 class Transaction {
  public:
+  /**
+   * @brief Get the current transaction status.
+   * For transactions such that GetCurrentStatus() returns TxStatus::Aborted,
+   * it is not guaranteed for subsequent read operations returns the correct
+   * values.
+   * @return TxStatus
+   */
+  TxStatus GetCurrentStatus();
+  bool IsRunning() { return GetCurrentStatus() == TxStatus::Running; }
+  bool IsCommitted() { return GetCurrentStatus() == TxStatus::Aborted; }
+  bool IsAborted() { return GetCurrentStatus() == TxStatus::Aborted; }
+
   /**
    * @brief If the database contains a data item for "key", returns a pair
    * (a pointer of value, the size of value).
