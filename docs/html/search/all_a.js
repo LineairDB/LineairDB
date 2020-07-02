@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['proceduretype_27',['ProcedureType',['../class_lineair_d_b_1_1_database.html#a2bc7a5c80f83314de97efd25a59409a0',1,'LineairDB::Database']]]
+  ['operator_3d',['operator=',['../classLineairDB_1_1Database.html#a3efa30ddbfacfd33270d483072b19acc',1,'LineairDB::Database::operator=(const Database &amp;)=delete'],['../classLineairDB_1_1Database.html#afc96bcc93a7c68b30784e36e9aa4198d',1,'LineairDB::Database::operator=(Database &amp;&amp;)=delete']]]
 ];

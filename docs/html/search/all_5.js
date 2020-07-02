@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['getconfig_19',['GetConfig',['../class_lineair_d_b_1_1_database.html#abd848da7f5cef8d50105ef380d4bac6d',1,'LineairDB::Database']]]
+  ['fence',['Fence',['../classLineairDB_1_1Database.html#ad41349e9df9ad939de6d77e7b69dc469',1,'LineairDB::Database']]]
 ];

@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['write_61',['Write',['../class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093',1,'LineairDB::Transaction::Write(const std::string_view key, const std::byte value[], const size_t size)'],['../class_lineair_d_b_1_1_transaction.html#a8a6875293b2d2fad667a625fe63bfe80',1,'LineairDB::Transaction::Write(const std::string_view key, const T &amp;value)']]]
+  ['operator_3d',['operator=',['../classLineairDB_1_1Database.html#a3efa30ddbfacfd33270d483072b19acc',1,'LineairDB::Database::operator=(const Database &amp;)=delete'],['../classLineairDB_1_1Database.html#afc96bcc93a7c68b30784e36e9aa4198d',1,'LineairDB::Database::operator=(Database &amp;&amp;)=delete']]]
 ];

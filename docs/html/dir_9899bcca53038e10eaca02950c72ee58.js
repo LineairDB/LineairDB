@@ -1,14 +1,14 @@
 var dir_9899bcca53038e10eaca02950c72ee58 =
 [
     [ "config.h", "config_8h.html", [
-      [ "Config", "struct_lineair_d_b_1_1_config.html", "struct_lineair_d_b_1_1_config" ]
+      [ "Config", "structLineairDB_1_1Config.html", "structLineairDB_1_1Config" ]
     ] ],
     [ "database.h", "database_8h.html", [
-      [ "Database", "class_lineair_d_b_1_1_database.html", "class_lineair_d_b_1_1_database" ]
+      [ "Database", "classLineairDB_1_1Database.html", "classLineairDB_1_1Database" ]
     ] ],
     [ "lineairdb.h", "lineairdb_8h.html", null ],
     [ "transaction.h", "transaction_8h.html", [
-      [ "Transaction", "class_lineair_d_b_1_1_transaction.html", "class_lineair_d_b_1_1_transaction" ]
+      [ "Transaction", "classLineairDB_1_1Transaction.html", "classLineairDB_1_1Transaction" ]
     ] ],
     [ "tx_status.h", "tx__status_8h.html", "tx__status_8h" ]
 ];

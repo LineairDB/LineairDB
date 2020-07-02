@@ -1,6 +1,5 @@
 var searchData=
 [
-  ['lineairdb_20',['LineairDB',['../namespace_lineair_d_b.html',1,'']]],
-  ['lineairdb_2eh_21',['lineairdb.h',['../lineairdb_8h.html',1,'']]],
-  ['logger_22',['Logger',['../struct_lineair_d_b_1_1_config.html#a56c0a3463d08e5fb71efdc9ff2f4e351',1,'LineairDB::Config::Logger()'],['../struct_lineair_d_b_1_1_config.html#a1ea4e01684a9093cea446ebda4cac678',1,'LineairDB::Config::logger()']]]
+  ['getconfig',['GetConfig',['../classLineairDB_1_1Database.html#abd848da7f5cef8d50105ef380d4bac6d',1,'LineairDB::Database']]],
+  ['getcurrentstatus',['GetCurrentStatus',['../classLineairDB_1_1Transaction.html#a1e8c3221fd997bc1222794be55aec41c',1,'LineairDB::Transaction']]]
 ];

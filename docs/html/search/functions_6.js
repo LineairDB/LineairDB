@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['operator_3d_59',['operator=',['../class_lineair_d_b_1_1_database.html#a3efa30ddbfacfd33270d483072b19acc',1,'LineairDB::Database::operator=(const Database &amp;)=delete'],['../class_lineair_d_b_1_1_database.html#afc96bcc93a7c68b30784e36e9aa4198d',1,'LineairDB::Database::operator=(Database &amp;&amp;)=delete']]]
+  ['getconfig',['GetConfig',['../classLineairDB_1_1Database.html#abd848da7f5cef8d50105ef380d4bac6d',1,'LineairDB::Database']]],
+  ['getcurrentstatus',['GetCurrentStatus',['../classLineairDB_1_1Transaction.html#a1e8c3221fd997bc1222794be55aec41c',1,'LineairDB::Transaction']]]
 ];

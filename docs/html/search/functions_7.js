@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['read_60',['Read',['../class_lineair_d_b_1_1_transaction.html#af96be52d5b9429bb016daf00fd08cacd',1,'LineairDB::Transaction::Read(const std::string_view key)'],['../class_lineair_d_b_1_1_transaction.html#a82d6afa8eb77cb99572d1ab3e2cbe056',1,'LineairDB::Transaction::Read(const std::string_view key)']]]
+  ['isaborted',['IsAborted',['../classLineairDB_1_1Transaction.html#aefdf1c6f41ec035170422a803c9ccde7',1,'LineairDB::Transaction']]],
+  ['iscommitted',['IsCommitted',['../classLineairDB_1_1Transaction.html#ac5637b9ddcb467074d6671afd5dcd349',1,'LineairDB::Transaction']]],
+  ['isrunning',['IsRunning',['../classLineairDB_1_1Transaction.html#aa87041ff8dcce1b217a18107572c09ff',1,'LineairDB::Transaction']]]
 ];
