@@ -41,16 +41,13 @@ template <DeadLockAvoidanceType deadlock_avoidance_type =
 class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
  public:
   TwoPhaseLockingImpl(TransactionReferences&& tx)
-      : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)),
-        is_aborted_(false) {}
+      : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)) {}
 
   ~TwoPhaseLockingImpl() final override{};
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
-    if (is_aborted_)
-      return {};  // NOTE: it means that 2PL does not ensure opacity.
     auto& rw_lock = index_leaf->GetRWLockRef();
 
     auto lock_acquired = rw_lock.TryLock(
@@ -58,7 +55,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
 
     if (!lock_acquired) {
       if constexpr (deadlock_avoidance_type == DeadLockAvoidanceType::NoWait) {
-        is_aborted_ = true;
+        Abort();
         return {};
       } else {
         SPDLOG_ERROR(
@@ -74,7 +71,6 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
   void Write(const std::string_view key, const std::byte* const value,
              const size_t size, DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
-    if (is_aborted_) return;
 
     auto& rw_lock             = index_leaf->GetRWLockRef();
     bool is_read_modify_write = false;
@@ -98,7 +94,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     }
     if (!lock_acquired) {
       if constexpr (deadlock_avoidance_type == DeadLockAvoidanceType::NoWait) {
-        is_aborted_ = true;
+        Abort();
         return;
       } else {
         SPDLOG_ERROR(
@@ -114,10 +110,17 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
   };
 
   void Abort() final override {
-    is_aborted_ = true;
-    Undo();
+    if (tx_ref_.current_status_ref_ == TxStatus::Aborted) {
+      // User abort or Sysabort on the commit request
+      Undo();
+    } else {
+      // Sysabort on acquiring lockings
+      tx_ref_.current_status_ref_ = TxStatus::Aborted;
+      Undo();
+      PostProcessing(TxStatus::Aborted);
+    }
   };
-  bool Precommit() final override { return !is_aborted_; };
+  bool Precommit() final override { return true; };
 
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 
@@ -135,7 +138,6 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
  private:
   std::vector<std::pair<DataItem*, DataItem>> undo_set_;
   std::set<DataItem*> read_lock_set_;
-  bool is_aborted_;
 };
 
 using TwoPhaseLocking = TwoPhaseLockingImpl<DeadLockAvoidanceType::NoWait>;

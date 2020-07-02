@@ -31,6 +31,7 @@ struct TransactionReferences {
   ReadSetType& read_set_ref_;
   WriteSetType& write_set_ref_;
   const EpochNumber& my_epoch_ref_;
+  TxStatus& current_status_ref_;
 };
 class ConcurrencyControlBase {
  public:

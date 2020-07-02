@@ -33,11 +33,12 @@
 namespace LineairDB {
 
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
-    : user_aborted_(false),
+    : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
       config_ref_(db_pimpl_->GetConfig()) {
   TransactionReferences&& tx = {read_set_, write_set_,
-                                db_pimpl_->GetMyThreadLocalEpoch()};
+                                db_pimpl_->GetMyThreadLocalEpoch(),
+                                current_status_};
 
   // WANTFIX for performance
   // Here we allocate one (derived) concurrency control instance per
@@ -68,9 +69,10 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
 
 Transaction::Impl::~Impl() noexcept = default;
 
+TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
-  if (user_aborted_) return {nullptr, 0};
+  if (IsAborted()) return {nullptr, 0};
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == key) {
@@ -96,7 +98,7 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
 void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {
-  if (user_aborted_) return;
+  if (IsAborted()) return;
 
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
@@ -121,22 +123,28 @@ void Transaction::Impl::Write(const std::string_view key,
 }
 
 void Transaction::Impl::Abort() {
-  user_aborted_ = true;
-  concurrency_control_->Abort();
-  concurrency_control_->PostProcessing(TxStatus::Aborted);
+  if (!IsAborted()) {
+    current_status_ = TxStatus::Aborted;
+    concurrency_control_->Abort();
+    concurrency_control_->PostProcessing(TxStatus::Aborted);
+  }
 }
 bool Transaction::Impl::Precommit() {
-  assert(!user_aborted_);
+  if (IsAborted()) return false;
 
   bool committed = concurrency_control_->Precommit();
   if (committed) {
     concurrency_control_->PostProcessing(TxStatus::Committed);
   } else {
+    current_status_ = TxStatus::Aborted;
     concurrency_control_->PostProcessing(TxStatus::Aborted);
   }
   return committed;
 }
 
+TxStatus Transaction::GetCurrentStatus() {
+  return tx_pimpl_->GetCurrentStatus();
+}
 const std::pair<const std::byte* const, const size_t> Transaction::Read(
     const std::string_view key) {
   return tx_pimpl_->Read(key);

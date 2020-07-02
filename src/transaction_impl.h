@@ -54,6 +54,7 @@ class Transaction::Impl {
   Impl(Database::Impl*) noexcept;
   ~Impl() noexcept;
 
+  TxStatus GetCurrentStatus();
   const std::pair<const std::byte* const, const size_t> Read(
       const std::string_view key);
   void Write(const std::string_view key, const std::byte value[],
@@ -62,7 +63,10 @@ class Transaction::Impl {
   bool Precommit();
 
  private:
-  bool user_aborted_;
+  bool IsAborted() { return current_status_ == TxStatus::Aborted; };
+
+ private:
+  TxStatus current_status_;
   Database::Impl* db_pimpl_;
   const Config& config_ref_;
   std::unique_ptr<ConcurrencyControlBase> concurrency_control_;
