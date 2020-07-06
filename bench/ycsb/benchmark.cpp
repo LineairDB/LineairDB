@@ -172,7 +172,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
                                  bool use_handler = true) {
   std::vector<std::thread> clients;
-  std::vector<std::byte[512]> buffers(workload.client_thread_size);
+  std::vector<std::array<std::byte, 512>> buffers(workload.client_thread_size);
   ThreadKeyStorage<RandomGenerator> thread_local_random;
 
   std::atomic<bool> finish_flag{false};
@@ -186,7 +186,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
       waits_count.fetch_add(1);
 
       while (finish_flag.load() == false) {
-        ExecuteWorkload(db, workload, rand, buffers[i], use_handler);
+        ExecuteWorkload(db, workload, rand, &buffers[i][0], use_handler);
       }
     }));
   }

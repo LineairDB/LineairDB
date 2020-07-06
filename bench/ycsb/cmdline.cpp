@@ -101,7 +101,6 @@ int main(int argc, char** argv) {
   LineairDB::Database db(config);
 
   const auto use_handler = result["handler"].as<bool>();
-  std::cout << "boolean: " << use_handler << std::endl;
 
   /** Configure the workload **/
   auto workload_type = result["workload"].as<std::string>();
