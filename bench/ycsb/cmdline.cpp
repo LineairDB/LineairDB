@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
       // std::to_string(std::thread::hardware_concurrency())))  //
       ("H,handler",
        "Use handler interface: queueing threads also execute transactions",
-       cxxopts::value<bool>()->default_value("true"))  //
+       cxxopts::value<bool>()->default_value("false"))  //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
        cxxopts::value<size_t>()->default_value("2000"))  //
       ("o,output", "Output JSON filename",
@@ -100,6 +100,9 @@ int main(int argc, char** argv) {
   config.epoch_duration_ms            = result["epoch"].as<size_t>();
   LineairDB::Database db(config);
 
+  const auto use_handler = result["handler"].as<bool>();
+  std::cout << "boolean: " << use_handler << std::endl;
+
   /** Configure the workload **/
   auto workload_type = result["workload"].as<std::string>();
   YCSB::Workload workload =
@@ -116,9 +119,8 @@ int main(int argc, char** argv) {
   YCSB::PopulateDatabase(db, workload, std::thread::hardware_concurrency());
 
   /** Run the benchmark **/
-  const auto use_handler = result["handler"].as<bool>();
-  auto result_json       = YCSB::RunBenchmark(db, workload, use_handler);
-  auto& allocator        = result_json.GetAllocator();
+  auto result_json = YCSB::RunBenchmark(db, workload, use_handler);
+  auto& allocator  = result_json.GetAllocator();
 
   result_json.AddMember("workload",
                         rapidjson::Value(workload_type.c_str(), allocator),

@@ -172,21 +172,21 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
                                  bool use_handler = true) {
   std::vector<std::thread> clients;
+  std::vector<std::byte[512]> buffers(workload.client_thread_size);
   ThreadKeyStorage<RandomGenerator> thread_local_random;
 
   std::atomic<bool> finish_flag{false};
   std::atomic<bool> start_flag(false);
   std::atomic<size_t> waits_count(0);
   for (size_t i = 0; i < workload.client_thread_size; ++i) {
-    clients.emplace_back(std::thread([&]() {
-      std::byte buffer[workload.payload_size];
+    clients.emplace_back(std::thread([&, i]() {
       RandomGenerator* rand = thread_local_random.Get();
       rand->Init(workload.recordcount, workload.zipfian_theta);
 
       waits_count.fetch_add(1);
 
       while (finish_flag.load() == false) {
-        ExecuteWorkload(db, workload, rand, buffer, use_handler);
+        ExecuteWorkload(db, workload, rand, buffers[i], use_handler);
       }
     }));
   }
@@ -203,7 +203,6 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   auto end = std::chrono::high_resolution_clock::now();
   SPDLOG_INFO("YCSB: Benchmark end.");
   for (auto& worker : clients) { worker.join(); }
-
   db.Fence();
   SPDLOG_INFO("YCSB: DB Fenced.");
 
