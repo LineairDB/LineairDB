@@ -102,8 +102,9 @@ void ThreadPool::WaitForQueuesToBecomeEmpty() {
       if (success) break;
     }
   }
+
   Util::RetryWithExponentialBackoff(
-      [&]() { return ends.load() < worker_threads_.size(); });
+      [&]() { return worker_threads_.size() <= ends.load(); });
 }
 
 bool ThreadPool::Dequeue() {

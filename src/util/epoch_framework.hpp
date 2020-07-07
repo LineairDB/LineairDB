@@ -50,15 +50,15 @@ class EpochFramework {
   EpochFramework(size_t epoch_duration_ms = 40)
       : start_(false),
         stop_(false),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }),
-        global_epoch_(1) {}
+        global_epoch_(1),
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
   EpochFramework(size_t epoch_duration_ms,
                  std::function<void(EpochNumber)>&& pt)
       : start_(false),
         stop_(false),
+        global_epoch_(1),
         publish_target_(pt),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }),
-        global_epoch_(1) {}
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
 
   ~EpochFramework() { Stop(); }
 
@@ -139,9 +139,9 @@ class EpochFramework {
  private:
   std::atomic<bool> start_;
   std::atomic<bool> stop_;
+  std::atomic<EpochNumber> global_epoch_;
   const std::function<void(EpochNumber)> publish_target_;
   std::thread epoch_writer_;
-  std::atomic<EpochNumber> global_epoch_;
   ThreadKeyStorage<EpochNumber> tls_;
 };
 

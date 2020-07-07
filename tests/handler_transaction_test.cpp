@@ -24,6 +24,7 @@
 #include <experimental/filesystem>
 #include <memory>
 #include <thread>
+#include <util/logger.hpp>
 #include <vector>
 
 #include "gtest/gtest.h"
