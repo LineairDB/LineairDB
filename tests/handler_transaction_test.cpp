@@ -29,7 +29,7 @@
 #include "gtest/gtest.h"
 #include "test_helper.hpp"
 
-class DatabaseTest : public ::testing::Test {
+class HandlerTransactionTest : public ::testing::Test {
  protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
@@ -40,7 +40,7 @@ class DatabaseTest : public ::testing::Test {
   }
 };
 
-TEST_F(DatabaseTest, ExecuteTransaction) {
+TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   int value_of_alice = 1;
   auto* db           = db_.get();
   {
@@ -64,7 +64,7 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
   }
 }
 
-TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
+TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
   int value_of_alice = 1;
   auto* db           = db_.get();
   {
@@ -86,7 +86,7 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
   }
 }
 
-TEST_F(DatabaseTest, UserAbort) {
+TEST_F(HandlerTransactionTest, UserAbort) {
   auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
