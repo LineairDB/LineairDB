@@ -19,10 +19,14 @@
 #include <lineairdb/database.h>
 
 #include "types.h"
+#include "util/backoff.hpp"
 
 namespace LineairDB {
 
 namespace Callback {
+
+ThreadLocalCallbackManager::ThreadLocalCallbackManager()
+    : work_steal_queue_size_(0) {}
 
 void ThreadLocalCallbackManager::Enqueue(
     const LineairDB::Database::CallbackType& callback, EpochNumber epoch,
@@ -30,7 +34,9 @@ void ThreadLocalCallbackManager::Enqueue(
   if (entrusting) {
     // The callee thread is not willing to manage this callback.
     // Enqueue to work-stealing queue.
-    work_steal_queue_.enqueue({epoch, callback});
+    auto* my_work_steal_queue = GetMyWorkStealingQueue();
+    my_work_steal_queue->queue.enqueue({epoch, callback});
+
   } else {
     // The caller thread manages the callback. Enqueue to thread-local queue.
     auto* my_storage = thread_key_storage_.Get();
@@ -44,17 +50,29 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
   if (callback_queue.empty()) {
     // my thread-local callback queue is empty.
     // helping to the jobs on the work-stealing queue.
+    const size_t queue_size = work_steal_queue_size_.load();
+    if (0 == queue_size) return;
+    size_t checked_queue      = 0;
+    auto work_steal_queue_itr = work_steal_queues_.begin();
     for (;;) {
-      if (work_steal_queue_.size_approx() == 0) break;
-      std::pair<EpochNumber, LineairDB::Database::CallbackType> pair;
-      auto dequeued = work_steal_queue_.try_dequeue(pair);
-      if (!dequeued) break;
-      if (pair.first < stable_epoch) {
-        pair.second(TxStatus::Committed);
-      } else {
-        work_steal_queue_.enqueue(std::move(pair));
-        break;
+      auto& queue = work_steal_queue_itr->queue;
+
+      for (;;) {
+        if (queue.size_approx() == 0) break;
+        std::pair<EpochNumber, LineairDB::Database::CallbackType> pair;
+        auto dequeued = queue.try_dequeue(pair);
+        if (!dequeued) break;
+        if (pair.first < stable_epoch) {
+          pair.second(TxStatus::Committed);
+        } else {
+          queue.enqueue(std::move(pair));
+          break;
+        }
       }
+
+      checked_queue++;
+      if (checked_queue == queue_size) break;
+      work_steal_queue_itr++;
     }
   } else {
     for (;;) {
@@ -70,7 +88,6 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
   }
 }  // namespace Callback
 void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
-  // NOTE DO NOT CALL FROM WORKER THREAD
   thread_key_storage_.ForEach(
       [&](const ThreadLocalStorageNode* thread_local_node) {
         auto& queue = thread_local_node->callback_queue;
@@ -80,11 +97,41 @@ void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
         }
       });
 
+  size_t checked                     = 0;
+  const size_t work_steal_queue_size = work_steal_queue_size_.load();
+  if (0 == work_steal_queue_size) return;
+  auto itr = work_steal_queues_.begin();
   for (;;) {
-    if (work_steal_queue_.size_approx() == 0) break;
-    std::this_thread::yield();
+    for (;;) {
+      if (itr->queue.size_approx() == 0) break;
+      std::this_thread::yield();
+    }
+    checked++;
+    if (checked == work_steal_queue_size) break;
+    itr++;
   }
   // Here we observed empty queue for all thread.
+}
+
+ThreadLocalCallbackManager::WorkStealingQueueNode*
+ThreadLocalCallbackManager::GetMyWorkStealingQueue() {
+  thread_local WorkStealingQueueNode* my_node = nullptr;
+  thread_local bool my_queue_is_created       = false;
+  if (nullptr != my_node) return my_node;
+
+  if (!my_queue_is_created) {
+    std::lock_guard<std::mutex> guard(list_lock_);
+
+    auto& final_node = work_steal_queues_.back();
+    assert(!final_node.queue_is_on_building);
+    final_node.queue_is_on_building.store(true);
+
+    work_steal_queues_.emplace_back();
+    work_steal_queue_size_.fetch_add(1);
+    my_node = &work_steal_queues_.back();
+  }
+
+  return my_node;
 }
 
 }  // namespace Callback

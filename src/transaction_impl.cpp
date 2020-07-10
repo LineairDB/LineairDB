@@ -105,6 +105,7 @@ void Transaction::Impl::Write(const std::string_view key,
     if (snapshot.key == key) {
       is_rmf                        = true;
       snapshot.is_read_modify_write = true;
+      break;
     }
   }
 

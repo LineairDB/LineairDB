@@ -28,7 +28,8 @@ namespace LineairDB {
 namespace Lock {
 
 template <bool EnableBackoff = false, bool EnableCohort = false>
-class TTASLockImpl : LockBase<TTASLockImpl<EnableBackoff, EnableCohort>> {
+class alignas(64) TTASLockImpl
+    : LockBase<TTASLockImpl<EnableBackoff, EnableCohort>> {
  public:
   enum class LockType { Exclusive };
   TTASLockImpl() : lock_bit_(UnLocked) {}
@@ -60,7 +61,6 @@ class TTASLockImpl : LockBase<TTASLockImpl<EnableBackoff, EnableCohort>> {
 
  private:
   std::atomic<uint64_t> lock_bit_;
-  char cacheline_padding_[63];
   static_assert(decltype(lock_bit_)::is_always_lock_free);
   constexpr static uint64_t Locked   = 1llu;
   constexpr static uint64_t UnLocked = 0llu;
@@ -70,6 +70,8 @@ using TTASLockBO   = TTASLockImpl<true, false>;
 using TTASLockCO   = TTASLockImpl<false, true>;
 using TTASLockBOCO = TTASLockImpl<true, true>;
 using TTASLockCOBO = TTASLockBOCO;
+// static_assert(sizeof(TTASLock) ==
+//             std::hardware_destructive_interference_size);
 
 }  // namespace Lock
 }  // namespace LineairDB

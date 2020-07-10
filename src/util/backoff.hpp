@@ -25,11 +25,17 @@
 namespace LineairDB {
 namespace Util {
 static inline void RetryWithExponentialBackoff(std::function<bool()>&& f) {
-  size_t sleep_ns = 100;
+  size_t try_count = 0;
+  size_t sleep_ns  = 100;
   for (;;) {
     if (f()) return;
-    std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_ns));
-    sleep_ns *= 2;
+    try_count++;
+    if (100 < try_count) {
+      std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_ns));
+      sleep_ns *= 2;
+    } else {
+      std::this_thread::yield();
+    }
   }
 }
 

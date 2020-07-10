@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <new>
 #include <string_view>
 #include <vector>
 
@@ -43,23 +44,32 @@ namespace Index {
  * created and stored into the index, it will not be changed by #puts.
  */
 class MPMCConcurrentSetImpl final : public ConcurrentPointIndexBase {
-  struct TableNode {
+  // TODO WANTFIX replace std::hardware_destructive_interference_size
+  // TODO performance fix hashed prefix uint64_t key
+  struct alignas(64) TableNode {
     std::string key;
     const DataItem* value;
     TableNode() : value(nullptr) { assert(key.empty()); };
     TableNode(std::string_view k, const DataItem* const v) : key(k), value(v) {}
   };
+  // static_assert(sizeof(TableNode) ==
+  //             std::hardware_destructive_interference_size);
 
   static constexpr size_t InitialTableSize = 1024;
   static constexpr double RehashThreshold  = 0.75;
+  static constexpr uintptr_t RedirectedPtr = 0x4B1D;
+  inline static bool IsRedirectedPtr(void* ptr) {
+    return reinterpret_cast<uintptr_t>(ptr) == RedirectedPtr;
+  }
+  inline static TableNode* GetRedirectedPtr() {
+    return reinterpret_cast<TableNode*>(RedirectedPtr);
+  }
 
   using TableType = std::vector<std::atomic<TableNode*>>;
 
  public:
   MPMCConcurrentSetImpl()
-      : RedirectedPtr(new TableNode),
-        table_(new TableType(InitialTableSize)),
-        populated_count_(0) {
+      : table_(new TableType(InitialTableSize)), populated_count_(0) {
     epoch_framework_.Start();
   }
   ~MPMCConcurrentSetImpl() final override;
@@ -71,11 +81,10 @@ class MPMCConcurrentSetImpl final : public ConcurrentPointIndexBase {
   void Clear() final override;  // thread-unsafe
 
  private:
-  size_t Hash(std::string_view, TableType*);
+  inline size_t Hash(std::string_view, TableType*);
   bool Rehash();
 
  private:
-  TableNode* RedirectedPtr;
   std::atomic<TableType*> table_;
   std::atomic<size_t> populated_count_;
   std::mutex table_lock_;

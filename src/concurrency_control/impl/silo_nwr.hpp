@@ -112,6 +112,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     for (auto& snapshot : tx_ref_.write_set_ref_) {
       auto* item = snapshot.index_cache;
       assert(item != nullptr);
+      __builtin_prefetch(item, 1, 3);
 
       for (;;) {
         auto current = item->transaction_id.load();

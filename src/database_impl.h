@@ -159,12 +159,13 @@ class Database::Impl {
         EpochNumber durable_epoch = logger_.FlushDurableEpoch();
         thread_pool_.EnqueueForAllThreads(
             [&, old_epoch]() { logger_.FlushLogs(old_epoch); });
-        callback_manager_.ExecuteCallbacks(durable_epoch);
+        thread_pool_.EnqueueForAllThreads([&, durable_epoch] {
+          callback_manager_.ExecuteCallbacks(durable_epoch);
+        });
       }
       // Execute Callbacks
       thread_pool_.EnqueueForAllThreads(
           [&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
-      callback_manager_.ExecuteCallbacks(old_epoch);
     };
   }
 
