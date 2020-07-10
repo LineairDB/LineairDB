@@ -49,8 +49,10 @@ class MPMCConcurrentSetImpl final : public ConcurrentPointIndexBase {
   struct alignas(64) TableNode {
     std::string key;
     const DataItem* value;
+    uint64_t key_8b_prefix;
     TableNode() : value(nullptr) { assert(key.empty()); };
-    TableNode(std::string_view k, const DataItem* const v) : key(k), value(v) {}
+    TableNode(std::string_view k, const DataItem* const v)
+        : key(k), value(v), key_8b_prefix(string_to_uint64_t(k)) {}
   };
   // static_assert(sizeof(TableNode) ==
   //             std::hardware_destructive_interference_size);
@@ -63,6 +65,12 @@ class MPMCConcurrentSetImpl final : public ConcurrentPointIndexBase {
   }
   inline static TableNode* GetRedirectedPtr() {
     return reinterpret_cast<TableNode*>(RedirectedPtr);
+  }
+  inline static uint64_t string_to_uint64_t(std::string_view k) {
+    uint64_t result        = 0;
+    const size_t copy_size = std::min(k.size(), sizeof(uint64_t));
+    std::memcpy(&result, k.data(), copy_size);
+    return result;
   }
 
   using TableType = std::vector<std::atomic<TableNode*>>;

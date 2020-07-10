@@ -55,9 +55,12 @@ DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
 
     if (__builtin_expect(bucket_p == nullptr, false)) { break; }
 
-    if (bucket_p->key == key) {
-      return_value_p = const_cast<DataItem*>(bucket_p->value);
-      break;
+    // Optimization: we assume that cmp of uint64_T is faster than strcmp.
+    if (bucket_p->key_8b_prefix == string_to_uint64_t(key)) {
+      if (bucket_p->key == key) {
+        return_value_p = const_cast<DataItem*>(bucket_p->value);
+        break;
+      }
     }
 
     hash++;
@@ -104,11 +107,13 @@ bool MPMCConcurrentSetImpl::Put(const std::string_view key,
       }
     }
 
-    // update
-    if (node->key == key) {
-      delete new_node;
-      epoch_framework_.MakeMeOffline();
-      return false;
+    // Optimization: we assume that cmp of uint64_T is faster than strcmp.
+    if (node->key_8b_prefix == string_to_uint64_t(key)) {
+      if (node->key == key) {
+        delete new_node;
+        epoch_framework_.MakeMeOffline();
+        return false;
+      }
     }
 
     hash++;
