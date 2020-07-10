@@ -70,18 +70,19 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
     size_t to   = workload.recordcount * (i + 1) / worker_threads;
     failed.emplace_back(0);
     workers.emplace_back([&, from, to]() {
-      std::byte ptr[workload.payload_size];
-      auto& tx = db.BeginTransaction();
-      for (size_t idx = from; idx < to; idx++) {
-        tx.Write(std::to_string(idx), ptr, workload.payload_size);
-      }
-      db.EndTransaction(tx, [](LineairDB::TxStatus status) {
-        if (status != LineairDB::TxStatus::Committed) {
-          SPDLOG_ERROR("YCSB: a database population query is aborted");
-          exit(1);
-        }
-      });
-      db.RequestCallbacks();
+      db.ExecuteTransaction(
+          [&, from, to](LineairDB::Transaction& tx) {
+            std::byte ptr[workload.payload_size];
+            for (size_t idx = from; idx < to; idx++) {
+              tx.Write(std::to_string(idx), ptr, workload.payload_size);
+            }
+          },
+          [](LineairDB::TxStatus status) {
+            if (status != LineairDB::TxStatus::Committed) {
+              SPDLOG_ERROR("YCSB: a database population query is aborted");
+              exit(1);
+            }
+          });
     });
   }
   SPDLOG_INFO("YCSB: Database population queries are enqueued");
@@ -200,11 +201,11 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   std::this_thread::sleep_for(
       std::chrono::milliseconds(workload.measurement_duration));
   finish_flag.store(true);
-  auto end = std::chrono::high_resolution_clock::now();
   SPDLOG_INFO("YCSB: Benchmark end.");
   for (auto& worker : clients) { worker.join(); }
   db.Fence();
   SPDLOG_INFO("YCSB: DB Fenced.");
+  auto end = std::chrono::high_resolution_clock::now();
 
   uint64_t total_commits = 0;
   uint64_t total_aborts  = 0;
@@ -218,8 +219,10 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
   uint64_t tps = total_commits * 1000 / milliseconds;
 
-  SPDLOG_INFO("YCSB: Benchmark completed. commits: {0}, aborts: {1}, tps: {2}",
-              total_commits, total_aborts, tps);
+  SPDLOG_INFO(
+      "YCSB: Benchmark completed. elapsed time: {3}ms, commits: {0}, aborts: "
+      "{1}, tps: {2}",
+      total_commits, total_aborts, tps, milliseconds);
 
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();
