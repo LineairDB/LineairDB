@@ -53,7 +53,6 @@ class ThreadLocalCallbackManager final : public CallbackManagerBase {
     moodycamel::ConcurrentQueue<
         std::pair<EpochNumber, LineairDB::Database::CallbackType>>
         queue;
-    std::atomic<bool> queue_is_on_building = false;
   };
 
  private:
@@ -63,6 +62,7 @@ class ThreadLocalCallbackManager final : public CallbackManagerBase {
  private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
   std::list<WorkStealingQueueNode> work_steal_queues_;
+  ThreadKeyStorage<WorkStealingQueueNode*> thread_local_work_steal_queue_;
   std::mutex list_lock_;
   std::atomic<size_t> work_steal_queue_size_;
 };

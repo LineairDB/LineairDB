@@ -115,23 +115,18 @@ void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
 
 ThreadLocalCallbackManager::WorkStealingQueueNode*
 ThreadLocalCallbackManager::GetMyWorkStealingQueue() {
-  thread_local WorkStealingQueueNode* my_node = nullptr;
-  thread_local bool my_queue_is_created       = false;
-  if (nullptr != my_node) return my_node;
+  auto* my_node = thread_local_work_steal_queue_
+                      .Get<ThreadLocalCallbackManager::WorkStealingQueueNode*>(
+                          []() { return nullptr; });
+  SPDLOG_INFO("work {0}", (void*)(*my_node));
+  if (nullptr != *my_node) return *my_node;
 
-  if (!my_queue_is_created) {
-    std::lock_guard<std::mutex> guard(list_lock_);
+  std::lock_guard<std::mutex> guard(list_lock_);
+  work_steal_queues_.emplace_back();
+  work_steal_queue_size_.fetch_add(1);
+  *my_node = &work_steal_queues_.back();
 
-    auto& final_node = work_steal_queues_.back();
-    assert(!final_node.queue_is_on_building);
-    final_node.queue_is_on_building.store(true);
-
-    work_steal_queues_.emplace_back();
-    work_steal_queue_size_.fetch_add(1);
-    my_node = &work_steal_queues_.back();
-  }
-
-  return my_node;
+  return *my_node;
 }
 
 }  // namespace Callback
