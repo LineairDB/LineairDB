@@ -118,7 +118,6 @@ ThreadLocalCallbackManager::GetMyWorkStealingQueue() {
   auto* my_node = thread_local_work_steal_queue_
                       .Get<ThreadLocalCallbackManager::WorkStealingQueueNode*>(
                           []() { return nullptr; });
-  SPDLOG_INFO("work {0}", (void*)(*my_node));
   if (nullptr != *my_node) return *my_node;
 
   std::lock_guard<std::mutex> guard(list_lock_);
