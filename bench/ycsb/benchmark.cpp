@@ -215,7 +215,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   });
 
   auto elapsed = end - begin;
-  size_t milliseconds =
+  uint64_t milliseconds =
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
   uint64_t tps = total_commits * 1000 / milliseconds;
 
