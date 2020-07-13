@@ -202,11 +202,11 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   std::this_thread::sleep_for(
       std::chrono::milliseconds(workload.measurement_duration));
   finish_flag.store(true);
-  SPDLOG_INFO("YCSB: Benchmark end.");
   for (auto& worker : clients) { worker.join(); }
+  auto end = std::chrono::high_resolution_clock::now();
+  SPDLOG_INFO("YCSB: Benchmark end.");
   db.Fence();
   SPDLOG_INFO("YCSB: DB Fenced.");
-  auto end = std::chrono::high_resolution_clock::now();
 
   uint64_t total_commits = 0;
   uint64_t total_aborts  = 0;
