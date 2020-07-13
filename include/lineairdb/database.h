@@ -21,6 +21,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 #include "config.h"
 #include "tx_status.h"
@@ -64,10 +65,20 @@ class Database {
    * It enqueues these two functions into LineairDB's thread pool.
    * Thread-safe.
    * @param[in] proc A transaction procedure processed by LineairDB.
-   * @param[out] clbk A callback function accepts a result (Committed or
-   * Aborted).
+   * @param[out] commit_clbk A callback function accepts a result (Committed or
+   * Aborted) of this transaction.
+   * @param[out] precommit_clbk A callback function accepts a result
+   * (Precommitted or Aborted) of this transaction.
+   * Note that pre-committed transactions have not been committed. Since the
+   * recovery log has not been persisted, this transaction may be aborted. The
+   * callback is good for describing  transaction dependencies. If a transaction
+   * is aborted, it is guaranteed that the other  transactions, that are
+   executed
+   * after checking the pre-commit of the transaction, will abort.
    */
-  void ExecuteTransaction(ProcedureType proc, CallbackType clbk);
+  void ExecuteTransaction(
+      ProcedureType proc, CallbackType commit_clbk,
+      std::optional<CallbackType> precommit_clbk = std::nullopt);
 
   /**
    * @brief

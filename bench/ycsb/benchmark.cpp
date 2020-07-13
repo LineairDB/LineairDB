@@ -143,14 +143,14 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     for (auto& key : keys) {
       operation(tx, key, payload, workload.payload_size);
     }
-    db.EndTransaction(tx, [&](LineairDB::TxStatus status) {
-      auto* result = thread_local_result.Get();
-      if (status == LineairDB::TxStatus::Committed) {
-        result->commits++;
-      } else {
-        result->aborts++;
-      }
-    });
+    bool precommitted =
+        db.EndTransaction(tx, [&](LineairDB::TxStatus status) {});
+    auto* result = thread_local_result.Get();
+    if (precommitted) {
+      result->commits++;
+    } else {
+      result->aborts++;
+    }
   } else {
     db.ExecuteTransaction(
         [operation, keys, payload, workload](LineairDB::Transaction& tx) {
@@ -158,6 +158,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
             operation(tx, key, payload, workload.payload_size);
           }
         },
+        [](LineairDB::TxStatus) {},
         [&](LineairDB::TxStatus status) {
           auto* result = thread_local_result.Get();
 
@@ -168,7 +169,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
           }
         });
   }
-}
+}  // namespace YCSB
 
 rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
                                  bool use_handler = true) {

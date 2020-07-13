@@ -69,10 +69,12 @@ class Database::Impl {
     Database::Impl::CurrentDBInstance = nullptr;
   };
 
-  void ExecuteTransaction(ProcedureType proc, CallbackType clbk) {
+  void ExecuteTransaction(ProcedureType proc, CallbackType clbk,
+                          std::optional<CallbackType> prclbk) {
     for (;;) {
       bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
-                                           callback = clbk]() {
+                                           callback       = clbk,
+                                           precommit_clbk = prclbk]() {
         epoch_framework_.MakeMeOnline();
         Transaction tx(this);
 
@@ -85,11 +87,15 @@ class Database::Impl {
 
         bool committed = tx.Precommit();
         if (committed) {
+          if (precommit_clbk.has_value())
+            precommit_clbk.value()(TxStatus::Committed);
           if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
           const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
           logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
           callback_manager_.Enqueue(std::move(callback), current_epoch);
         } else {
+          if (precommit_clbk.has_value())
+            precommit_clbk.value()(TxStatus::Aborted);
           callback(LineairDB::TxStatus::Aborted);
         }
 

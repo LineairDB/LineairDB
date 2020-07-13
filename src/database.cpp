@@ -41,8 +41,10 @@ const Config Database::GetConfig() const noexcept {
 
 void Database::ExecuteTransaction(
     std::function<void(Transaction&)> transaction_procedure,
-    std::function<void(TxStatus)> callback) {
-  db_pimpl_->ExecuteTransaction(transaction_procedure, callback);
+    std::function<void(TxStatus)> callback,
+    std::optional<CallbackType> precommit_clbk) {
+  db_pimpl_->ExecuteTransaction(transaction_procedure, callback,
+                                precommit_clbk);
 }
 
 Transaction& Database::BeginTransaction() {
