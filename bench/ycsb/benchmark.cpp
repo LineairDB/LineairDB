@@ -226,6 +226,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
 
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();
+  result_json.AddMember("etime", milliseconds, allocator);
   result_json.AddMember("commits", total_commits, allocator);
   result_json.AddMember("aborts", total_aborts, allocator);
   result_json.AddMember("tps", tps, allocator);
