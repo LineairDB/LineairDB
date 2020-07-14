@@ -143,9 +143,8 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     for (auto& key : keys) {
       operation(tx, key, payload, workload.payload_size);
     }
-    bool precommitted =
-        db.EndTransaction(tx, [&](LineairDB::TxStatus status) {});
-    auto* result = thread_local_result.Get();
+    bool precommitted = db.EndTransaction(tx, [&](LineairDB::TxStatus) {});
+    auto* result      = thread_local_result.Get();
     if (precommitted) {
       result->commits++;
     } else {

@@ -31,7 +31,7 @@ namespace LineairDB {
 namespace Lock {
 
 template <bool EnableBackoff = false, bool EnableCohort = false>
-class ReadersWritersLockImpl
+class alignas(64) ReadersWritersLockImpl
     : LockBase<ReadersWritersLockImpl<EnableBackoff, EnableCohort>> {
  public:
   enum class LockType { Exclusive, Shared, Upgrade };
@@ -107,7 +107,6 @@ class ReadersWritersLockImpl
 
  private:
   std::atomic<uint64_t> lock_bit_;
-  char cacheline_padding_[63];
   static_assert(decltype(lock_bit_)::is_always_lock_free);
 
   constexpr static uint64_t ExclusivelyLocked = 1llu;
@@ -136,6 +135,8 @@ using ReadersWritersLockBO   = ReadersWritersLockImpl<true, false>;
 using ReadersWritersLockCO   = ReadersWritersLockImpl<false, true>;
 using ReadersWritersLockBOCO = ReadersWritersLockImpl<true, true>;
 using ReadersWritersLockCOBO = ReadersWritersLockBOCO;
+// static_assert(sizeof(ReadersWritersLock) ==
+//             std::hardware_destructive_interference_size);
 
 }  // namespace Lock
 }  // namespace LineairDB

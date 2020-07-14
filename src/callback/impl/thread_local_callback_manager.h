@@ -18,6 +18,8 @@
 #define LINEAIRDB_THREAD_LOCAL_CALLBACK_MANAGER_BASE_H
 
 #include <atomic>
+#include <list>
+#include <mutex>
 #include <queue>
 
 #include "callback/callback_manager_base.h"
@@ -31,6 +33,7 @@ namespace Callback {
 
 class ThreadLocalCallbackManager final : public CallbackManagerBase {
  public:
+  ThreadLocalCallbackManager();
   void Enqueue(const LineairDB::Database::CallbackType& callback,
                EpochNumber epoch, bool entrusting) final override;
   void ExecuteCallbacks(EpochNumber new_epoch) final override;
@@ -46,11 +49,22 @@ class ThreadLocalCallbackManager final : public CallbackManagerBase {
         callback_queue;
   };
 
+  struct WorkStealingQueueNode {
+    moodycamel::ConcurrentQueue<
+        std::pair<EpochNumber, LineairDB::Database::CallbackType>>
+        queue;
+  };
+
+ private:
+  inline size_t GetThreadId();
+  inline WorkStealingQueueNode* GetMyWorkStealingQueue();
+
  private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
-  moodycamel::ConcurrentQueue<
-      std::pair<EpochNumber, LineairDB::Database::CallbackType>>
-      work_steal_queue_;
+  std::list<WorkStealingQueueNode> work_steal_queues_;
+  ThreadKeyStorage<WorkStealingQueueNode*> thread_local_work_steal_queue_;
+  std::mutex list_lock_;
+  std::atomic<size_t> work_steal_queue_size_;
 };
 
 }  // namespace Callback

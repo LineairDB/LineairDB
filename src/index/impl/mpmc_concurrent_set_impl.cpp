@@ -27,7 +27,6 @@ namespace LineairDB {
 namespace Index {
 
 MPMCConcurrentSetImpl::~MPMCConcurrentSetImpl() {
-  delete RedirectedPtr;
   Clear();
   delete table_.load();
 }
@@ -37,29 +36,36 @@ MPMCConcurrentSetImpl::~MPMCConcurrentSetImpl() {
 // computational costs of find operation.
 DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
   epoch_framework_.MakeMeOnline();
-  auto* table              = table_.load();
-  size_t hash              = Hash(key, table);
-  auto* bucket_p           = table->at(hash).load();
+  auto* table = table_.load(std::memory_order::memory_order_relaxed);
+  __builtin_prefetch(table, 0, 3);
+  size_t hash    = Hash(key, table);
+  auto* bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
   DataItem* return_value_p = nullptr;
 
   // lineair probing
   for (;;) {
     // redirected
-    if (bucket_p == RedirectedPtr) {
+    if (__builtin_expect(IsRedirectedPtr(bucket_p), false)) {
       table    = table_.load();
       hash     = Hash(key, table);
-      bucket_p = table->at(hash).load();
+      bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
+      __builtin_prefetch(bucket_p, 0, 3);
       continue;
     }
-    if (bucket_p == nullptr) { break; }
-    if (bucket_p->key == key) {
-      return_value_p = const_cast<DataItem*>(bucket_p->value);
-      break;
+
+    if (__builtin_expect(bucket_p == nullptr, false)) { break; }
+
+    // Optimization: we assume that cmp of uint64_T is faster than strcmp.
+    if (bucket_p->key_8b_prefix == string_to_uint64_t(key)) {
+      if (bucket_p->key == key) {
+        return_value_p = const_cast<DataItem*>(bucket_p->value);
+        break;
+      }
     }
 
     hash++;
-    if (hash == table->size()) { hash = 0; }
-    bucket_p = table->at(hash).load();
+    if (__builtin_expect(hash == table->size(), false)) { hash = 0; }
+    bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
   }
 
   epoch_framework_.MakeMeOffline();
@@ -69,20 +75,21 @@ DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
 bool MPMCConcurrentSetImpl::Put(const std::string_view key,
                                 const DataItem* const value_p) {
   epoch_framework_.MakeMeOnline();
-  auto* table    = table_.load();
+  auto* table    = table_.load(std::memory_order::memory_order_seq_cst);
   size_t hash    = Hash(key, table);
   auto* new_node = new TableNode(key, value_p);
 
   // lineair probing
   for (;;) {
-    auto& bucket_atm = table->at(hash);
-    auto* node       = bucket_atm.load();
+    auto& bucket_atm = (*table)[hash];
+    auto* node       = bucket_atm.load(std::memory_order::memory_order_relaxed);
 
     // redirected
-    if (node == RedirectedPtr) {
-      table = table_.load();
+    if (__builtin_expect(IsRedirectedPtr(node), false)) {
+      table = table_.load(std::memory_order::memory_order_seq_cst);
       hash  = Hash(key, table);
-      node  = table->at(hash).load();
+      node  = (*table)[hash].load(std::memory_order::memory_order_relaxed);
+      continue;
     }
 
     // empty bucket has found. insert
@@ -100,22 +107,24 @@ bool MPMCConcurrentSetImpl::Put(const std::string_view key,
       }
     }
 
-    // update
-    if (node->key == key) {
-      delete new_node;
-      epoch_framework_.MakeMeOffline();
-      return false;
+    // Optimization: we assume that cmp of uint64_T is faster than strcmp.
+    if (node->key_8b_prefix == string_to_uint64_t(key)) {
+      if (node->key == key) {
+        delete new_node;
+        epoch_framework_.MakeMeOffline();
+        return false;
+      }
     }
 
     hash++;
-    if (hash == table->size()) { hash = 0; }
+    if (__builtin_expect(hash == table->size(), false)) { hash = 0; }
   }
 }
 
 // FYI: https://preshing.com/20160222/a-resizable-concurrent-map/
 bool MPMCConcurrentSetImpl::Rehash() {
   std::lock_guard<std::mutex> lock(table_lock_);
-  auto* table = table_.load();
+  auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   if ((populated_count_.load() / static_cast<double>(table->size())) <
       RehashThreshold) {
     // someone else has been rehashed the table.
@@ -127,14 +136,14 @@ bool MPMCConcurrentSetImpl::Rehash() {
   TableType* new_table = new TableType(table->size() * 2);
 
   // copy and rehashing all nodes
-  for (auto& bucket_atm : *table_.load()) {
-    auto* node = bucket_atm.load();
+  for (auto& bucket_atm : *table) {
+    auto* node = bucket_atm.load(std::memory_order::memory_order_relaxed);
 
     if (node == nullptr) {
-      if (bucket_atm.compare_exchange_strong(node, RedirectedPtr)) {
+      if (bucket_atm.compare_exchange_strong(node, GetRedirectedPtr())) {
         continue;
       } else {
-        node = bucket_atm.load();
+        node = bucket_atm.load(std::memory_order::memory_order_relaxed);
       }
     }
 
@@ -142,8 +151,9 @@ bool MPMCConcurrentSetImpl::Rehash() {
 
     // lineair probing
     for (;;) {
-      auto& target_bucket = new_table->at(rehashed);
-      if (target_bucket.load() == nullptr) {
+      auto& target_bucket = (*new_table)[rehashed];
+      if (target_bucket.load(std::memory_order::memory_order_relaxed) ==
+          nullptr) {
         target_bucket.store(node);
         break;
       }
@@ -152,7 +162,7 @@ bool MPMCConcurrentSetImpl::Rehash() {
     }
 
     [[maybe_unused]] bool exchanged =
-        bucket_atm.compare_exchange_strong(node, RedirectedPtr);
+        bucket_atm.compare_exchange_strong(node, GetRedirectedPtr());
     assert(exchanged);  // NOTE: This class provides concurrent `set` of
                         // `pointer`; we assume that pointer entries are never
                         // be deleted and updated.
@@ -172,7 +182,8 @@ void MPMCConcurrentSetImpl::ForAllWithExclusiveLock(
     std::function<void(const std::string_view, const DataItem*)> f) {
   std::lock_guard<std::mutex> lock(table_lock_);
   epoch_framework_.MakeMeOnline();
-  for (auto& bucket_atm : *table_.load()) {
+  for (auto& bucket_atm :
+       *table_.load(std::memory_order::memory_order_relaxed)) {
     auto* node = bucket_atm.load();
     if (node == nullptr) continue;
 
@@ -181,7 +192,8 @@ void MPMCConcurrentSetImpl::ForAllWithExclusiveLock(
   epoch_framework_.MakeMeOffline();
 }
 
-size_t MPMCConcurrentSetImpl::Hash(std::string_view key, TableType* table) {
+inline size_t MPMCConcurrentSetImpl::Hash(std::string_view key,
+                                          TableType* table) {
   auto capacity = table->size();
   auto hashed   = std::hash<std::string_view>()(key);
   hashed        = hashed ^ capacity;
@@ -190,9 +202,9 @@ size_t MPMCConcurrentSetImpl::Hash(std::string_view key, TableType* table) {
 
 void MPMCConcurrentSetImpl::Clear() {
   std::lock_guard<std::mutex> lock(table_lock_);
-  auto* table = table_.load();
+  auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   for (auto& bucket_atm : *table) {
-    auto* node = bucket_atm.load();
+    auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
     if (node == nullptr) continue;
 
     delete node;

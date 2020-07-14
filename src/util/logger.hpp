@@ -36,6 +36,7 @@ static inline void SetUpSPDLog() {
 #else
   spdlog::set_level(spdlog::level::debug);
 #endif
+  spdlog::set_pattern("[Thread %t] %+ [+%omsec]");
 }
 }  // namespace Util
 }  // namespace LineairDB
