@@ -96,6 +96,7 @@ struct ThreadLocalResult {
   size_t aborts  = 0;
 };
 ThreadKeyStorage<ThreadLocalResult> thread_local_result;
+std::atomic<bool> finish_flag{false};
 
 void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
                      RandomGenerator* rand, void* payload,
@@ -145,10 +146,12 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     }
     bool precommitted = db.EndTransaction(tx, [&](LineairDB::TxStatus) {});
     auto* result      = thread_local_result.Get();
-    if (precommitted) {
-      result->commits++;
-    } else {
-      result->aborts++;
+    if (!finish_flag.load(std::memory_order_relaxed)) {
+      if (precommitted) {
+        result->commits++;
+      } else {
+        result->aborts++;
+      }
     }
   } else {
     db.ExecuteTransaction(
@@ -159,12 +162,14 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
         },
         [](LineairDB::TxStatus) {},
         [&](LineairDB::TxStatus status) {
-          auto* result = thread_local_result.Get();
+          if (!finish_flag.load(std::memory_order_relaxed)) {
+            auto* result = thread_local_result.Get();
 
-          if (status == LineairDB::TxStatus::Committed) {
-            result->commits++;
-          } else {
-            result->aborts++;
+            if (status == LineairDB::TxStatus::Committed) {
+              result->commits++;
+            } else {
+              result->aborts++;
+            }
           }
         });
   }
@@ -176,7 +181,6 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   std::vector<std::array<std::byte, 512>> buffers(workload.client_thread_size);
   ThreadKeyStorage<RandomGenerator> thread_local_random;
 
-  std::atomic<bool> finish_flag{false};
   std::atomic<bool> start_flag(false);
   std::atomic<size_t> waits_count(0);
   for (size_t i = 0; i < workload.client_thread_size; ++i) {
