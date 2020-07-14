@@ -1,6 +1,6 @@
 # The LineairDB project roadmap
 
-## Goals
+### Goals
 
 #### Support log-replication and online recovery
 
@@ -24,8 +24,8 @@ It is no worse in terms of cache efficiency, but it is better to forbid that a c
 
 #### Support CLI.
 
-## Next Release
+### Next Release
 
 - Checkpointing
-- Additional concurrency control protocols (S2PL, MVTO, MVTO+NWR)
+- Additional concurrency control protocols (MVTO, MVTO+NWR)
 - TPC-C benchmark
