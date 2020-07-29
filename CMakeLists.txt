@@ -52,7 +52,6 @@ add_library(${PROJECT_NAME} ${SOURCES})
 
 find_package(Boost REQUIRED)
 
-set(JEMALLOC_USE_STATIC ON)
 find_package(jemalloc)
 if(JEMALLOC_FOUND)
   if(NOT APPLE) # WANTFIX: it seems that googletest's TYPED_TEST,
