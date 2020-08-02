@@ -130,7 +130,6 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
 
   for (auto filename : logfiles) {
     std::ifstream file(filename, std::ifstream::in | std::ifstream::binary);
-    SPDLOG_DEBUG(" Recovery filename {0}", filename);
     if (!file.good()) {
       SPDLOG_ERROR(
           "  Stop recovery procedure: file {0} is broken. Some records may not "
@@ -141,6 +140,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
     std::string buffer((std::istreambuf_iterator<char>(file)),
                        std::istreambuf_iterator<char>());
     if (buffer.empty()) continue;
+    SPDLOG_DEBUG(" Recovery filename {0}", filename);
 
     LogRecords log_records;
     size_t offset = 0;
@@ -166,15 +166,14 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
         assert(0 < log_record.epoch);
         if (log_record.epoch <= durable_epoch) {
           for (auto& kvp : log_record.key_value_pairs) {
-            SPDLOG_DEBUG("    kvp", kvp.key);
             bool not_found = true;
             for (auto& item : recovery_set) {
               if (item.key == kvp.key) {
                 not_found = false;
-                if (item.index_cache->transaction_id.load() < kvp.tid) {
-                  item.index_cache->Reset(
+                if (item.data_item_copy.transaction_id.load() < kvp.tid) {
+                  item.data_item_copy.Reset(
                       reinterpret_cast<std::byte*>(&kvp.value), kvp.size);
-                  item.index_cache->transaction_id = kvp.tid;
+                  item.data_item_copy.transaction_id = kvp.tid;
                   SPDLOG_DEBUG("    update-> key {0}, version {1} in epoch {2}",
                                kvp.key, kvp.tid.tid, kvp.tid.epoch);
                 }

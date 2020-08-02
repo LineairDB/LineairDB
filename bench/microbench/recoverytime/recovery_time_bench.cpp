@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
   std::experimental::filesystem::remove_all("lineairdb_logs");
 
   /** run benchmark **/
-  auto elapsed_ms = benchmark(db_size, buffer_size, updates);
+  uint64_t elapsed_ms = benchmark(db_size, buffer_size, updates);
 
   SPDLOG_INFO("RecoveryTimeBench: measurement has finisihed.");
   SPDLOG_INFO("elapsed time: {0} milliseconds", elapsed_ms);
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
   /** Output result as json format **/
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();
-  result_json.AddMember("elapsed_ms", elapsed_ms, allocator);
+  result_json.AddMember("elapsed_ms", rapidjson::Value(elapsed_ms), allocator);
 
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

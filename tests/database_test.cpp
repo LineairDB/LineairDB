@@ -165,3 +165,30 @@ TEST_F(DatabaseTest, Recovery) {
                                ASSERT_EQ(initial_value, current_value);
                              }});
 }
+
+TEST_F(DatabaseTest, RecoveryInContendedWorkload) {
+  // We expect LineairDB enables recovery logging by default.
+  const LineairDB::Config config = db_->GetConfig();
+  ASSERT_TRUE(config.enable_logging);
+
+  TransactionProcedure Update([](LineairDB::Transaction& tx) {
+    int value = 0xBEEF;
+    tx.Write<int>("alice", value);
+  });
+
+  ASSERT_NO_THROW({
+    TestHelper::DoTransactionsOnMultiThreads(db_.get(),
+                                             {Update, Update, Update});
+  });
+  db_->Fence();
+
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               auto alice = tx.Read<int>("alice");
+                               ASSERT_TRUE(alice.has_value());
+                               auto current_value = alice.value();
+                               ASSERT_EQ(0xBEEF, current_value);
+                             }});
+}
