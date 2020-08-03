@@ -31,7 +31,7 @@ endmacro()
 
 file(GLOB_RECURSE tests RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*_test.cpp")
 foreach(test ${tests})
-    message("registered test: ${test}")
+    message(STATUS "Test executable is found: ${test}")
     get_filename_component(testname ${test} NAME_WE)
     register_test(${testname} ${test})
 endforeach(test)
