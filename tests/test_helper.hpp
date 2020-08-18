@@ -76,5 +76,38 @@ size_t DoTransactionsOnMultiThreads(
 
   return committed;
 }
+
+size_t DoHandlerTransactionsOnMultiThreads(
+    LineairDB::Database* db, const std::vector<TransactionProcedure> txns) {
+  std::atomic<size_t> terminated(0);
+  std::atomic<size_t> committed(0);
+  std::vector<std::future<void>> jobs;
+  for (auto& proc : txns) {
+    jobs.push_back(std::async(std::launch::async, [&]() {
+      auto& tx = db->BeginTransaction();
+      proc(tx);
+      db->EndTransaction(tx, [&](auto status) {
+        if (status == LineairDB::TxStatus::Committed) {
+          committed++;
+          terminated++;
+        }
+      });
+    }));
+  }
+
+  for (auto& job : jobs) { job.wait(); }
+
+  size_t msec_elapsed_for_termination = 0;
+  while (terminated != txns.size()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    msec_elapsed_for_termination++;
+    bool too_long_time_elapsed = (db->GetConfig().epoch_duration_ms * 1000) <
+                                 msec_elapsed_for_termination;
+    if (too_long_time_elapsed) return 0;
+  }
+
+  return committed;
+}  // namespace TestHelper
+
 }  // namespace TestHelper
 #endif /* LINEAIRDB_TEST_HELPER_HPP */

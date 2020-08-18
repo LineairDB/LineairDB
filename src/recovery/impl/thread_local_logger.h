@@ -40,7 +40,8 @@ class ThreadLocalLogger final : public LoggerBase {
  public:
   ThreadLocalLogger();
   void RememberMe(const EpochNumber) final override;
-  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch) final override;
+  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
+               bool entrusting) final override;
   void FlushLogs(EpochNumber stable_epoch) final override;
   EpochNumber GetMinDurableEpochForAllThreads() final override;
 

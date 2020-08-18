@@ -86,7 +86,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
       }
     }
   }
-}  // namespace Callback
+} 
 void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
   thread_key_storage_.ForEach(
       [&](const ThreadLocalStorageNode* thread_local_node) {

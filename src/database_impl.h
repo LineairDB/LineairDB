@@ -56,6 +56,7 @@ class Database::Impl {
   };
 
   ~Impl() {
+    Fence();
     thread_pool_.StopAcceptingTransactions();
     epoch_framework_.Sync();
     epoch_framework_.Stop();
@@ -123,7 +124,7 @@ class Database::Impl {
       tx.tx_pimpl_->current_status_ = TxStatus::Committed;
       if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
       const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-      logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
+      logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
       callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
     } else {
       clbk(TxStatus::Aborted);
