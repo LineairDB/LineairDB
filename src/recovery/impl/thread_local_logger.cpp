@@ -42,28 +42,43 @@ void ThreadLocalLogger::RememberMe(const EpochNumber epoch) {
   my_storage->durable_epoch.store(epoch);
 }
 
-void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch) {
+void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
+                                bool entrusting) {
   if (ws_ref.empty()) return;
 
   /** Make log record and add it into local buffer  **/
   Recovery::Logger::LogRecord record;
-  record.epoch = epoch;
+  {
+    record.epoch = epoch;
 
-  for (auto& snapshot : ws_ref) {
-    assert(snapshot.data_item_copy.size < 256 &&
-           "WANTFIX: LineairDB's log manager can hold only 256-bytes for a "
-           "buffer of a single write operation.");
-    Logger::LogRecord::KeyValuePair kvp;
-    kvp.key = snapshot.key;
-    std::memcpy(reinterpret_cast<void*>(&kvp.value),
-                snapshot.data_item_copy.value, snapshot.data_item_copy.size);
-    kvp.size = snapshot.data_item_copy.size;
-    kvp.tid  = snapshot.data_item_copy.transaction_id.load();
+    for (auto& snapshot : ws_ref) {
+      assert(snapshot.data_item_copy.size < 256 &&
+             "WANTFIX: LineairDB's log manager can hold only 256-bytes for a "
+             "buffer of a single write operation.");
+      Logger::LogRecord::KeyValuePair kvp;
+      kvp.key = snapshot.key;
+      std::memcpy(reinterpret_cast<void*>(&kvp.value),
+                  snapshot.data_item_copy.value, snapshot.data_item_copy.size);
+      kvp.size = snapshot.data_item_copy.size;
+      kvp.tid  = snapshot.data_item_copy.transaction_id.load();
 
-    record.key_value_pairs.emplace_back(std::move(kvp));
+      record.key_value_pairs.emplace_back(std::move(kvp));
+    }
   }
   auto* my_storage = thread_key_storage_.Get();
   my_storage->log_records.emplace_back(std::move(record));
+
+  if (entrusting) {
+    // The callee thread is not in LineairDB's thread pool and thus
+    // this thread may be terminated after this transaction
+    // The log record is not persisted when 1) this thread buffers its log
+    // records and 2) will be terminated soon after here.
+    // To ensure durability, we immediately flush the log records.
+    msgpack::pack(my_storage->log_file, my_storage->log_records);
+    my_storage->log_file.flush();
+    my_storage->log_records.clear();
+    my_storage->durable_epoch.store(epoch);
+  }
 }
 
 void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {

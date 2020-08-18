@@ -54,8 +54,9 @@ Logger::Logger(const Config& config)
 Logger::~Logger() = default;
 
 void Logger::RememberMe(const EpochNumber epoch) { logger_->RememberMe(epoch); }
-void Logger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch) {
-  logger_->Enqueue(ws_ref, epoch);
+void Logger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
+                     bool entrusting) {
+  logger_->Enqueue(ws_ref, epoch, entrusting);
 }
 void Logger::FlushLogs(const EpochNumber stable_epoch) {
   logger_->FlushLogs(stable_epoch);

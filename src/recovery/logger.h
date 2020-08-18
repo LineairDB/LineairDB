@@ -41,7 +41,8 @@ class Logger {
 
   // Methods that pass (delegate) to LoggerBase
   void RememberMe(const EpochNumber);
-  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch);
+  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
+               bool entrusting = false);
   void FlushLogs(const EpochNumber stable_epoch);
 
   EpochNumber FlushDurableEpoch();
