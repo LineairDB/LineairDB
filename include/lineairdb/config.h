@@ -105,7 +105,7 @@ struct Config {
 
   /**
    * @brief
-   * If true, the db logs processed operations for recovery.
+   * If true, LineairDB performs logging for recovery.
    *
    * Default: true
    */
@@ -113,9 +113,24 @@ struct Config {
 
   /**
    * @brief
+   * If true, LineairDB performs logging for checkpoint-recovery.
+   * Checkpointing prevents the log file size from increasing monotonically.
+   * i.e, if this parameter is set to false, The disk space used by LineairDB is
+   * unbounded.
    *
+   * Default: true
    */
-  size_t checkpoint_period = 40;
+  bool enable_checkpointing = true;
+
+  /**
+   * @brief
+   * It uses as the interval time (seconds) for checkpointing.
+   * The longer is the better for the performance but the larger interval time
+   * causes the increasing of log file size.
+   *
+   * Default: 30
+   */
+  size_t checkpoint_period = 30;
 };
 }  // namespace LineairDB
 

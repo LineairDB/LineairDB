@@ -28,6 +28,7 @@
 
 #include "gtest/gtest.h"
 #include "test_helper.hpp"
+#include "util/logger.hpp"
 
 class DurabilityTest : public ::testing::Test {
  protected:
@@ -121,4 +122,52 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
                                auto current_value = alice.value();
                                ASSERT_EQ(0xBEEF, current_value);
                              }});
+}
+
+size_t getLogDirectorySize() {
+  namespace fs = std::experimental::filesystem;
+  size_t size  = 0;
+  for (const auto& entry : fs::directory_iterator("lineairdb_logs")) {
+    if (entry.path().filename() == "durable_epoch_working.json") continue;
+    size += fs::file_size(entry.path());
+  }
+  return size;
+}
+
+TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
+  const LineairDB::Config config = db_->GetConfig();
+  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.enable_checkpointing);
+
+  TransactionProcedure Update([](LineairDB::Transaction& tx) {
+    int value = 0xBEEF;
+    tx.Write<int>("alice", value);
+  });
+
+  std::experimental::filesystem::path log_path = "lineairdb_logs";
+  size_t filesize                              = 0;
+  ASSERT_EQ(filesize, getLogDirectorySize());
+  bool filesize_is_monotonically_increasing = true;
+
+  auto begin = std::chrono::high_resolution_clock::now();
+
+  for (;;) {
+    const size_t current_file_size = getLogDirectorySize();
+    if (filesize <= current_file_size) {
+      filesize = current_file_size;
+    } else {
+      filesize_is_monotonically_increasing = false;
+      break;
+    }
+    ASSERT_NO_THROW({
+      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
+    });
+
+    auto now = std::chrono::high_resolution_clock::now();
+    assert(begin < now);
+    size_t elapsed =
+        std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
+    if (config.checkpoint_period * 2 < elapsed) break;
+  }
+  ASSERT_FALSE(filesize_is_monotonically_increasing);
 }
