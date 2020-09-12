@@ -43,7 +43,7 @@ class DatabaseTest : public ::testing::Test {
 TEST_F(DatabaseTest, Instantiate) {}
 TEST_F(DatabaseTest, InstantiateWithConfig) {
   db_.reset(nullptr);
-  LineairDB::Config conf(1);
+  LineairDB::Config conf;
   ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
 }
 
