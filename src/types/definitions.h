@@ -14,27 +14,17 @@
  *   limitations under the License.
  */
 
-#ifndef LINEAIRDB_RECOVERY_LOGGER_BASE_H
-#define LINEAIRDB_RECOVERY_LOGGER_BASE_H
+#ifndef LINEAIRDB_TYPES_H
+#define LINEAIRDB_TYPES_H
 
-#include "types/data_item.hpp"
-#include "types/definitions.h"
-#include "types/snapshot.hpp"
+#include <cstdint>
+#include <vector>
 
 namespace LineairDB {
-namespace Recovery {
 
-class LoggerBase {
- public:
-  virtual ~LoggerBase() {}
-  virtual void RememberMe(const EpochNumber)            = 0;
-  virtual void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
-                       bool entrusting)                 = 0;
-  virtual void FlushLogs(EpochNumber stable_epoch)      = 0;
-  virtual EpochNumber GetMinDurableEpochForAllThreads() = 0;
-};
+using EpochNumber = uint32_t;
 
-}  // namespace Recovery
+struct CheckPointItem {};
 }  // namespace LineairDB
 
-#endif /* LINEAIRDB_RECOVERY_LOGGER_BASE_H */
+#endif /* LINEAIRDB_TYPES_H */

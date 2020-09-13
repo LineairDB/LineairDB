@@ -28,7 +28,8 @@
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/pivot_object.hpp"
 #include "index/concurrent_table.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 
@@ -127,7 +128,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
  private:
   void Undo() {
     for (auto& item : undo_set_) {
-      item.first->Reset(item.second.value, item.second.size);
+      item.first->Reset(item.second.value(), item.second.size());
     }
   }
   void UnlockAll() {

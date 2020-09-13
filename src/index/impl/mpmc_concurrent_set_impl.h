@@ -27,7 +27,9 @@
 #include <vector>
 
 #include "index/concurrent_point_index_base.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
+
 #include "util/epoch_framework.hpp"
 
 namespace LineairDB {

@@ -29,7 +29,8 @@
 #include "concurrency_control/impl/silo_nwr.hpp"
 #include "concurrency_control/impl/two_phase_locking.hpp"
 #include "database_impl.h"
-#include "types.h"
+#include "types/snapshot.hpp"
+
 namespace LineairDB {
 
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
@@ -76,15 +77,15 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value,
-                            snapshot.data_item_copy.size);
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
     }
   }
 
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value,
-                            snapshot.data_item_copy.size);
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
     }
   }
   auto* index_leaf  = db_pimpl_->GetPointIndex().GetOrInsert(key);
@@ -93,8 +94,8 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   const auto& result      = concurrency_control_->Read(key, index_leaf);
   snapshot.data_item_copy = result;
   read_set_.emplace_back(std::move(snapshot));
-  return {result.value, result.size};
-}  // namespace LineairDB
+  return {result.value(), result.size()};
+}
 
 void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {

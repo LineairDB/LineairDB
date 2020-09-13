@@ -27,7 +27,8 @@
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/pivot_object.hpp"
 #include "index/concurrent_table.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 
@@ -75,7 +76,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         continue;
       }
 
-      snapshot.Reset(index_leaf->value, index_leaf->size, tx_id);
+      snapshot.Reset(index_leaf->buffer.value, index_leaf->buffer.size, tx_id);
 
       if (index_leaf->transaction_id.load() == tx_id) {
         validation_set_.push_back({index_leaf, tx_id});
@@ -158,7 +159,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     /** Buffer Update **/
     for (auto& snapshot : tx_ref_.write_set_ref_) {
       auto* item = snapshot.index_cache;
-      item->Reset(snapshot.data_item_copy.value, snapshot.data_item_copy.size);
+      item->Reset(snapshot.data_item_copy.value(),
+                  snapshot.data_item_copy.size());
     }
 
     return true;

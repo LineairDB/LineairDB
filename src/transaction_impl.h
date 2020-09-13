@@ -25,7 +25,7 @@
 #include <string_view>
 
 #include "concurrency_control/concurrency_control_base.h"
-#include "types.h"
+#include "types/definitions.h"
 
 namespace LineairDB {
 

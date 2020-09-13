@@ -29,7 +29,7 @@
 
 #include "recovery/logger.h"
 #include "recovery/logger_base.h"
-#include "types.h"
+#include "types/definitions.h"
 #include "util/epoch_framework.hpp"
 #include "util/thread_key_storage.h"
 

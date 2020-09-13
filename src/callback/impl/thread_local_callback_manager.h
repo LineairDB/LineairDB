@@ -24,7 +24,7 @@
 
 #include "callback/callback_manager_base.h"
 #include "concurrentqueue.h"  // moodycamel::concurrentqueue
-#include "types.h"
+#include "types/definitions.h"
 #include "util/thread_key_storage.h"
 
 namespace LineairDB {

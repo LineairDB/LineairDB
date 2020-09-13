@@ -23,7 +23,8 @@
 #include <msgpack.hpp>
 
 #include "logger_base.h"
-#include "types.h"
+#include "types/definitions.h"
+#include "types/snapshot.hpp"
 
 namespace LineairDB {
 namespace Recovery {

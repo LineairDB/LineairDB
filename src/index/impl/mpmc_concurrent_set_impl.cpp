@@ -21,7 +21,8 @@
 #include <mutex>
 #include <string_view>
 
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Index {

@@ -24,7 +24,7 @@
 #include <string_view>
 
 #include "index/concurrent_table.h"
-#include "types.h"
+#include "types/data_item.hpp"
 
 namespace LineairDB {
 struct TransactionReferences {

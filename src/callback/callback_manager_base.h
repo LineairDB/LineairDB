@@ -19,7 +19,7 @@
 
 #include <lineairdb/database.h>
 
-#include "types.h"
+#include "types/definitions.h"
 
 namespace LineairDB {
 

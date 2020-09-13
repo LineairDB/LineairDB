@@ -19,7 +19,6 @@
 #include <glob.h>
 #include <lineairdb/database.h>
 #include <lineairdb/tx_status.h>
-#include <types.h>
 
 #include <cassert>
 #include <cstring>
@@ -31,6 +30,7 @@
 #include <util/logger.hpp>
 
 #include "recovery/logger.h"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Recovery {
@@ -52,14 +52,15 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     record.epoch = epoch;
 
     for (auto& snapshot : ws_ref) {
-      assert(snapshot.data_item_copy.size < 256 &&
+      assert(snapshot.data_item_copy.buffer.size < 256 &&
              "WANTFIX: LineairDB's log manager can hold only 256-bytes for a "
              "buffer of a single write operation.");
       Logger::LogRecord::KeyValuePair kvp;
       kvp.key = snapshot.key;
       std::memcpy(reinterpret_cast<void*>(&kvp.value),
-                  snapshot.data_item_copy.value, snapshot.data_item_copy.size);
-      kvp.size = snapshot.data_item_copy.size;
+                  snapshot.data_item_copy.buffer.value,
+                  snapshot.data_item_copy.buffer.size);
+      kvp.size = snapshot.data_item_copy.buffer.size;
       kvp.tid  = snapshot.data_item_copy.transaction_id.load();
 
       record.key_value_pairs.emplace_back(std::move(kvp));

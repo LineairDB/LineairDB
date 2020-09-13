@@ -20,7 +20,7 @@
 #include <functional>
 #include <string_view>
 
-#include "types.h"
+#include "types/data_item.hpp"
 
 namespace LineairDB {
 namespace Index {

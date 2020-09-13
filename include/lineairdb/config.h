@@ -117,8 +117,15 @@ struct Config {
    * Checkpointing prevents the log file size from increasing monotonically.
    * i.e, if this parameter is set to false, The disk space used by LineairDB is
    * unbounded.
+   * You can also turn off enable_logging and use only Checkpointing.
+   * This configure gives the recoverability property called CPR-consistency
+   * [1]. CPR-consitency may volatilize the data of committed transactions at
+   * last the number of seconds specified at checkpoint_period; however, the
+   * persistence of the data before that time is guaranteed.
    *
    * Default: true
+   * @ref [1]:
+   * https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf
    */
   bool enable_checkpointing = true;
 

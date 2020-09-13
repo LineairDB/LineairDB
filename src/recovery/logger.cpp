@@ -31,7 +31,7 @@
 #include <util/logger.hpp>
 
 #include "impl/thread_local_logger.h"
-#include "types.h"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Recovery {

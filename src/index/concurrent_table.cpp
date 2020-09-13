@@ -21,7 +21,8 @@
 #include <functional>
 
 #include "impl/mpmc_concurrent_set_impl.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Index {
