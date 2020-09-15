@@ -36,9 +36,9 @@ namespace LineairDB {
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
+      my_epoch_(db_pimpl_->GetMyThreadLocalEpoch()),
       config_ref_(db_pimpl_->GetConfig()) {
-  TransactionReferences&& tx = {read_set_, write_set_,
-                                db_pimpl_->GetMyThreadLocalEpoch(),
+  TransactionReferences&& tx = {read_set_, write_set_, my_epoch_,
                                 current_status_};
 
   // WANTFIX for performance
@@ -118,6 +118,7 @@ void Transaction::Impl::Write(const std::string_view key,
   }
 
   auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
+
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
   if (is_rmf) sp.is_read_modify_write = true;
@@ -134,14 +135,16 @@ void Transaction::Impl::Abort() {
 bool Transaction::Impl::Precommit() {
   if (IsAborted()) return false;
 
-  bool committed = concurrency_control_->Precommit();
-  if (committed) {
-    concurrency_control_->PostProcessing(TxStatus::Committed);
-  } else {
-    current_status_ = TxStatus::Aborted;
-    concurrency_control_->PostProcessing(TxStatus::Aborted);
-  }
+  const bool need_to_checkpoint =
+      (db_pimpl_->GetConfig().enable_checkpointing &&
+       db_pimpl_->IsNeedToCheckpointing(my_epoch_));
+  bool committed = concurrency_control_->Precommit(need_to_checkpoint);
   return committed;
+}
+
+void Transaction::Impl::PostProcessing(TxStatus status) {
+  if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
+  concurrency_control_->PostProcessing(status);
 }
 
 TxStatus Transaction::GetCurrentStatus() {

@@ -29,7 +29,6 @@
 #include "index/concurrent_point_index_base.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
-
 #include "util/epoch_framework.hpp"
 
 namespace LineairDB {
@@ -89,6 +88,7 @@ class MPMCConcurrentSetImpl final : public ConcurrentPointIndexBase {
       std::function<void(const std::string_view, const DataItem*)>)
       final override;
   void Clear() final override;  // thread-unsafe
+  void ForEach(std::function<bool(std::string_view, DataItem&)>) final override;
 
  private:
   inline size_t Hash(std::string_view, TableType*);

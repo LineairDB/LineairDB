@@ -121,7 +121,15 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
       PostProcessing(TxStatus::Aborted);
     }
   };
-  bool Precommit() final override { return true; };
+  bool Precommit(bool need_to_checkpoint) final override {
+    if (need_to_checkpoint) {
+      for (auto& snapshot : tx_ref_.write_set_ref_) {
+        snapshot.index_cache->CopyLiveVersionToStableVersion();
+      }
+    }
+
+    return true;
+  };
 
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 

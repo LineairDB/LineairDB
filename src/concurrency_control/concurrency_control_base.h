@@ -41,7 +41,7 @@ class ConcurrencyControlBase {
   virtual void Write(const std::string_view key, const std::byte* const value,
                      const size_t size, DataItem*)         = 0;
   virtual void Abort()                                     = 0;
-  virtual bool Precommit()                                 = 0;
+  virtual bool Precommit(bool)                             = 0;
   virtual void PostProcessing(TxStatus)                    = 0;
 
   bool IsReadOnly() { return (0 == tx_ref_.write_set_ref_.size()); }

@@ -62,6 +62,10 @@ void Logger::FlushLogs(const EpochNumber stable_epoch) {
   logger_->FlushLogs(stable_epoch);
 }
 
+void Logger::TruncateLogs(const EpochNumber checkpoint_completed_epoch) {
+  logger_->TruncateLogs(checkpoint_completed_epoch);
+}
+
 EpochNumber Logger::FlushDurableEpoch() {
   auto min_flushed_epoch = logger_->GetMinDurableEpochForAllThreads();
   if (min_flushed_epoch == EpochFramework::THREAD_OFFLINE ||

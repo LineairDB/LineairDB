@@ -37,6 +37,7 @@ namespace LineairDB {
 struct DataItem {
   std::atomic<TransactionId> transaction_id;
   DataBuffer buffer;
+  DataBuffer checkpoint_buffer;              // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;  // for NWR
   enum class CCTag { NotInitialized, RW_LOCK } cc_tag;
   union {
@@ -71,7 +72,46 @@ struct DataItem {
     if (!tid.IsEmpty()) transaction_id.store(tid);
   }
 
-  auto& GetRWLockRef() {
+  void CopyLiveVersionToStableVersion() {
+    if (!checkpoint_buffer.IsEmpty()) return;  // snapshot is already taken
+    // There is an assumption that this thread can `exclusively` access this
+    // data item.
+    checkpoint_buffer.Reset(buffer);
+  }
+
+  void ExclusiveLock() {
+    if (cc_tag == CCTag::NotInitialized) {
+      // Silo, Silo+NWR. they uses transaction_id as the lock
+      for (;;) {
+        auto tid = transaction_id.load();
+        if (tid.tid & 1llu) {
+          std::this_thread::yield();
+          continue;
+        }
+        auto new_tid = tid;
+        new_tid.tid += 1llu;
+        if (transaction_id.compare_exchange_weak(tid, new_tid)) break;
+      }
+
+    } else if (cc_tag == CCTag::RW_LOCK) {
+      // TwoPhaseLocking. it uses rw_lock.
+      GetRWLockRef().Lock();
+    }
+  }
+
+  void ExclusiveUnlock() {
+    if (cc_tag == CCTag::NotInitialized) {
+      // Silo, Silo+NWR. they uses transaction_id as the lock
+      auto tid = transaction_id.load();
+      tid.tid -= 1llu;
+      transaction_id.store(tid);
+    } else if (cc_tag == CCTag::RW_LOCK) {
+      // TwoPhaseLocking. it uses rw_lock.
+      GetRWLockRef().UnLock();
+    }
+  }
+
+  decltype(readers_writers_lock)& GetRWLockRef() {
     if (cc_tag != CCTag::RW_LOCK) {
       new (&readers_writers_lock) decltype(readers_writers_lock);
       cc_tag = CCTag::RW_LOCK;

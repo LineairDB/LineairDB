@@ -28,6 +28,7 @@
 #include <iostream>
 #include <msgpack.hpp>
 #include <util/logger.hpp>
+#include <vector>
 
 #include "recovery/logger.h"
 #include "types/definitions.h"
@@ -92,6 +93,69 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
   }
 
   my_storage->durable_epoch.store(stable_epoch);
+}
+
+void ThreadLocalLogger::TruncateLogs(
+    const EpochNumber checkpoint_completed_epoch) {
+  auto* my_storage = thread_key_storage_.Get();
+  assert(my_storage->truncated_epoch <= checkpoint_completed_epoch);
+  if (checkpoint_completed_epoch == my_storage->truncated_epoch) return;
+
+  auto log_filename = my_storage->GetLogFileName();
+  SPDLOG_DEBUG("truncate Logfile {}", log_filename);
+  std::ifstream old_file(log_filename,
+                         std::ifstream::in | std::ifstream::binary);
+
+  std::string buffer((std::istreambuf_iterator<char>(old_file)),
+                     std::istreambuf_iterator<char>());
+  if (buffer.empty()) return;
+
+  Logger::LogRecords records;
+  Logger::LogRecords deserialized_records;
+  size_t offset = 0;
+  for (;;) {
+    if (offset == buffer.size()) break;
+    try {
+      auto oh  = msgpack::unpack(buffer.data(), buffer.size(), offset);
+      auto obj = oh.get();
+      obj.convert(deserialized_records);
+
+    } catch (const std::bad_cast& e) {
+      SPDLOG_ERROR(
+          "  Stop recovery procedure: msgpack deserialize failure. Some "
+          "records may not be recovered.");
+      exit(EXIT_FAILURE);
+    } catch (...) {
+      SPDLOG_ERROR(
+          "  Stop recovery procedure: msgpack deserialize failure. Some "
+          "records may not be recovered.");
+      exit(EXIT_FAILURE);
+    }
+
+    deserialized_records.erase(
+        remove_if(deserialized_records.begin(), deserialized_records.end(),
+                  [&](auto record) {
+                    return record.epoch < checkpoint_completed_epoch;
+                  }),
+        deserialized_records.end());
+    records.insert(records.end(), deserialized_records.begin(),
+                   deserialized_records.end());
+  }
+
+  std::ofstream new_file(my_storage->GetWorkingLogFileName());
+  msgpack::pack(new_file, records);
+  new_file.flush();
+
+  // NOTE POSIX ensures that rename syscall provides atomicity
+  if (rename(log_filename.c_str(), my_storage->GetLogFileName().c_str())) {
+    SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
+                 errno);
+    exit(1);
+  }
+  my_storage->truncated_epoch = checkpoint_completed_epoch;
+  my_storage->log_file        = std::fstream(
+      my_storage->GetLogFileName(),
+      std::fstream::out | std::fstream::binary | std::fstream::ate);
 }
 
 EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {

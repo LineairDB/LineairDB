@@ -63,18 +63,19 @@ class EpochFramework {
 
   void SetGlobalEpoch(const EpochNumber epoch) { global_epoch_.store(epoch); }
 
-  EpochNumber GetGlobalEpoch() { return global_epoch_.load(); }
+  EpochNumber GetGlobalEpoch() const { return global_epoch_.load(); }
   EpochNumber& GetMyThreadLocalEpoch() {
     EpochNumber* my_epoch =
         tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     return *my_epoch;
   }
 
-  void MakeMeOnline() {
+  EpochNumber MakeMeOnline() {
     EpochNumber* my_epoch =
         tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     assert(*my_epoch == THREAD_OFFLINE);
     *my_epoch = GetGlobalEpoch();
+    return *my_epoch;
   }
 
   void MakeMeOffline() {

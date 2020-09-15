@@ -24,7 +24,6 @@ namespace LineairDB {
 
 using EpochNumber = uint32_t;
 
-struct CheckPointItem {};
 }  // namespace LineairDB
 
 #endif /* LINEAIRDB_TYPES_H */

@@ -36,8 +36,9 @@ class DurabilityTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::experimental::filesystem::remove_all("lineairdb_logs");
-    config_.max_thread = 4;
-    db_                = std::make_unique<LineairDB::Database>(config_);
+    config_.max_thread        = 4;
+    config_.checkpoint_period = 1;
+    db_                       = std::make_unique<LineairDB::Database>(config_);
   }
 };
 
@@ -56,19 +57,22 @@ TEST_F(DurabilityTest, Recovery) {
                                          }});
   db_->Fence();
 
-  db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>(config);
+  // Expect that recovery procedure has idempotence
+  for (size_t i = 0; i < 3; i++) {
+    db_.reset(nullptr);
+    db_ = std::make_unique<LineairDB::Database>(config);
 
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("alice");
-                               ASSERT_TRUE(alice.has_value());
-                               auto current_value = alice.value();
-                               ASSERT_EQ(initial_value, current_value);
-                               auto bob = tx.Read<int>("bob");
-                               ASSERT_TRUE(bob.has_value());
-                               current_value = bob.value();
-                               ASSERT_EQ(initial_value, current_value);
-                             }});
+    TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                 auto alice = tx.Read<int>("alice");
+                                 ASSERT_TRUE(alice.has_value());
+                                 auto current_value = alice.value();
+                                 ASSERT_EQ(initial_value, current_value);
+                                 auto bob = tx.Read<int>("bob");
+                                 ASSERT_TRUE(bob.has_value());
+                                 current_value = bob.value();
+                                 ASSERT_EQ(initial_value, current_value);
+                               }});
+  }
 }
 
 TEST_F(DurabilityTest, RecoveryInContendedWorkload) {

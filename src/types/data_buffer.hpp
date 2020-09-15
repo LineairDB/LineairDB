@@ -44,6 +44,7 @@ struct DataBuffer {
     std::memcpy(value, v, s);
   }
   void Reset(const DataBuffer& rhs) { Reset(rhs.value, rhs.size); }
+  bool IsEmpty() const { return size == 0; }
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_BUFFER_HPP */

@@ -79,5 +79,11 @@ DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
   assert(current != nullptr);
   return current;
 }
+
+void ConcurrentTable::ForEach(
+    std::function<bool(std::string_view, DataItem&)> f) {
+  container_->ForEach(f);
+};
+
 }  // namespace Index
 }  // namespace LineairDB
