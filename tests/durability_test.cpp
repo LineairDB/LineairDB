@@ -36,9 +36,12 @@ class DurabilityTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::experimental::filesystem::remove_all("lineairdb_logs");
-    config_.max_thread        = 4;
-    config_.checkpoint_period = 1;
-    db_                       = std::make_unique<LineairDB::Database>(config_);
+    config_.max_thread           = 4;
+    config_.enable_logging       = true;
+    config_.enable_recovery      = true;
+    config_.enable_checkpointing = true;
+    config_.checkpoint_period    = 1;
+    db_ = std::make_unique<LineairDB::Database>(config_);
   }
 };
 
@@ -174,4 +177,140 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
     if (config.checkpoint_period * 2 < elapsed) break;
   }
   ASSERT_FALSE(filesize_is_monotonically_increasing);
+}
+
+TEST_F(DurabilityTest,
+       LogFileSizeIsBoundedOnHandlerInterface) {  // a.k.a., checkpointing
+  const LineairDB::Config config = db_->GetConfig();
+  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.enable_checkpointing);
+
+  TransactionProcedure Update([](LineairDB::Transaction& tx) {
+    int value = 0xBEEF;
+    tx.Write<int>("alice", value);
+  });
+
+  std::experimental::filesystem::path log_path = "lineairdb_logs";
+  size_t filesize                              = 0;
+  ASSERT_EQ(filesize, getLogDirectorySize());
+  bool filesize_is_monotonically_increasing = true;
+
+  auto begin = std::chrono::high_resolution_clock::now();
+
+  std::atomic<bool> stop(false);
+  std::thread worker_thread([&]() {
+    for (;;) {
+      auto& tx                    = db_->BeginTransaction();
+      int value                   = 0xBEEF;
+      [[maybe_unused]] auto alice = tx.Read<int>("alice");
+      tx.Write<int>("alice", value);
+      db_->EndTransaction(tx, [](auto) {});
+      if (stop.load()) break;
+    }
+  });
+
+  for (;;) {
+    const size_t current_file_size = getLogDirectorySize();
+    if (filesize <= current_file_size) {
+      filesize = current_file_size;
+    } else {
+      filesize_is_monotonically_increasing = false;
+      break;
+    }
+
+    auto now = std::chrono::high_resolution_clock::now();
+    assert(begin < now);
+    size_t elapsed =
+        std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
+    if (config.checkpoint_period * 3 < elapsed) break;
+  }
+  stop.store(true);
+  worker_thread.join();
+  ASSERT_FALSE(filesize_is_monotonically_increasing);
+}
+
+TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
+  /**
+   * CPR Consistency:
+   * Definition 1 (CPR Consistency). A database state is CPR consistent if and
+   * only if, for every client $C$ , the state contains all its transactions
+   * committed before a unique client-local time-point $tC$ , and none after.
+   * Ref:
+   * https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf
+   *
+   * i.e., There exists the guarantee of consistent snapshot at some time point.
+   */
+
+  LineairDB::Config config = db_->GetConfig();
+  config.enable_logging    = false;
+  config.checkpoint_period = 5;  // 5sec
+  ASSERT_TRUE(config.enable_checkpointing);
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  TransactionProcedure Update([](LineairDB::Transaction& tx) {
+    int value = 0;
+    tx.Write<int>("alice", value);
+  });
+
+  TestHelper::DoTransactions(db_.get(), {Update});
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  // We assume that DB has been destructed within 5 seconds and there are no
+  // consisntent snapshot
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               auto alice = tx.Read<int>("alice");
+                               ASSERT_FALSE(alice.has_value());
+                             }});
+
+  TestHelper::DoTransactions(db_.get(), {Update});
+  std::this_thread::sleep_for(
+      std::chrono::seconds(config.checkpoint_period * 2));
+
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               auto alice = tx.Read<int>("alice");
+                               ASSERT_TRUE(alice.has_value());
+                             }});
+}
+
+TEST_F(DurabilityTest,
+       CPRConsistencyOnHandlerInterface) {  // a.k.a., checkpointing
+  LineairDB::Config config = db_->GetConfig();
+  config.enable_logging    = false;
+  config.checkpoint_period = 5;  // 5sec
+  ASSERT_TRUE(config.enable_checkpointing);
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  TransactionProcedure Update([](LineairDB::Transaction& tx) {
+    int value = 0;
+    tx.Write<int>("alice", value);
+  });
+
+  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  // We assume that DB has been destructed within 5 seconds and there are no
+  // consisntent snapshot
+  TestHelper::DoHandlerTransactionsOnMultiThreads(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        auto alice = tx.Read<int>("alice");
+        ASSERT_FALSE(alice.has_value());
+      }});
+
+  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
+  std::this_thread::sleep_for(
+      std::chrono::seconds(config.checkpoint_period * 2));
+
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+  TestHelper::DoHandlerTransactionsOnMultiThreads(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        auto alice = tx.Read<int>("alice");
+        ASSERT_TRUE(alice.has_value());
+      }});
 }

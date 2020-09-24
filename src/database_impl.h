@@ -47,6 +47,7 @@ class Database::Impl {
         checkpoint_manager_(c, point_index_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
+      SPDLOG_INFO("LineairDB instance has been constructed.");
     } else {
       SPDLOG_ERROR(
           "It is prohibited to allocate two LineairDB::Database instance at "
@@ -69,6 +70,7 @@ class Database::Impl {
         "Epoch number and Durable epoch number are ended at {0}, and {1}, "
         "respectively.",
         epoch_framework_.GetGlobalEpoch(), logger_.GetDurableEpoch());
+    SPDLOG_INFO("LineairDB instance has been destructed.");
     assert(Database::Impl::CurrentDBInstance == this);
     Database::Impl::CurrentDBInstance = nullptr;
   };
@@ -134,6 +136,7 @@ class Database::Impl {
       tx.tx_pimpl_->current_status_ = TxStatus::Committed;
       const auto current_epoch      = epoch_framework_.GetMyThreadLocalEpoch();
       callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
+
       if (config_.enable_logging) {
         logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
       }
@@ -149,7 +152,6 @@ class Database::Impl {
           checkpoint_manager_.GetCheckpointCompletedEpoch();
       logger_.TruncateLogs(checkpoint_completed);
     }
-
     delete &tx;
     return committed;
   }

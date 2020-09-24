@@ -98,18 +98,20 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
 void ThreadLocalLogger::TruncateLogs(
     const EpochNumber checkpoint_completed_epoch) {
   auto* my_storage = thread_key_storage_.Get();
+
   assert(my_storage->truncated_epoch <= checkpoint_completed_epoch);
   if (checkpoint_completed_epoch == my_storage->truncated_epoch) return;
-
   auto log_filename = my_storage->GetLogFileName();
-  SPDLOG_DEBUG("truncate Logfile {}", log_filename);
   std::ifstream old_file(log_filename,
                          std::ifstream::in | std::ifstream::binary);
 
   std::string buffer((std::istreambuf_iterator<char>(old_file)),
                      std::istreambuf_iterator<char>());
-  if (buffer.empty()) return;
+  if (buffer.empty()) {
+    my_storage->truncated_epoch = checkpoint_completed_epoch;
 
+    return;
+  }
   Logger::LogRecords records;
   Logger::LogRecords deserialized_records;
   size_t offset = 0;
@@ -163,6 +165,7 @@ EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {
   thread_key_storage_.ForEach(
       [&](const ThreadLocalStorageNode* thread_local_node) {
         const EpochNumber epoch = thread_local_node->durable_epoch.load();
+        if (epoch == EpochFramework::THREAD_OFFLINE) return;
         if (epoch < min_flushed_epoch) min_flushed_epoch = epoch;
       });
   return min_flushed_epoch;

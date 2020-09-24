@@ -110,7 +110,6 @@ EpochNumber Logger::GetDurableEpochFromLog() {
   } else {
     epoch = 0;
   }
-  SPDLOG_DEBUG("Durable epoch number is resumed from {0:d}", epoch);
 
   return epoch;
 }
@@ -128,8 +127,16 @@ static inline std::vector<std::string> glob(const std::string& pat) {
 }
 
 WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
-  auto logfiles = glob("lineairdb_logs/thread*");
   SPDLOG_DEBUG("Replay the logs in epoch 0-{0}", durable_epoch);
+
+  auto logfiles                      = glob("lineairdb_logs/thread*");
+  constexpr auto checkpoint_filename = "lineairdb_logs/checkpoint.log";
+  bool checkpoint_file_exists        = false;
+  {
+    std::ifstream ifs(checkpoint_filename);
+    checkpoint_file_exists = ifs.is_open();
+  }
+  if (checkpoint_file_exists) logfiles.push_back(checkpoint_filename);
   WriteSetType recovery_set;
   recovery_set.clear();
 
@@ -138,14 +145,15 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
     if (!file.good()) {
       SPDLOG_ERROR(
           "  Stop recovery procedure: file {0} is broken. Some records may not "
-          "be recovered.");
-      return recovery_set;
+          "be recovered.",
+          filename);
+      exit(EXIT_FAILURE);
     };
 
     std::string buffer((std::istreambuf_iterator<char>(file)),
                        std::istreambuf_iterator<char>());
     if (buffer.empty()) continue;
-    SPDLOG_DEBUG(" Recovery filename {0}", filename);
+    SPDLOG_DEBUG(" Start recovery from {0}", filename);
 
     LogRecords log_records;
     size_t offset = 0;
@@ -169,7 +177,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
 
       for (auto& log_record : log_records) {
         assert(0 < log_record.epoch);
-        if (log_record.epoch <= durable_epoch) {
+        if (filename == checkpoint_filename ||
+            log_record.epoch <= durable_epoch) {
           for (auto& kvp : log_record.key_value_pairs) {
             bool not_found = true;
             for (auto& item : recovery_set) {

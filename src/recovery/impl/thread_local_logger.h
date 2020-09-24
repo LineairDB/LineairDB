@@ -62,17 +62,17 @@ class ThreadLocalLogger final : public LoggerBase {
 
     ThreadLocalStorageNode()
         : thread_id(ThreadIdCounter.fetch_add(1)),
-          durable_epoch(0),
+          durable_epoch(EpochFramework::THREAD_OFFLINE),
           truncated_epoch(0),
           log_file(GetLogFileName(), std::fstream::out | std::fstream::binary |
                                          std::fstream::ate) {}
     ~ThreadLocalStorageNode() {}
     std::string GetLogFileName() {
-      return "lineairdb_logs/thread" + std::to_string(thread_id) + ".json";
+      return "lineairdb_logs/thread" + std::to_string(thread_id) + ".log";
     }
     std::string GetWorkingLogFileName() {
       return "lineairdb_logs/thread" + std::to_string(thread_id) +
-             ".working.json";
+             ".working.log";
     }
   };
 

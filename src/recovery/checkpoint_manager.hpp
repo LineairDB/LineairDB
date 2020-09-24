@@ -20,16 +20,15 @@
 
 #include <lineairdb/config.h>
 #include <lineairdb/transaction.h>
-#include <rapidjson/document.h>
-#include <rapidjson/filewritestream.h>
-#include <rapidjson/writer.h>
 
 #include <atomic>
 #include <chrono>
+#include <msgpack.hpp>
 #include <string_view>
 #include <thread>
 
 #include "index/concurrent_table.h"
+#include "recovery/logger.h"
 #include "transaction_impl.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
@@ -45,9 +44,9 @@ namespace Recovery {
 class CPRManager {
  public:
   enum class Phase { REST, IN_PROGRESS, WAIT_FLUSH };
-  constexpr static auto CheckpointFileName = "lineairdb_logs/checkpoint.json";
+  constexpr static auto CheckpointFileName = "lineairdb_logs/checkpoint.log";
   constexpr static auto CheckpointWorkingFileName =
-      "lineairdb_logs/checkpoint.working.json";
+      "lineairdb_logs/checkpoint.working.log";
 
   CPRManager(const LineairDB::Config& c_ref,
              LineairDB::Index::ConcurrentTable& t_ref, EpochFramework& e_ref)
@@ -59,15 +58,16 @@ class CPRManager {
         checkpoint_completed_epoch_(0),
         stop_(false),
         manager_thread_([&]() {
+          if (!config_ref_.enable_checkpointing) return;
           const auto epoch_duration    = config_ref_.epoch_duration_ms;
           const auto checkpoint_period = config_ref_.checkpoint_period;
           for (;;) {
-            if (stop_.load()) return;
             {  // REST Phase: sleep
               if (current_phase_.load() == Phase::REST) {
                 std::this_thread::sleep_for(
                     std::chrono::seconds(checkpoint_period));
               }
+              if (stop_.load()) return;
             }
 
             {  // PREPARE to checkpointing: determine the snapshot epoch (SE)
@@ -111,59 +111,57 @@ class CPRManager {
 
               // We now create the consistent snapshot of the end of the epoch
               // `e+1`.
+              Recovery::Logger::LogRecords records;
+              Recovery::Logger::LogRecord record;
+              record.epoch = checkpoint_epoch_.load() + 1;
 
-              rapidjson::Document checkpoint_json(rapidjson::kObjectType);
-              FILE* fp = fopen(CheckpointWorkingFileName, "wb");
-              char writeBuffer[65536];
-              rapidjson::FileWriteStream os(fp, writeBuffer,
-                                            sizeof(writeBuffer));
-              rapidjson::Writer<decltype(os)> writer(os);
+              table_ref_.ForEach(
+                  [&](std::string_view key, DataItem& data_item) {
+                    data_item.ExclusiveLock();
 
-              auto& allocator  = checkpoint_json.GetAllocator();
-              const auto epoch = checkpoint_epoch_.load();
-              checkpoint_json.AddMember("epoch", epoch, allocator);
+                    Logger::LogRecord::KeyValuePair kvp;
+                    kvp.key = key;
+                    if (data_item.checkpoint_buffer.IsEmpty()) {
+                      // this data item holds version which has written before
+                      // the point of consistency.
+                      std::memcpy(reinterpret_cast<void*>(&kvp.value),
+                                  data_item.value(), data_item.size());
+                      kvp.size = data_item.size();
+                    } else {
+                      std::memcpy(reinterpret_cast<void*>(&kvp.value),
+                                  data_item.checkpoint_buffer.value,
+                                  data_item.checkpoint_buffer.size);
+                      kvp.size = data_item.checkpoint_buffer.size;
+                      data_item.checkpoint_buffer.Reset(nullptr, 0);
+                    }
+                    kvp.tid.epoch = record.epoch;
+                    kvp.tid.tid   = 0;
+                    record.key_value_pairs.emplace_back(std::move(kvp));
 
-              rapidjson::Value consistent_snapshot(rapidjson::kArrayType);
-              table_ref_.ForEach([&](std::string_view key,
-                                     DataItem& data_item) {
-                data_item.ExclusiveLock();
-                auto* buffer = &data_item.checkpoint_buffer;
-                if (buffer->IsEmpty()) {
-                  // this data item holds version which has written before
-                  // the point of consistency.
-                  buffer = &data_item.buffer;
-                }
+                    data_item.ExclusiveUnlock();
+                    return true;
+                  });
+              records.emplace_back(std::move(record));
 
-                rapidjson::Value kvp(rapidjson::kObjectType);
-                kvp.AddMember(rapidjson::StringRef(key.data(), key.size()),
-                              rapidjson::StringRef(
-                                  reinterpret_cast<char*>(&buffer->value[0]),
-                                  buffer->size),
-                              allocator);
-
-                consistent_snapshot.PushBack(kvp, allocator);
-                data_item.ExclusiveUnlock();
-                return true;
-              });
-              checkpoint_json.AddMember("key_value_pairs",
-                                        consistent_snapshot.Move(), allocator);
-
-              checkpoint_json.Accept(writer);
-              os.Flush();
-              writer.Flush();
-              fclose(fp);
+              std::ofstream new_file(
+                  CheckpointWorkingFileName,
+                  std::ios_base::out | std::ios_base::binary);
+              msgpack::pack(new_file, records);
+              new_file.flush();
 
               // NOTE POSIX ensures that rename syscall provides atomicity
               if (rename(CheckpointWorkingFileName, CheckpointFileName)) {
                 SPDLOG_ERROR(
-                    "Durability Error: fail to rename checkpoint of the epoch "
+                    "Durability Error: fail to rename checkpoint of the "
+                    "epoch "
                     "{0:d}. "
                     "errno: {1}",
-                    epoch, errno);
+                    record.epoch, errno);
                 exit(1);
               }
             }
-
+            SPDLOG_DEBUG("FLUSH consistent snapshot of epoch {}",
+                         checkpoint_epoch_.load());
             checkpoint_completed_epoch_.store(checkpoint_epoch_.load());
             current_phase_.store(Phase::REST);
           }
@@ -188,12 +186,14 @@ class CPRManager {
   const LineairDB::Config& config_ref_;
   LineairDB::Index::ConcurrentTable& table_ref_;
   LineairDB::EpochFramework& epoch_manager_ref_;
+  Logger::LogRecords log_records;
   std::atomic<Phase> current_phase_;
   std::atomic<EpochNumber> checkpoint_epoch_;  // 'v' in the CPR paper
   std::atomic<EpochNumber> checkpoint_completed_epoch_;
   // BloomFilter bloom_filter_for_recent_updates_;
   std::atomic<bool> stop_;
   std::thread manager_thread_;
+  MSGPACK_DEFINE(log_records);
 };
 
 }  // namespace Recovery

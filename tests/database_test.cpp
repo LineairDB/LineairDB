@@ -35,8 +35,9 @@ class DatabaseTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::experimental::filesystem::remove_all("lineairdb_logs");
-    config_.max_thread = 4;
-    db_                = std::make_unique<LineairDB::Database>(config_);
+    config_.max_thread        = 4;
+    config_.checkpoint_period = 1;
+    db_                       = std::make_unique<LineairDB::Database>(config_);
   }
 };
 
@@ -44,6 +45,7 @@ TEST_F(DatabaseTest, Instantiate) {}
 TEST_F(DatabaseTest, InstantiateWithConfig) {
   db_.reset(nullptr);
   LineairDB::Config conf;
+  config_.checkpoint_period = 1;
   ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
 }
 
