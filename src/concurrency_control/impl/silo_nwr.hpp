@@ -28,6 +28,7 @@
 #include "concurrency_control/pivot_object.hpp"
 #include "index/concurrent_table.h"
 #include "types.h"
+#include "util/backoff.hpp"
 
 namespace LineairDB {
 
@@ -65,24 +66,19 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     assert(index_leaf != nullptr);
 
     DataItem snapshot;
-    for (;;) {
+    Util::RetryWithExponentialBackoff([&]() {
       auto tx_id = index_leaf->transaction_id.load();
 
-      if (tx_id.tid & 1u) {  // locked
-                             // WANTFIX user-space adaptive mutex locking may
-                             // improve the performance
-        std::this_thread::yield();
-        continue;
-      }
-
+      if (tx_id.tid & 1u) return false;  // locked. retry
       snapshot.Reset(index_leaf->value, index_leaf->size, tx_id);
+      if (index_leaf->transaction_id.load() != tx_id) return false;
+      validation_set_.push_back({index_leaf, tx_id});
+      return true;
+    });
 
-      if (index_leaf->transaction_id.load() == tx_id) {
-        validation_set_.push_back({index_leaf, tx_id});
-        return snapshot;
-      }
-    }
-  };
+    return snapshot;
+  }
+
   void Write(const std::string_view, const std::byte* const, const size_t,
              DataItem*) final override{};
   void Abort() final override{};
@@ -114,28 +110,23 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       assert(item != nullptr);
       __builtin_prefetch(item, 1, 3);
 
-      for (;;) {
+      Util::RetryWithExponentialBackoff([&]() {
         auto current = item->transaction_id.load();
-        if (current.tid & 1llu) {
-          // WANTFIX user-space adaptive mutex locking may
-          // improve the performance
-          std::this_thread::yield();
-          continue;
-        }
+        if (current.tid & 1llu) return false;
         auto desired = current;
         desired.tid |= 1llu;
-        bool lock_acquired =
-            item->transaction_id.compare_exchange_weak(current, desired);
-        if (lock_acquired) {
+        if (item->transaction_id.compare_exchange_weak(current, desired)) {
           snapshot.data_item_copy.transaction_id.store(desired);
-          // If this item is in readset, add 1 (lockflag) into snapshot for
-          // validation
-          for (auto& read_item : validation_set_) {
-            if (read_item.item_p_cache == item) {
-              read_item.transaction_id.tid++;
-              break;
-            }
-          }
+          return true;
+        }
+        return false;
+      });
+
+      // If this item is in readset, add 1 (lockflag) into snapshot for
+      // validation
+      for (auto& read_item : validation_set_) {
+        if (read_item.item_p_cache == item) {
+          read_item.transaction_id.tid++;
           break;
         }
       }
@@ -162,7 +153,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
 
     return true;
-  };
+  }
 
   void PostProcessing(TxStatus status) final override {
     if (status == TxStatus::Committed) {

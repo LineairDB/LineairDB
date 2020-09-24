@@ -23,6 +23,7 @@
 #include <thread>
 
 #include "spdlog/spdlog.h"
+#include "util/backoff.hpp"
 #include "util/thread_key_storage.h"
 
 namespace LineairDB {
@@ -86,15 +87,10 @@ class EpochFramework {
 
   EpochNumber Sync() {
     assert(GetMyThreadLocalEpoch() == THREAD_OFFLINE);
-    size_t reload_count = 0;
-    for (;;) {
-      auto current_epoch = global_epoch_.load();
-      auto reload_epoch  = global_epoch_.load();
-      while (current_epoch == reload_epoch) {
-        std::this_thread::yield();
-        reload_epoch = global_epoch_.load();
-      }
-      reload_count++;
+    auto current_epoch = global_epoch_.load();
+    auto reload_epoch  = current_epoch;
+    Util::RetryWithExponentialBackoff([&]() {
+      reload_epoch = global_epoch_.load();
 
       // Note that each thread always belongs to either one of the two epochs,
       // the old one and the one that matches the global epoch.
@@ -102,8 +98,9 @@ class EpochFramework {
       // when Sync() is called. The next while loop waits for all threads to
       // progress to the next epoch.
 
-      if (reload_count == 2) return reload_epoch;
-    }
+      return current_epoch + 2 <= reload_epoch;
+    });
+    return reload_epoch;
   }
 
   void Start() { start_.store(true); }
