@@ -1,6 +1,4 @@
 var searchData=
 [
-  ['isaborted',['IsAborted',['../classLineairDB_1_1Transaction.html#aefdf1c6f41ec035170422a803c9ccde7',1,'LineairDB::Transaction']]],
-  ['iscommitted',['IsCommitted',['../classLineairDB_1_1Transaction.html#ac5637b9ddcb467074d6671afd5dcd349',1,'LineairDB::Transaction']]],
-  ['isrunning',['IsRunning',['../classLineairDB_1_1Transaction.html#aa87041ff8dcce1b217a18107572c09ff',1,'LineairDB::Transaction']]]
+  ['operator_3d',['operator=',['../classLineairDB_1_1Database.html#a3efa30ddbfacfd33270d483072b19acc',1,'LineairDB::Database::operator=(const Database &amp;)=delete'],['../classLineairDB_1_1Database.html#afc96bcc93a7c68b30784e36e9aa4198d',1,'LineairDB::Database::operator=(Database &amp;&amp;)=delete']]]
 ];

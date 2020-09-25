@@ -120,9 +120,9 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:abd848da7f5cef8d50105ef380d4bac6d"><td class="memItemLeft" align="right" valign="top">const <a class="el" href="structLineairDB_1_1Config.html">Config</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#abd848da7f5cef8d50105ef380d4bac6d">GetConfig</a> () const noexcept</td></tr>
 <tr class="memdesc:abd848da7f5cef8d50105ef380d4bac6d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the <a class="el" href="structLineairDB_1_1Config.html" title="Configuration and options for LineairDB instances. ">Config</a> object set by constructor.  <a href="#abd848da7f5cef8d50105ef380d4bac6d">More...</a><br /></td></tr>
 <tr class="separator:abd848da7f5cef8d50105ef380d4bac6d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a01b7b8454a1a07e14e77dda21e35d0d2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#a01b7b8454a1a07e14e77dda21e35d0d2">ExecuteTransaction</a> (<a class="el" href="classLineairDB_1_1Database.html#a2bc7a5c80f83314de97efd25a59409a0">ProcedureType</a> proc, <a class="el" href="classLineairDB_1_1Database.html#a38efc92beb0118c691946019de77c9ea">CallbackType</a> clbk)</td></tr>
-<tr class="memdesc:a01b7b8454a1a07e14e77dda21e35d0d2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes a transaction given by a transaction procedure proc, and afterwards process callback function with the resulting TxStatus. It enqueues these two functions into <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s thread pool. Thread-safe.  <a href="#a01b7b8454a1a07e14e77dda21e35d0d2">More...</a><br /></td></tr>
-<tr class="separator:a01b7b8454a1a07e14e77dda21e35d0d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af5f105cc3014c7e5b5e2ec5a1815d536"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#af5f105cc3014c7e5b5e2ec5a1815d536">ExecuteTransaction</a> (<a class="el" href="classLineairDB_1_1Database.html#a2bc7a5c80f83314de97efd25a59409a0">ProcedureType</a> proc, <a class="el" href="classLineairDB_1_1Database.html#a38efc92beb0118c691946019de77c9ea">CallbackType</a> commit_clbk, std::optional&lt; <a class="el" href="classLineairDB_1_1Database.html#a38efc92beb0118c691946019de77c9ea">CallbackType</a> &gt; precommit_clbk=std::nullopt)</td></tr>
+<tr class="memdesc:af5f105cc3014c7e5b5e2ec5a1815d536"><td class="mdescLeft">&#160;</td><td class="mdescRight">Processes a transaction given by a transaction procedure proc, and afterwards process callback function with the resulting TxStatus. It enqueues these two functions into <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s thread pool. Thread-safe.  <a href="#af5f105cc3014c7e5b5e2ec5a1815d536">More...</a><br /></td></tr>
+<tr class="separator:af5f105cc3014c7e5b5e2ec5a1815d536"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afdd2606ae46302941e64f1cb083f5747"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classLineairDB_1_1Transaction.html">Transaction</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#afdd2606ae46302941e64f1cb083f5747">BeginTransaction</a> ()</td></tr>
 <tr class="memdesc:afdd2606ae46302941e64f1cb083f5747"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new transaction. Via this interface, the callee thread of this method can manipulate <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s key-value storage directly. Note that the behavior and performance characteristics will affect from the selected callback manager and log manager; For example, if you have set Config::CallbackManager to ThreadLocal, the callee thread of this method may have to call Database::RequestCommit more frequently, in order to resolve the congestion of the thread-local commit callback queue.  <a href="#afdd2606ae46302941e64f1cb083f5747">More...</a><br /></td></tr>
 <tr class="separator:afdd2606ae46302941e64f1cb083f5747"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -372,8 +372,8 @@ false if the <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s concur
 
 </div>
 </div>
-<a id="a01b7b8454a1a07e14e77dda21e35d0d2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a01b7b8454a1a07e14e77dda21e35d0d2">&#9670;&nbsp;</a></span>ExecuteTransaction()</h2>
+<a id="af5f105cc3014c7e5b5e2ec5a1815d536"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af5f105cc3014c7e5b5e2ec5a1815d536">&#9670;&nbsp;</a></span>ExecuteTransaction()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -388,7 +388,13 @@ false if the <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s concur
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype"><a class="el" href="classLineairDB_1_1Database.html#a38efc92beb0118c691946019de77c9ea">CallbackType</a>&#160;</td>
-          <td class="paramname"><em>clbk</em>&#160;</td>
+          <td class="paramname"><em>commit_clbk</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::optional&lt; <a class="el" href="classLineairDB_1_1Database.html#a38efc92beb0118c691946019de77c9ea">CallbackType</a> &gt;&#160;</td>
+          <td class="paramname"><em>precommit_clbk</em> = <code>std::nullopt</code>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -402,7 +408,8 @@ false if the <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s concur
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">proc</td><td>A transaction procedure processed by <a class="el" href="namespaceLineairDB.html">LineairDB</a>. </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">clbk</td><td>A callback function accepts a result (Committed or Aborted). </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">commit_clbk</td><td>A callback function accepts a result (Committed or Aborted) of this transaction. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">precommit_clbk</td><td>A callback function accepts a result (Precommitted or Aborted) of this transaction. Note that pre-committed transactions have not been committed. Since the recovery log has not been persisted, this transaction may be aborted. The callback is good for describing transaction dependencies. If a transaction is aborted, it is guaranteed that the other transactions, that are executed after checking the pre-commit of the transaction, will abort. </td></tr>
   </table>
   </dd>
 </dl>

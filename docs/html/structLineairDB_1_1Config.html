@@ -82,7 +82,6 @@ $(document).ready(function(){initNavTree('structLineairDB_1_1Config.html','');})
 <div class="header">
   <div class="summary">
 <a href="#pub-types">Public Types</a> &#124;
-<a href="#pub-methods">Public Member Functions</a> &#124;
 <a href="#pub-attribs">Public Attributes</a> &#124;
 <a href="structLineairDB_1_1Config-members.html">List of all members</a>  </div>
   <div class="headertitle">
@@ -112,37 +111,38 @@ Public Types</h2></td></tr>
  }</td></tr>
 <tr class="separator:a9c47faa6d41e4dacf0e39781ca52c59d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
-Public Member Functions</h2></td></tr>
-<tr class="memitem:a66d3bc109a3943fb73b588e80049ba0b"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a66d3bc109a3943fb73b588e80049ba0b">Config</a> (const size_t m=std::thread::hardware_concurrency(), const size_t e=40, const <a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">ConcurrencyControl</a> cc=<a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a6569b8c69f771790099c86cb46b8bd7e">SiloNWR</a>, const <a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">Logger</a> lg=<a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e">ThreadLocalLogger</a>, const <a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">ConcurrentPointIndex</a> in=<a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07a74272c7e62debea0450afbadb30c1753">MPMCConcurrentHashSet</a>, const <a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59d">CallbackEngine</a> cb=<a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59dae1f4f836c0b0da20f39645bcd8c126ba">ThreadLocal</a>, const bool r=true, const bool l=true)</td></tr>
-<tr class="separator:a66d3bc109a3943fb73b588e80049ba0b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
-<tr class="memitem:a162aa1d7763b6d0a8998d126b1df8911"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a162aa1d7763b6d0a8998d126b1df8911">max_thread</a></td></tr>
+<tr class="memitem:a162aa1d7763b6d0a8998d126b1df8911"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a162aa1d7763b6d0a8998d126b1df8911">max_thread</a> = std::thread::hardware_concurrency()</td></tr>
 <tr class="memdesc:a162aa1d7763b6d0a8998d126b1df8911"><td class="mdescLeft">&#160;</td><td class="mdescRight">The size of thread pool.  <a href="#a162aa1d7763b6d0a8998d126b1df8911">More...</a><br /></td></tr>
 <tr class="separator:a162aa1d7763b6d0a8998d126b1df8911"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1d96cbe2e9823bbc9c73c942750f7f72"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a1d96cbe2e9823bbc9c73c942750f7f72">epoch_duration_ms</a></td></tr>
+<tr class="memitem:a1d96cbe2e9823bbc9c73c942750f7f72"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a1d96cbe2e9823bbc9c73c942750f7f72">epoch_duration_ms</a> = 40</td></tr>
 <tr class="memdesc:a1d96cbe2e9823bbc9c73c942750f7f72"><td class="mdescLeft">&#160;</td><td class="mdescRight">The size of epoch duration (milliseconds). See [Tu13, Chandramouli18] to get more details of epoch-based group commit. Briefly, <a class="el" href="namespaceLineairDB.html">LineairDB</a> concurrently processes transactions included in the same epoch duration. As you set the larger duration to this paramter, you may get a higher throughput. However, this setting results in the increase of average response time.  <a href="#a1d96cbe2e9823bbc9c73c942750f7f72">More...</a><br /></td></tr>
 <tr class="separator:a1d96cbe2e9823bbc9c73c942750f7f72"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ace6b3b6b3936931d08b76c08c4478cda"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">ConcurrencyControl</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#ace6b3b6b3936931d08b76c08c4478cda">concurrency_control_protocol</a></td></tr>
+<tr class="memitem:ace6b3b6b3936931d08b76c08c4478cda"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">ConcurrencyControl</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#ace6b3b6b3936931d08b76c08c4478cda">concurrency_control_protocol</a> = <a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a6569b8c69f771790099c86cb46b8bd7e">SiloNWR</a></td></tr>
 <tr class="memdesc:ace6b3b6b3936931d08b76c08c4478cda"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a concurrency control algorithm. See <a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">LineairDB::Config::ConcurrencyControl</a> for the enum options of this configuration.  <a href="#ace6b3b6b3936931d08b76c08c4478cda">More...</a><br /></td></tr>
 <tr class="separator:ace6b3b6b3936931d08b76c08c4478cda"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1ea4e01684a9093cea446ebda4cac678"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">Logger</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a1ea4e01684a9093cea446ebda4cac678">logger</a></td></tr>
+<tr class="memitem:a1ea4e01684a9093cea446ebda4cac678"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">Logger</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a1ea4e01684a9093cea446ebda4cac678">logger</a> = <a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e">ThreadLocalLogger</a></td></tr>
 <tr class="memdesc:a1ea4e01684a9093cea446ebda4cac678"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a logging algorithm. See <a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">LineairDB::Config::Logger</a> for the enum options of this configuration.  <a href="#a1ea4e01684a9093cea446ebda4cac678">More...</a><br /></td></tr>
 <tr class="separator:a1ea4e01684a9093cea446ebda4cac678"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a0cf6dd9c2b53b35ad9ae54a132549df0"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">ConcurrentPointIndex</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a0cf6dd9c2b53b35ad9ae54a132549df0">concurrent_point_index</a></td></tr>
+<tr class="memitem:a0cf6dd9c2b53b35ad9ae54a132549df0"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">ConcurrentPointIndex</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a0cf6dd9c2b53b35ad9ae54a132549df0">concurrent_point_index</a> = <a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07a74272c7e62debea0450afbadb30c1753">MPMCConcurrentHashSet</a></td></tr>
 <tr class="memdesc:a0cf6dd9c2b53b35ad9ae54a132549df0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the type of concurrent point index. See <a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">LineairDB::Config::ConcurrentPointIndex</a> for the enum options of this configuration.  <a href="#a0cf6dd9c2b53b35ad9ae54a132549df0">More...</a><br /></td></tr>
 <tr class="separator:a0cf6dd9c2b53b35ad9ae54a132549df0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aef6b9d93a50d155bd97c1c297af16a88"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59d">CallbackEngine</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#aef6b9d93a50d155bd97c1c297af16a88">callback_engine</a></td></tr>
+<tr class="memitem:aef6b9d93a50d155bd97c1c297af16a88"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59d">CallbackEngine</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#aef6b9d93a50d155bd97c1c297af16a88">callback_engine</a> = <a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59dae1f4f836c0b0da20f39645bcd8c126ba">ThreadLocal</a></td></tr>
 <tr class="memdesc:aef6b9d93a50d155bd97c1c297af16a88"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the type of callback engine. See LineairDB::Config::CallBackEngine for the enum options of this configuration.  <a href="#aef6b9d93a50d155bd97c1c297af16a88">More...</a><br /></td></tr>
 <tr class="separator:aef6b9d93a50d155bd97c1c297af16a88"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af46d36b103c1e9bee72a12740af8c77d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#af46d36b103c1e9bee72a12740af8c77d">enable_recovery</a></td></tr>
+<tr class="memitem:af46d36b103c1e9bee72a12740af8c77d"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#af46d36b103c1e9bee72a12740af8c77d">enable_recovery</a> = true</td></tr>
 <tr class="memdesc:af46d36b103c1e9bee72a12740af8c77d"><td class="mdescLeft">&#160;</td><td class="mdescRight">If true, <a class="el" href="namespaceLineairDB.html">LineairDB</a> processes recovery at the instantiation.  <a href="#af46d36b103c1e9bee72a12740af8c77d">More...</a><br /></td></tr>
 <tr class="separator:af46d36b103c1e9bee72a12740af8c77d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a974d99d7aad4726d23c1824853152ae9"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a974d99d7aad4726d23c1824853152ae9">enable_logging</a></td></tr>
-<tr class="memdesc:a974d99d7aad4726d23c1824853152ae9"><td class="mdescLeft">&#160;</td><td class="mdescRight">If true, the db logs processed operations for recovery.  <a href="#a974d99d7aad4726d23c1824853152ae9">More...</a><br /></td></tr>
+<tr class="memitem:a974d99d7aad4726d23c1824853152ae9"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a974d99d7aad4726d23c1824853152ae9">enable_logging</a> = true</td></tr>
+<tr class="memdesc:a974d99d7aad4726d23c1824853152ae9"><td class="mdescLeft">&#160;</td><td class="mdescRight">If true, <a class="el" href="namespaceLineairDB.html">LineairDB</a> performs logging for recovery.  <a href="#a974d99d7aad4726d23c1824853152ae9">More...</a><br /></td></tr>
 <tr class="separator:a974d99d7aad4726d23c1824853152ae9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a77bab3b92970b48ae0da9fd42ff22c99"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a77bab3b92970b48ae0da9fd42ff22c99">enable_checkpointing</a> = true</td></tr>
+<tr class="memdesc:a77bab3b92970b48ae0da9fd42ff22c99"><td class="mdescLeft">&#160;</td><td class="mdescRight">If true, <a class="el" href="namespaceLineairDB.html">LineairDB</a> performs logging for checkpoint-recovery. Checkpointing prevents the log file size from increasing monotonically. i.e, if this parameter is set to false, The disk space used by <a class="el" href="namespaceLineairDB.html">LineairDB</a> is unbounded. You can also turn off enable_logging and use only Checkpointing. This configure gives the recoverability property called CPR-consistency [1]. CPR-consitency may volatilize the data of committed transactions at last the number of seconds specified at checkpoint_period; however, the persistence of the data before that time is guaranteed.  <a href="#a77bab3b92970b48ae0da9fd42ff22c99">More...</a><br /></td></tr>
+<tr class="separator:a77bab3b92970b48ae0da9fd42ff22c99"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9dc0559305ed0a5d88d26367f1239809"><td class="memItemLeft" align="right" valign="top">size_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structLineairDB_1_1Config.html#a9dc0559305ed0a5d88d26367f1239809">checkpoint_period</a> = 30</td></tr>
+<tr class="memdesc:a9dc0559305ed0a5d88d26367f1239809"><td class="mdescLeft">&#160;</td><td class="mdescRight">It uses as the interval time (seconds) for checkpointing. The longer is the better for the performance but the larger interval time causes the increasing of log file size.  <a href="#a9dc0559305ed0a5d88d26367f1239809">More...</a><br /></td></tr>
+<tr class="separator:a9dc0559305ed0a5d88d26367f1239809"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Configuration and options for <a class="el" href="namespaceLineairDB.html">LineairDB</a> instances. </p>
@@ -217,79 +217,6 @@ Public Attributes</h2></td></tr>
 
 </div>
 </div>
-<h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
-<a id="a66d3bc109a3943fb73b588e80049ba0b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a66d3bc109a3943fb73b588e80049ba0b">&#9670;&nbsp;</a></span>Config()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">LineairDB::Config::Config </td>
-          <td>(</td>
-          <td class="paramtype">const size_t&#160;</td>
-          <td class="paramname"><em>m</em> = <code>std::thread::hardware_concurrency()</code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const size_t&#160;</td>
-          <td class="paramname"><em>e</em> = <code>40</code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">ConcurrencyControl</a>&#160;</td>
-          <td class="paramname"><em>cc</em> = <code><a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a6569b8c69f771790099c86cb46b8bd7e">SiloNWR</a></code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">Logger</a>&#160;</td>
-          <td class="paramname"><em>lg</em> = <code><a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e">ThreadLocalLogger</a></code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">ConcurrentPointIndex</a>&#160;</td>
-          <td class="paramname"><em>in</em> = <code><a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07a74272c7e62debea0450afbadb30c1753">MPMCConcurrentHashSet</a></code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const <a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59d">CallbackEngine</a>&#160;</td>
-          <td class="paramname"><em>cb</em> = <code><a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59dae1f4f836c0b0da20f39645bcd8c126ba">ThreadLocal</a></code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const bool&#160;</td>
-          <td class="paramname"><em>r</em> = <code>true</code>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const bool&#160;</td>
-          <td class="paramname"><em>l</em> = <code>true</code>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-</div>
-</div>
 <h2 class="groupheader">Member Data Documentation</h2>
 <a id="aef6b9d93a50d155bd97c1c297af16a88"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aef6b9d93a50d155bd97c1c297af16a88">&#9670;&nbsp;</a></span>callback_engine</h2>
@@ -298,13 +225,30 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59d">CallbackEngine</a> LineairDB::Config::callback_engine</td>
+          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59d">CallbackEngine</a> LineairDB::Config::callback_engine = <a class="el" href="structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59dae1f4f836c0b0da20f39645bcd8c126ba">ThreadLocal</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>Set the type of callback engine. See LineairDB::Config::CallBackEngine for the enum options of this configuration. </p>
 <p>Default: ThreadLocal </p>
+
+</div>
+</div>
+<a id="a9dc0559305ed0a5d88d26367f1239809"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9dc0559305ed0a5d88d26367f1239809">&#9670;&nbsp;</a></span>checkpoint_period</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t LineairDB::Config::checkpoint_period = 30</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>It uses as the interval time (seconds) for checkpointing. The longer is the better for the performance but the larger interval time causes the increasing of log file size. </p>
+<p>Default: 30 </p>
 
 </div>
 </div>
@@ -315,7 +259,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">ConcurrencyControl</a> LineairDB::Config::concurrency_control_protocol</td>
+          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137">ConcurrencyControl</a> LineairDB::Config::concurrency_control_protocol = <a class="el" href="structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a6569b8c69f771790099c86cb46b8bd7e">SiloNWR</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -332,13 +276,30 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">ConcurrentPointIndex</a> LineairDB::Config::concurrent_point_index</td>
+          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">ConcurrentPointIndex</a> LineairDB::Config::concurrent_point_index = <a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07a74272c7e62debea0450afbadb30c1753">MPMCConcurrentHashSet</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>Set the type of concurrent point index. See <a class="el" href="structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07">LineairDB::Config::ConcurrentPointIndex</a> for the enum options of this configuration. </p>
 <p>Default: MPMCConcurrentHashSet </p>
+
+</div>
+</div>
+<a id="a77bab3b92970b48ae0da9fd42ff22c99"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a77bab3b92970b48ae0da9fd42ff22c99">&#9670;&nbsp;</a></span>enable_checkpointing</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool LineairDB::Config::enable_checkpointing = true</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>If true, <a class="el" href="namespaceLineairDB.html">LineairDB</a> performs logging for checkpoint-recovery. Checkpointing prevents the log file size from increasing monotonically. i.e, if this parameter is set to false, The disk space used by <a class="el" href="namespaceLineairDB.html">LineairDB</a> is unbounded. You can also turn off enable_logging and use only Checkpointing. This configure gives the recoverability property called CPR-consistency [1]. CPR-consitency may volatilize the data of committed transactions at last the number of seconds specified at checkpoint_period; however, the persistence of the data before that time is guaranteed. </p>
+<p>Default: true [1]: <a href="https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf">https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf</a> </p>
 
 </div>
 </div>
@@ -349,12 +310,12 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">bool LineairDB::Config::enable_logging</td>
+          <td class="memname">bool LineairDB::Config::enable_logging = true</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>If true, the db logs processed operations for recovery. </p>
+<p>If true, <a class="el" href="namespaceLineairDB.html">LineairDB</a> performs logging for recovery. </p>
 <p>Default: true </p>
 
 </div>
@@ -366,7 +327,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">bool LineairDB::Config::enable_recovery</td>
+          <td class="memname">bool LineairDB::Config::enable_recovery = true</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -383,7 +344,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">size_t LineairDB::Config::epoch_duration_ms</td>
+          <td class="memname">size_t LineairDB::Config::epoch_duration_ms = 40</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -402,7 +363,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">Logger</a> LineairDB::Config::logger</td>
+          <td class="memname"><a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351">Logger</a> LineairDB::Config::logger = <a class="el" href="structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e">ThreadLocalLogger</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -419,7 +380,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">size_t LineairDB::Config::max_thread</td>
+          <td class="memname">size_t LineairDB::Config::max_thread = std::thread::hardware_concurrency()</td>
         </tr>
       </table>
 </div><div class="memdoc">

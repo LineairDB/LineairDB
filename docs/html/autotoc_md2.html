@@ -84,16 +84,18 @@ $(document).ready(function(){initNavTree('autotoc_md2.html','');});
 <div class="title">The <a class="el" href="namespaceLineairDB.html">LineairDB</a> project roadmap </div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><h4>Support log-replication and online recovery</h4>
+<div class="textblock"><h3>Goals</h3>
+<h4>Support log-replication and online recovery</h4>
 <p><a class="el" href="namespaceLineairDB.html">LineairDB</a> is the embedded database and is intended to work as a part of storage engine of other DBMSs, so this library does not support distributed transaction. However, online recovery is a helpful feature since it enables multiple <a class="el" href="namespaceLineairDB.html">LineairDB</a> instances to synchronize the recorded information. This is a desirable feature in a mobile environment.</p>
 <h4>Support range index and scan query.</h4>
 <p>The current <a class="el" href="namespaceLineairDB.html">LineairDB</a> has only a point index, and users cannot use range query. This feature is very difficult to implement in a naïve manner; there are two major problems. First, replacing a simple hash table with a concurrent and indexed data structure, such as concurrent skiplist or masstree, will likely result in poor performance. Next, scan query raises Index Anomalies (e.g. phantom). Several methods have already been proposed to prevent this anomalies, but the best one in terms of performance has to be discussed more and more.</p>
 <h4>Support setting of the upper bound (limit) of the response time of callback functions.</h4>
-<p>The current <a class="el" href="namespaceLineairDB.html">LineairDB</a> executes the returns of commit callbacks an afterthought when the jobs in the thread pool is clogged. In other words, <a class="el" href="classLineairDB_1_1Database.html#a01b7b8454a1a07e14e77dda21e35d0d2" title="Processes a transaction given by a transaction procedure proc, and afterwards process callback functi...">LineairDB::Database::ExecuteTransaction</a> is lock-free but is not starvation-free. It is no worse in terms of cache efficiency, but it is better to forbid that a commit does not come back (eventually) forever.</p>
+<p>The current <a class="el" href="namespaceLineairDB.html">LineairDB</a> executes the returns of commit callbacks an afterthought when the jobs in the thread pool is clogged. In other words, <a class="el" href="classLineairDB_1_1Database.html#af5f105cc3014c7e5b5e2ec5a1815d536" title="Processes a transaction given by a transaction procedure proc, and afterwards process callback functi...">LineairDB::Database::ExecuteTransaction</a> is lock-free but is not starvation-free. It is no worse in terms of cache efficiency, but it is better to forbid that a commit does not come back (eventually) forever.</p>
 <h4>Support CLI.</h4>
+<h3>Next Release</h3>
 <ul>
 <li>Checkpointing</li>
-<li>Additional concurrency control protocols (S2PL, MVTO, MVTO+NWR)</li>
+<li>Additional concurrency control protocols (MVTO, MVTO+NWR)</li>
 <li>TPC-C benchmark </li>
 </ul>
 </div></div><!-- contents -->
