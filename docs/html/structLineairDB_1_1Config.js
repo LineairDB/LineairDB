@@ -14,10 +14,11 @@ var structLineairDB_1_1Config =
     [ "Logger", "structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351", [
       [ "ThreadLocalLogger", "structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e", null ]
     ] ],
-    [ "Config", "structLineairDB_1_1Config.html#a66d3bc109a3943fb73b588e80049ba0b", null ],
     [ "callback_engine", "structLineairDB_1_1Config.html#aef6b9d93a50d155bd97c1c297af16a88", null ],
+    [ "checkpoint_period", "structLineairDB_1_1Config.html#a9dc0559305ed0a5d88d26367f1239809", null ],
     [ "concurrency_control_protocol", "structLineairDB_1_1Config.html#ace6b3b6b3936931d08b76c08c4478cda", null ],
     [ "concurrent_point_index", "structLineairDB_1_1Config.html#a0cf6dd9c2b53b35ad9ae54a132549df0", null ],
+    [ "enable_checkpointing", "structLineairDB_1_1Config.html#a77bab3b92970b48ae0da9fd42ff22c99", null ],
     [ "enable_logging", "structLineairDB_1_1Config.html#a974d99d7aad4726d23c1824853152ae9", null ],
     [ "enable_recovery", "structLineairDB_1_1Config.html#af46d36b103c1e9bee72a12740af8c77d", null ],
     [ "epoch_duration_ms", "structLineairDB_1_1Config.html#a1d96cbe2e9823bbc9c73c942750f7f72", null ],
