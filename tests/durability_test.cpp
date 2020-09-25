@@ -135,7 +135,9 @@ size_t getLogDirectorySize() {
   namespace fs = std::experimental::filesystem;
   size_t size  = 0;
   for (const auto& entry : fs::directory_iterator("lineairdb_logs")) {
-    if (entry.path().filename() == "durable_epoch_working.json") continue;
+    if (entry.path().filename().generic_string().find("working") !=
+        std::string::npos)
+      continue;
     size += fs::file_size(entry.path());
   }
   return size;
@@ -201,11 +203,12 @@ TEST_F(DurabilityTest,
   std::thread worker_thread([&]() {
     for (;;) {
       auto& tx                    = db_->BeginTransaction();
-      int value                   = 0xBEEF;
       [[maybe_unused]] auto alice = tx.Read<int>("alice");
+      int value                   = 0xBEEF;
       tx.Write<int>("alice", value);
       db_->EndTransaction(tx, [](auto) {});
-      if (stop.load()) break;
+      if (stop.load()) return;
+      std::this_thread::yield();
     }
   });
 
@@ -232,9 +235,9 @@ TEST_F(DurabilityTest,
 TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
   /**
    * CPR Consistency:
-   * Definition 1 (CPR Consistency). A database state is CPR consistent if and
-   * only if, for every client $C$ , the state contains all its transactions
-   * committed before a unique client-local time-point $tC$ , and none after.
+   * > Definition 1 (CPR Consistency). A database state is CPR consistent if and
+   * > only if, for every client $C$ , the state contains all its transactions
+   * > committed before a unique client-local time-point $tC$ , and none after.
    * Ref:
    * https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf
    *
