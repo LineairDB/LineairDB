@@ -20,12 +20,13 @@
 #include <lineairdb/config.h>
 #include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
+#include <lineairdb/tx_status.h>
 
 #include <memory>
 #include <string_view>
 
 #include "concurrency_control/concurrency_control_base.h"
-#include "types.h"
+#include "types/definitions.h"
 
 namespace LineairDB {
 
@@ -62,12 +63,18 @@ class Transaction::Impl {
   void Abort();
   bool Precommit();
 
+  /**
+   * We assume that #PostProcessing will be invoked after #Precommit().
+   */
+  void PostProcessing(TxStatus);
+
  private:
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
  private:
   TxStatus current_status_;
   Database::Impl* db_pimpl_;
+  EpochNumber my_epoch_;
   const Config& config_ref_;
   std::unique_ptr<ConcurrencyControlBase> concurrency_control_;
 

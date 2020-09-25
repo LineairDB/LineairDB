@@ -28,7 +28,8 @@
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/pivot_object.hpp"
 #include "index/concurrent_table.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 
@@ -120,14 +121,22 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
       PostProcessing(TxStatus::Aborted);
     }
   };
-  bool Precommit() final override { return true; };
+  bool Precommit(bool need_to_checkpoint) final override {
+    if (need_to_checkpoint) {
+      for (auto& snapshot : tx_ref_.write_set_ref_) {
+        snapshot.index_cache->CopyLiveVersionToStableVersion();
+      }
+    }
+
+    return true;
+  };
 
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 
  private:
   void Undo() {
     for (auto& item : undo_set_) {
-      item.first->Reset(item.second.value, item.second.size);
+      item.first->Reset(item.second.value(), item.second.size());
     }
   }
   void UnlockAll() {

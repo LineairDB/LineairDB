@@ -16,12 +16,14 @@
 
 #include "mpmc_concurrent_set_impl.h"
 
+#include <atomic>
 #include <cassert>
 #include <functional>
 #include <mutex>
 #include <string_view>
 
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Index {
@@ -212,5 +214,15 @@ void MPMCConcurrentSetImpl::Clear() {
   table->clear();
 }
 
+void MPMCConcurrentSetImpl::ForEach(
+    std::function<bool(std::string_view, DataItem&)> f) {
+  auto* table = table_.load(std::memory_order::memory_order_seq_cst);
+  for (auto& bucket_atm : *table) {
+    auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
+    if (node == nullptr) continue;
+    auto is_success = f(node->key, *const_cast<DataItem*>(node->value));
+    if (!is_success) break;
+  }
+}
 }  // namespace Index
 }  // namespace LineairDB

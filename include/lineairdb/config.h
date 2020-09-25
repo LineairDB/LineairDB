@@ -34,7 +34,7 @@ struct Config {
    * Default: LineairDB allocates threads as many the return value of
    * std::thread::hardware_concurrency().
    */
-  size_t max_thread;
+  size_t max_thread = std::thread::hardware_concurrency();
   /**
    * @brief
    * The size of epoch duration (milliseconds). See [Tu13, Chandramouli18] to
@@ -49,7 +49,7 @@ struct Config {
    * @see [Chandramouli18]
    * https://www.microsoft.com/en-us/research/uploads/prod/2018/03/faster-sigmod18.pdf
    */
-  size_t epoch_duration_ms;
+  size_t epoch_duration_ms = 40;
 
   enum ConcurrencyControl { Silo, SiloNWR, TwoPhaseLocking };
   /**
@@ -60,7 +60,7 @@ struct Config {
    *
    * Default: SiloNWR
    */
-  ConcurrencyControl concurrency_control_protocol;
+  ConcurrencyControl concurrency_control_protocol = SiloNWR;
 
   enum Logger { ThreadLocalLogger };
   /**
@@ -71,7 +71,7 @@ struct Config {
    *
    * Default: ThreadLocalLogger
    */
-  Logger logger;
+  Logger logger = ThreadLocalLogger;
 
   enum ConcurrentPointIndex { MPMCConcurrentHashSet };
   /**
@@ -82,7 +82,7 @@ struct Config {
    *
    * Default: MPMCConcurrentHashSet
    */
-  ConcurrentPointIndex concurrent_point_index;
+  ConcurrentPointIndex concurrent_point_index = MPMCConcurrentHashSet;
 
   enum CallbackEngine { ThreadLocal };
   /**
@@ -93,7 +93,7 @@ struct Config {
    *
    * Default: ThreadLocal
    */
-  CallbackEngine callback_engine;
+  CallbackEngine callback_engine = ThreadLocal;
 
   /**
    * @brief
@@ -101,30 +101,43 @@ struct Config {
    *
    * Default: true
    */
-  bool enable_recovery;
+  bool enable_recovery = true;
 
   /**
    * @brief
-   * If true, the db logs processed operations for recovery.
+   * If true, LineairDB performs logging for recovery.
    *
    * Default: true
    */
-  bool enable_logging;
+  bool enable_logging = true;
 
-  Config(const size_t m = std::thread::hardware_concurrency(),
-         const size_t e = 40, const ConcurrencyControl cc = SiloNWR,
-         const Logger lg               = ThreadLocalLogger,
-         const ConcurrentPointIndex in = MPMCConcurrentHashSet,
-         const CallbackEngine cb = ThreadLocal, const bool r = true,
-         const bool l = true)
-      : max_thread(m),
-        epoch_duration_ms(e),
-        concurrency_control_protocol(cc),
-        logger(lg),
-        concurrent_point_index(in),
-        callback_engine(cb),
-        enable_recovery(r),
-        enable_logging(l){};
+  /**
+   * @brief
+   * If true, LineairDB performs logging for checkpoint-recovery.
+   * Checkpointing prevents the log file size from increasing monotonically.
+   * i.e, if this parameter is set to false, The disk space used by LineairDB is
+   * unbounded.
+   * You can also turn off enable_logging and use only Checkpointing.
+   * This configure gives the recoverability property called CPR-consistency
+   * [1]. CPR-consitency may volatilize the data of committed transactions at
+   * last the number of seconds specified at checkpoint_period; however, the
+   * persistence of the data before that time is guaranteed.
+   *
+   * Default: true
+   * @ref [1]:
+   * https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf
+   */
+  bool enable_checkpointing = true;
+
+  /**
+   * @brief
+   * It uses as the interval time (seconds) for checkpointing.
+   * The longer is the better for the performance but the larger interval time
+   * causes the increasing of log file size.
+   *
+   * Default: 30
+   */
+  size_t checkpoint_period = 30;
 };
 }  // namespace LineairDB
 

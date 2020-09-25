@@ -29,15 +29,16 @@
 #include "concurrency_control/impl/silo_nwr.hpp"
 #include "concurrency_control/impl/two_phase_locking.hpp"
 #include "database_impl.h"
-#include "types.h"
+#include "types/snapshot.hpp"
+
 namespace LineairDB {
 
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
+      my_epoch_(db_pimpl_->GetMyThreadLocalEpoch()),
       config_ref_(db_pimpl_->GetConfig()) {
-  TransactionReferences&& tx = {read_set_, write_set_,
-                                db_pimpl_->GetMyThreadLocalEpoch(),
+  TransactionReferences&& tx = {read_set_, write_set_, my_epoch_,
                                 current_status_};
 
   // WANTFIX for performance
@@ -76,15 +77,15 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value,
-                            snapshot.data_item_copy.size);
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
     }
   }
 
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value,
-                            snapshot.data_item_copy.size);
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
     }
   }
   auto* index_leaf  = db_pimpl_->GetPointIndex().GetOrInsert(key);
@@ -93,8 +94,8 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   const auto& result      = concurrency_control_->Read(key, index_leaf);
   snapshot.data_item_copy = result;
   read_set_.emplace_back(std::move(snapshot));
-  return {result.value, result.size};
-}  // namespace LineairDB
+  return {result.value(), result.size()};
+}
 
 void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {
@@ -117,6 +118,7 @@ void Transaction::Impl::Write(const std::string_view key,
   }
 
   auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
+
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
   if (is_rmf) sp.is_read_modify_write = true;
@@ -133,14 +135,16 @@ void Transaction::Impl::Abort() {
 bool Transaction::Impl::Precommit() {
   if (IsAborted()) return false;
 
-  bool committed = concurrency_control_->Precommit();
-  if (committed) {
-    concurrency_control_->PostProcessing(TxStatus::Committed);
-  } else {
-    current_status_ = TxStatus::Aborted;
-    concurrency_control_->PostProcessing(TxStatus::Aborted);
-  }
+  const bool need_to_checkpoint =
+      (db_pimpl_->GetConfig().enable_checkpointing &&
+       db_pimpl_->IsNeedToCheckpointing(my_epoch_));
+  bool committed = concurrency_control_->Precommit(need_to_checkpoint);
   return committed;
+}
+
+void Transaction::Impl::PostProcessing(TxStatus status) {
+  if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
+  concurrency_control_->PostProcessing(status);
 }
 
 TxStatus Transaction::GetCurrentStatus() {

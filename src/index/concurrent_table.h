@@ -24,7 +24,9 @@
 #include <string_view>
 
 #include "concurrent_point_index_base.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
+#include "types/snapshot.hpp"
 
 namespace LineairDB {
 namespace Index {
@@ -39,6 +41,7 @@ class ConcurrentTable {
   DataItem* GetOrInsert(const std::string_view key);
   bool Put(const std::string_view key, const DataItem& value);
   DataItem* InsertIfNotExist(const std::string_view key);
+  void ForEach(std::function<bool(std::string_view, DataItem&)>);
 
  private:
   std::unique_ptr<ConcurrentPointIndexBase> container_;

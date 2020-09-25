@@ -35,8 +35,9 @@ class HandlerTransactionTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::experimental::filesystem::remove_all("lineairdb_logs");
-    config_.max_thread = 4;
-    db_                = std::make_unique<LineairDB::Database>(config_);
+    config_.checkpoint_period = 1;
+    config_.max_thread        = 4;
+    db_                       = std::make_unique<LineairDB::Database>(config_);
   }
 };
 

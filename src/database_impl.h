@@ -25,6 +25,7 @@
 
 #include "callback/callback_manager.h"
 #include "index/concurrent_table.h"
+#include "recovery/checkpoint_manager.hpp"
 #include "recovery/logger.h"
 #include "thread_pool/thread_pool.h"
 #include "transaction_impl.h"
@@ -42,9 +43,11 @@ class Database::Impl {
         logger_(c),
         callback_manager_(c),
         point_index_(c),
-        epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()) {
+        epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
+        checkpoint_manager_(c, point_index_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
+      SPDLOG_INFO("LineairDB instance has been constructed.");
     } else {
       SPDLOG_ERROR(
           "It is prohibited to allocate two LineairDB::Database instance at "
@@ -59,6 +62,7 @@ class Database::Impl {
     Fence();
     thread_pool_.StopAcceptingTransactions();
     epoch_framework_.Sync();
+    checkpoint_manager_.Stop();
     epoch_framework_.Stop();
     while (!thread_pool_.IsEmpty()) { std::this_thread::yield(); }
     thread_pool_.Shutdown();
@@ -66,6 +70,7 @@ class Database::Impl {
         "Epoch number and Durable epoch number are ended at {0}, and {1}, "
         "respectively.",
         epoch_framework_.GetGlobalEpoch(), logger_.GetDurableEpoch());
+    SPDLOG_INFO("LineairDB instance has been destructed.");
     assert(Database::Impl::CurrentDBInstance == this);
     Database::Impl::CurrentDBInstance = nullptr;
   };
@@ -88,15 +93,20 @@ class Database::Impl {
 
         bool committed = tx.Precommit();
         if (committed) {
-          if (precommit_clbk.has_value())
+          tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
+          if (precommit_clbk.has_value()) {
             precommit_clbk.value()(TxStatus::Committed);
-          if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
+          }
           const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-          logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
           callback_manager_.Enqueue(std::move(callback), current_epoch);
+          if (config_.enable_logging) {
+            logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
+          }
         } else {
-          if (precommit_clbk.has_value())
+          tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
+          if (precommit_clbk.has_value()) {
             precommit_clbk.value()(TxStatus::Aborted);
+          }
           callback(LineairDB::TxStatus::Aborted);
         }
 
@@ -121,16 +131,27 @@ class Database::Impl {
 
     bool committed = tx.Precommit();
     if (committed) {
+      tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
+
       tx.tx_pimpl_->current_status_ = TxStatus::Committed;
-      if (!config_.enable_logging) { tx.tx_pimpl_->write_set_.clear(); }
-      const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-      logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
+      const auto current_epoch      = epoch_framework_.GetMyThreadLocalEpoch();
       callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
+
+      if (config_.enable_logging) {
+        logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
+      }
+
     } else {
+      tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
       clbk(TxStatus::Aborted);
     }
     epoch_framework_.MakeMeOffline();
 
+    if (config_.enable_checkpointing) {
+      auto checkpoint_completed =
+          checkpoint_manager_.GetCheckpointCompletedEpoch();
+      logger_.TruncateLogs(checkpoint_completed);
+    }
     delete &tx;
     return committed;
   }
@@ -164,10 +185,24 @@ class Database::Impl {
           callback_manager_.ExecuteCallbacks(durable_epoch);
         });
       }
+
       // Execute Callbacks
       thread_pool_.EnqueueForAllThreads(
           [&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
+
+      if (config_.enable_checkpointing) {
+        auto checkpoint_completed =
+            checkpoint_manager_.GetCheckpointCompletedEpoch();
+
+        thread_pool_.EnqueueForAllThreads([&, checkpoint_completed]() {
+          logger_.TruncateLogs(checkpoint_completed);
+        });
+      }
     };
+  }
+
+  bool IsNeedToCheckpointing(const EpochNumber epoch) {
+    return checkpoint_manager_.IsNeedToCheckpointing(epoch);
   }
 
  private:
@@ -205,8 +240,8 @@ class Database::Impl {
   Callback::CallbackManager callback_manager_;
   Index::ConcurrentTable point_index_;
   EpochFramework epoch_framework_;
-
-};  // namespace LineairDB
+  Recovery::CPRManager checkpoint_manager_;
+};
 
 // Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
 

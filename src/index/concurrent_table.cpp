@@ -21,7 +21,8 @@
 #include <functional>
 
 #include "impl/mpmc_concurrent_set_impl.h"
-#include "types.h"
+#include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Index {
@@ -78,5 +79,11 @@ DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
   assert(current != nullptr);
   return current;
 }
+
+void ConcurrentTable::ForEach(
+    std::function<bool(std::string_view, DataItem&)> f) {
+  container_->ForEach(f);
+};
+
 }  // namespace Index
 }  // namespace LineairDB

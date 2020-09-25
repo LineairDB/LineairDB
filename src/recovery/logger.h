@@ -23,7 +23,8 @@
 #include <msgpack.hpp>
 
 #include "logger_base.h"
-#include "types.h"
+#include "types/definitions.h"
+#include "types/snapshot.hpp"
 
 namespace LineairDB {
 namespace Recovery {
@@ -44,6 +45,7 @@ class Logger {
   void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
                bool entrusting = false);
   void FlushLogs(const EpochNumber stable_epoch);
+  void TruncateLogs(const EpochNumber checkpoint_completed_epoch);
 
   EpochNumber FlushDurableEpoch();
   EpochNumber GetDurableEpoch();

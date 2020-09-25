@@ -14,27 +14,16 @@
  *   limitations under the License.
  */
 
-#ifndef LINEAIRDB_CALLBACK_MANAGER_BASE_H
-#define LINEAIRDB_CALLBACK_MANAGER_BASE_H
+#ifndef LINEAIRDB_TYPES_H
+#define LINEAIRDB_TYPES_H
 
-#include <lineairdb/database.h>
-
-#include "types/definitions.h"
+#include <cstdint>
+#include <vector>
 
 namespace LineairDB {
 
-namespace Callback {
+using EpochNumber = uint32_t;
 
-class CallbackManagerBase {
- public:
-  virtual ~CallbackManagerBase() {}
-  virtual void Enqueue(const Database::CallbackType& callback,
-                       EpochNumber epoch, bool entrusting) = 0;
-  virtual void ExecuteCallbacks(EpochNumber new_epoch)     = 0;
-  virtual void WaitForAllCallbacksToBeExecuted()           = 0;
-};
-
-}  // namespace Callback
 }  // namespace LineairDB
 
-#endif /* LINEAIRDB_CALLBACK_MANAGER_BASE_H */
+#endif /* LINEAIRDB_TYPES_H */

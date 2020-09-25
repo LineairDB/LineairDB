@@ -29,7 +29,7 @@
 
 #include "recovery/logger.h"
 #include "recovery/logger_base.h"
-#include "types.h"
+#include "types/definitions.h"
 #include "util/epoch_framework.hpp"
 #include "util/thread_key_storage.h"
 
@@ -43,6 +43,8 @@ class ThreadLocalLogger final : public LoggerBase {
   void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
                bool entrusting) final override;
   void FlushLogs(EpochNumber stable_epoch) final override;
+  void TruncateLogs(
+      const EpochNumber checkpoint_completed_epoch) final override;
   EpochNumber GetMinDurableEpochForAllThreads() final override;
 
  private:
@@ -53,18 +55,25 @@ class ThreadLocalLogger final : public LoggerBase {
    public:
     size_t thread_id;
     std::atomic<EpochNumber> durable_epoch;
-    std::ofstream log_file;
+    EpochNumber truncated_epoch;
+    std::fstream log_file;
     Logger::LogRecords log_records;
     MSGPACK_DEFINE(log_records);
 
     ThreadLocalStorageNode()
         : thread_id(ThreadIdCounter.fetch_add(1)),
-          durable_epoch(0),
-          log_file(
-              "lineairdb_logs/thread" + std::to_string(thread_id) + ".json",
-              std::ofstream::out | std::ofstream::binary | std::ofstream::ate) {
-    }
+          durable_epoch(EpochFramework::THREAD_OFFLINE),
+          truncated_epoch(0),
+          log_file(GetLogFileName(), std::fstream::out | std::fstream::binary |
+                                         std::fstream::ate) {}
     ~ThreadLocalStorageNode() {}
+    std::string GetLogFileName() {
+      return "lineairdb_logs/thread" + std::to_string(thread_id) + ".log";
+    }
+    std::string GetWorkingLogFileName() {
+      return "lineairdb_logs/thread" + std::to_string(thread_id) +
+             ".working.log";
+    }
   };
 
  private:

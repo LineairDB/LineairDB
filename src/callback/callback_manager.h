@@ -22,7 +22,7 @@
 #include <memory>
 
 #include "callback_manager_base.h"
-#include "types.h"
+#include "types/definitions.h"
 
 namespace LineairDB {
 

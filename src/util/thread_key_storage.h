@@ -129,6 +129,15 @@ class ThreadKeyStorage {
     }
   }
 
+  void Every(std::function<bool(T*)>&& f) {
+    TlsNode* ptr = head_node_.load();
+    while (ptr != nullptr) {
+      auto result = f(&ptr->payload);
+      if (!result) break;
+      ptr = ptr->prev;
+    }
+  }
+
  private:
   pthread_key_t key_;
   std::atomic<TlsNode*> head_node_;

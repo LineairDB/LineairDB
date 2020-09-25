@@ -18,7 +18,7 @@
 
 #include <lineairdb/database.h>
 
-#include "types.h"
+#include "types/definitions.h"
 #include "util/backoff.hpp"
 
 namespace LineairDB {
@@ -86,7 +86,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
       }
     }
   }
-} 
+}
 void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
   thread_key_storage_.ForEach(
       [&](const ThreadLocalStorageNode* thread_local_node) {

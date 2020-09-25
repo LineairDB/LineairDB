@@ -19,7 +19,7 @@
 #include <thread>
 
 #include "gtest/gtest.h"
-#include "types.h"
+#include "types/definitions.h"
 
 TEST(ConcurrentTableTest, Instantiate) {
   ASSERT_NO_THROW(LineairDB::Index::ConcurrentTable table);
