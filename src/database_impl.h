@@ -29,6 +29,7 @@
 #include "recovery/logger.h"
 #include "thread_pool/thread_pool.h"
 #include "transaction_impl.h"
+#include "util/backoff.hpp"
 #include "util/epoch_framework.hpp"
 #include "util/logger.hpp"
 
@@ -199,6 +200,14 @@ class Database::Impl {
         });
       }
     };
+  }
+
+  void WaitForCheckpoint() {
+    const auto start = checkpoint_manager_.GetCheckpointCompletedEpoch();
+    Util::RetryWithExponentialBackoff([&]() {
+      const auto current = checkpoint_manager_.GetCheckpointCompletedEpoch();
+      return start != current;
+    });
   }
 
   bool IsNeedToCheckpointing(const EpochNumber epoch) {

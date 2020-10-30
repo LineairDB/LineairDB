@@ -130,6 +130,18 @@ class Database {
 
   /**
    * @brief
+   * WaitForCheckpoint
+   * Waits for the completion of the next checkpoint.
+   * Note that this method may take longer than the time specified in
+   * `LineairDB::Config.checkpoint_period (default value: 30 seconds)` in the
+   * worst cases. When the WAL (logging) is disabled and durability is
+   * guaranteed by only checkpointing, this interface is preferable; it ensures
+   *that the currently active transactions are durable.
+   */
+  void WaitForCheckpoint() const noexcept;
+
+  /**
+   * @brief
    * Requests executions of callback functions of already completed (committed
    * or (aborted) transactions. Note that LineairDB's callback queues may be
    * overloading in some combination of configurations (e.g., too long epoch
