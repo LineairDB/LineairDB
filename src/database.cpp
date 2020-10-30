@@ -56,8 +56,9 @@ bool Database::EndTransaction(Transaction& tx, CallbackType clbk) {
                                    std::forward<decltype(clbk)>(clbk));
 }
 
-void Database::RequestCallbacks() { db_pimpl_->RequestCallbacks(); }
-
 void Database::Fence() const noexcept { db_pimpl_->Fence(); }
-
+void Database::WaitForCheckpoint() const noexcept {
+  db_pimpl_->WaitForCheckpoint();
+}
+void Database::RequestCallbacks() { db_pimpl_->RequestCallbacks(); }
 }  // namespace LineairDB
