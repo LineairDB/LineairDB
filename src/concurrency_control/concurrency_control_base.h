@@ -25,12 +25,13 @@
 
 #include "index/concurrent_table.h"
 #include "types/data_item.hpp"
+#include "util/epoch_framework.hpp"
 
 namespace LineairDB {
 struct TransactionReferences {
   ReadSetType& read_set_ref_;
   WriteSetType& write_set_ref_;
-  const EpochNumber& my_epoch_ref_;
+  EpochFramework& epoch_framework_ref_;
   TxStatus& current_status_ref_;
 };
 class ConcurrencyControlBase {

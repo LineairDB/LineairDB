@@ -141,7 +141,6 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         }
       }
     }
-
     if (need_to_checkpoint) {
       for (auto& snapshot : tx_ref_.write_set_ref_) {
         snapshot.index_cache->CopyLiveVersionToStableVersion();
@@ -150,6 +149,11 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
 
     /** Update Metadata for NWR **/
     if constexpr (EnableNWR) { UpdatePivotObjects(); }
+
+    // CompilerFence();
+    tx_ref_.epoch_framework_ref_.MakeMeOffline();
+    tx_ref_.epoch_framework_ref_.MakeMeOnline();
+    // CompilerFence();
 
     /** Validation Phase **/
     if (!AntiDependencyValidation()) {
@@ -178,7 +182,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         if (nwr_validation_result_ == NWRValidationResult::ACYCLIC) { return; }
       }
 
-      auto current_epoch = tx_ref_.my_epoch_ref_;
+      const EpochNumber current_epoch =
+          tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
 
       /** Unlock **/
       for (auto& snapshot : tx_ref_.write_set_ref_) {
@@ -249,7 +254,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // transactions, we use epoch: transactions in the same epoch are
     // committed at the same time, and thus they are in concurrent, and thus
     // any version order for these transactions are valid for linearizability.
-    const EpochNumber current_epoch = tx_ref_.my_epoch_ref_;
+    const EpochNumber current_epoch =
+        tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
     for (auto& pivot_object : pivot_object_snapshots_) {
       if (pivot_object.set_type == PivotObjectSnapshot::READSET) continue;
       const EpochNumber epoch = pivot_object.pv_snapshot.versions.epoch;
@@ -408,7 +414,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     assert(nwr_validation_result_ != NWRValidationResult::ACYCLIC);
 
     // Re-build my pivot object
-    const EpochNumber current_epoch = tx_ref_.my_epoch_ref_;
+    const EpochNumber current_epoch =
+        tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
     my_pivot_object_.versions.epoch = current_epoch;
     {  // make t_j's squashed read/write set
 
