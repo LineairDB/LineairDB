@@ -74,7 +74,6 @@ class Transaction::Impl {
  private:
   TxStatus current_status_;
   Database::Impl* db_pimpl_;
-  EpochNumber my_epoch_;
   const Config& config_ref_;
   std::unique_ptr<ConcurrencyControlBase> concurrency_control_;
 

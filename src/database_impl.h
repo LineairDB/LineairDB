@@ -35,6 +35,8 @@
 
 namespace LineairDB {
 class Database::Impl {
+  friend class Transaction::Impl;
+
  public:
   inline static Database::Impl* CurrentDBInstance;
 
@@ -82,16 +84,15 @@ class Database::Impl {
       bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
                                            callback       = clbk,
                                            precommit_clbk = prclbk]() {
-        epoch_framework_.MakeMeOnline();
         Transaction tx(this);
 
         transaction_procedure(tx);
         if (tx.IsAborted()) {
           callback(LineairDB::TxStatus::Aborted);
-          epoch_framework_.MakeMeOffline();
           return;
         }
 
+        epoch_framework_.MakeMeOnline();
         bool committed = tx.Precommit();
         if (committed) {
           tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
@@ -117,19 +118,16 @@ class Database::Impl {
     }
   }
 
-  Transaction& BeginTransaction() {
-    epoch_framework_.MakeMeOnline();
-    return *(new Transaction(this));
-  }
+  Transaction& BeginTransaction() { return *(new Transaction(this)); }
 
   bool EndTransaction(Transaction& tx, CallbackType clbk) {
     if (tx.IsAborted()) {
       clbk(TxStatus::Aborted);
-      epoch_framework_.MakeMeOffline();
       delete &tx;
       return false;
     }
 
+    epoch_framework_.MakeMeOnline();
     bool committed = tx.Precommit();
     if (committed) {
       tx.tx_pimpl_->PostProcessing(TxStatus::Committed);

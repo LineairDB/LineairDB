@@ -36,10 +36,9 @@ namespace LineairDB {
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
-      my_epoch_(db_pimpl_->GetMyThreadLocalEpoch()),
       config_ref_(db_pimpl_->GetConfig()) {
-  TransactionReferences&& tx = {read_set_, write_set_, my_epoch_,
-                                current_status_};
+  TransactionReferences&& tx = {read_set_, write_set_,
+                                db_pimpl_->epoch_framework_, current_status_};
 
   // WANTFIX for performance
   // Here we allocate one (derived) concurrency control instance per
@@ -137,7 +136,8 @@ bool Transaction::Impl::Precommit() {
 
   const bool need_to_checkpoint =
       (db_pimpl_->GetConfig().enable_checkpointing &&
-       db_pimpl_->IsNeedToCheckpointing(my_epoch_));
+       db_pimpl_->IsNeedToCheckpointing(
+           db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
   bool committed = concurrency_control_->Precommit(need_to_checkpoint);
   return committed;
 }

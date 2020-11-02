@@ -106,6 +106,7 @@ TEST_P(ConcurrencyControlTest, AvoidingDeadLock) {
   TestHelper::DoTransactionsOnMultiThreads(
       db_.get(), {readX_writeY, readX_writeY, readY_writeX, readY_writeX});
 }
+
 TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
@@ -127,6 +128,7 @@ TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
         {insertTenTimes, insertTenTimes, readTenTimes, readTenTimes});
   });
 }
+
 TEST_P(ConcurrencyControlTest, RepeatableRead) {
   TransactionProcedure updateTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
@@ -151,6 +153,7 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
         {updateTenTimes, updateTenTimes, repeatableRead, repeatableRead});
   });
 }
+
 TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** initialize **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
@@ -260,4 +263,97 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
       }
     }
   }
+}
+
+TEST_P(ConcurrencyControlTest, Recoverability) {
+  std::atomic<size_t> transaction_id(0);
+  std::vector<std::pair<size_t, size_t>> committed_values;
+  std::vector<std::pair<size_t, size_t>> read_values;
+  std::mutex v_latch;
+
+  /**
+   * This test checks both the commit order and reads-from relationship.
+   * Briefly, we check that $ci < cj$ holds for all $r_j(x_i)$.
+   * Note that the commit points in LineairDB are determined by the epoch
+   * framework; it is **not** the order of callbacks. Transactions belonging to
+   * the same epoch are committed at the same time when the epoch becomes
+   * stable, so the order of the callbacks may interleave. Here we align the
+   * order of the callback queue by limiting the number of workers in the
+   * thread-pool.
+   * TODO: Multi-threaded testing for recoverability.
+   * We need the interface to fetch the commit order correctly.
+   */
+  LineairDB::Config config = db_->GetConfig();
+  config.max_thread        = 1;
+  config.epoch_duration_ms = 1;
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  std::atomic<bool> recoverability_failure = false;
+  constexpr auto UNCOMMITTED               = ~0llu;
+  while (transaction_id.load() < 1000) {
+    auto my_tid = transaction_id.fetch_add(1);
+
+    // writer
+    db_->ExecuteTransaction(
+        [&, my_tid](LineairDB::Transaction& tx) {
+          tx.Write<size_t>("alice", my_tid);
+          {
+            std::lock_guard<std::mutex> global_latch(v_latch);
+            committed_values.push_back(std::make_pair(UNCOMMITTED, my_tid));
+          }
+        },
+        [&, my_tid](auto status) {
+          if (status == LineairDB::TxStatus::Committed) {
+            {
+              std::lock_guard<std::mutex> global_latch(v_latch);
+              for (auto& pair : committed_values) {
+                if (pair.second == my_tid) {
+                  pair.first = my_tid;
+                  break;
+                }
+              }
+            }
+          }
+        });
+
+    // reader
+    db_->ExecuteTransaction(
+        [&, my_tid](auto& tx) {
+          auto result = tx.template Read<size_t>("alice");
+          if (result.has_value()) {
+            {
+              std::lock_guard<std::mutex> global_latch(v_latch);
+              read_values.push_back(std::make_pair(my_tid, result.value()));
+            }
+          } else {
+            tx.Abort();
+          }
+        },
+        [&, my_tid](auto status) {
+          if (status == LineairDB::TxStatus::Committed) {
+            {
+              std::lock_guard<std::mutex> global_latch(v_latch);
+              size_t my_read_value = 0;
+              for (auto& pair : read_values) {
+                if (pair.first == my_tid) {
+                  my_read_value = pair.second;
+                  break;
+                }
+              }
+
+              for (auto& pair : committed_values) {
+                if (pair.second == my_read_value) {
+                  if (pair.first == UNCOMMITTED) {
+                    recoverability_failure = true;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        });
+  }
+  db_->Fence();
+  ASSERT_FALSE(recoverability_failure);
 }
