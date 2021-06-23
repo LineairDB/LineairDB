@@ -23,6 +23,7 @@
 #include <lineairdb/tx_status.h>
 
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include "concurrency_control/concurrency_control_base.h"
@@ -60,6 +61,12 @@ class Transaction::Impl {
       const std::string_view key);
   void Write(const std::string_view key, const std::byte value[],
              const size_t size);
+
+  const std::optional<size_t> Scan(
+      const std::string_view begin, const std::string_view end,
+      std::function<void(std::string_view, std::pair<void*, size_t>)>
+          operation);
+
   void Abort();
   bool Precommit();
 

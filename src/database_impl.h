@@ -45,8 +45,8 @@ class Database::Impl {
         thread_pool_(c.max_thread),
         logger_(c),
         callback_manager_(c),
-        point_index_(c),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
+        point_index_(epoch_framework_, c),
         checkpoint_manager_(c, point_index_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
@@ -245,8 +245,8 @@ class Database::Impl {
   ThreadPool thread_pool_;
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
-  Index::ConcurrentTable point_index_;
   EpochFramework epoch_framework_;
+  Index::ConcurrentTable point_index_;
   Recovery::CPRManager checkpoint_manager_;
 };
 

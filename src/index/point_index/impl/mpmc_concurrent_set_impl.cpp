@@ -109,7 +109,7 @@ bool MPMCConcurrentSetImpl::Put(const std::string_view key,
       }
     }
 
-    // Optimization: we assume that cmp of uint64_T is faster than strcmp.
+    // Optimization: we assume that cmp of uint64_t is faster than strcmp.
     if (node->key_8b_prefix == string_to_uint64_t(key)) {
       if (node->key == key) {
         delete new_node;

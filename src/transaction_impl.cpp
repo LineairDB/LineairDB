@@ -124,6 +124,12 @@ void Transaction::Impl::Write(const std::string_view key,
   write_set_.emplace_back(std::move(sp));
 }
 
+const std::optional<size_t> Transaction::Impl::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<void(std::string_view, std::pair<void*, size_t>)> operation) {
+  return 0;
+};
+
 void Transaction::Impl::Abort() {
   if (!IsAborted()) {
     current_status_ = TxStatus::Aborted;
@@ -158,6 +164,11 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
+const std::optional<size_t> Transaction::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<void(std::string_view, std::pair<void*, size_t>)> operation) {
+  return tx_pimpl_->Scan(begin, end, operation);
+};
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 

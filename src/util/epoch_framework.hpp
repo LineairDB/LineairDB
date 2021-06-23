@@ -22,7 +22,6 @@
 #include <atomic>
 #include <thread>
 
-#include "spdlog/spdlog.h"
 #include "util/thread_key_storage.h"
 
 namespace LineairDB {
@@ -50,14 +49,16 @@ class EpochFramework {
       : start_(false),
         stop_(false),
         global_epoch_(1),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {
+  }
   EpochFramework(size_t epoch_duration_ms,
                  std::function<void(EpochNumber)>&& pt)
       : start_(false),
         stop_(false),
         global_epoch_(1),
         publish_target_(pt),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {
+  }
 
   ~EpochFramework() { Stop(); }
 
@@ -136,7 +137,7 @@ class EpochFramework {
         EpochNumber updated = global_epoch_.fetch_add(1);
         if (publish_target_) publish_target_(updated);
       }
-      if (stop_.load() && min_epoch == UINT32_MAX) break;
+      if (stop_.load() && min_epoch == THREAD_OFFLINE) break;
     }
   }
 

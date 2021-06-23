@@ -14,10 +14,7 @@
  *   limitations under the License.
  */
 
-#include <lineairdb/config.h>
-#include <lineairdb/database.h>
-#include <lineairdb/transaction.h>
-#include <lineairdb/tx_status.h>
+#include "lineairdb/database.h"
 
 #include <atomic>
 #include <chrono>
@@ -27,6 +24,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lineairdb/config.h"
+#include "lineairdb/transaction.h"
+#include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
 
 class DatabaseTest : public ::testing::Test {
@@ -89,13 +89,14 @@ TEST_F(DatabaseTest, Scan) {
                     tx.Write<int>("carol", carol);
                   },
                   [&](LineairDB::Transaction& tx) {
-                    auto count =
-                        tx.Scan("alice", "carol", [&](auto key, auto value) {
+                    auto count = tx.Scan<decltype(alice)>(
+                        "alice", "carol", [&](auto key, decltype(alice) value) {
                           if (key == "alice") ASSERT_EQ(alice, value);
                           if (key == "bob") ASSERT_EQ(bob, value);
                           if (key == "carol") ASSERT_EQ(carol, value);
                         });
-                    ASSERT_EQ(count, 3);
+                    ASSERT_TRUE(count.has_value());
+                    ASSERT_EQ(count.value(), 3);
                   }});
 }
 
@@ -114,10 +115,10 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
       db_.get(),
       {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {
-         auto count = tx.Scan("alice", "dave", [&](auto key, auto value) {
-           ASSERT_NE("dave", key);
-         });
-         ASSERT_EQ(count, 3);
+         auto count = tx.Scan("alice", "dave",
+                              [&](auto key, auto) { ASSERT_NE("dave", key); });
+         ASSERT_FALSE(count.has_value());
+         ASSERT_TRUE(tx.IsAborted());
        }});
 }
 

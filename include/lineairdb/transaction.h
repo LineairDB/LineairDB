@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -34,7 +35,8 @@ namespace LineairDB {
  * operations* and two *termination operations*.
  *
  * Data operations:
- *   read: read a data item.
+ *   read: read a data item. #Scan consists of multiple read operations.
+ *
  *   write: generate a new version of a data item.
  * Termination operations:
  *   commit: commit this transaction.
@@ -61,7 +63,8 @@ class Transaction {
   bool IsAborted() { return GetCurrentStatus() == TxStatus::Aborted; }
 
   /**
-   * @brief If the database contains a data item for "key", returns a pair
+   * @brief
+   * If the database contains a data item for "key", returns a pair
    * (a pointer of value, the size of value).
    * @param key An identifier for a data item
    * @return std::pair<void*, size_t>
@@ -76,8 +79,8 @@ class Transaction {
 
   /**
    * @brief
-   * Reads an user-defined value with a given key. T must be same as one on
-   * writing with Write().
+   * Reads a value as user-defined type. T must be same as one on
+   * writing the value with Write().
    * @tparam T
    * T must be Trivially Copyable and Constructable.
    * This is because LineairDB is a Key-value storage but not a object storage.
@@ -129,6 +132,63 @@ class Transaction {
     Write(key, buffer, sizeof(T));
   };
 
+  /**
+   * @brief
+   * Get all data items that match the range from the "begin" key to the "end"
+   * key in the lexical order.
+   * The term "get" here means that it is equivalent to the #Read
+   * operation: this operation performs read operations for all the keys.
+   * @param begin
+   *  An identifier of the starting point of the range search.
+   *  This key is included in the range: if there exists a data item with this
+   *  key, LineairDB returns the data item.
+   * @param end
+   *  An identifier of the ending point of the range search.
+   *  This key is included in the range: if there exists a data item with this
+   *  key, LineairDB returns the data item.
+   * @param operation
+   *  A function to be executed iteratively on data items matching the input
+   *  range. The arguments of the function are key (std::string_view) and value
+   * (std::pair).
+   * @return std::optional<size_t>
+   *  returns the total number of rows that match the inputted range, if
+   * succeed. Concurrent transactions may aborts this scan operation and returns
+   * std::nullopt_t.
+   *
+   */
+  const std::optional<size_t> Scan(
+      const std::string_view begin, const std::string_view end,
+      std::function<void(std::string_view, std::pair<void*, size_t>)>
+          operation);
+
+  /**
+   * @brief
+   * #Scan operation with user-defined template type.
+   * @tparam T
+   * T must be Trivially Copyable and Constructable.
+   * This is because LineairDB is a Key-value storage but not a object storage.
+   *
+   * @param begin
+   * @param end
+   * @param operation
+   * @return std::optional<size_t>
+   */
+  template <typename T>
+  const std::optional<size_t> Scan(
+      const std::string_view begin, const std::string_view end,
+      std::function<void(std::string_view, T)> operation) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to trivially copyable types.");
+    return Scan(begin, end, [&](auto key, auto pair) {
+      const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
+      operation(key, copy_constructed);
+    });
+  }
+
+  /**
+   * @brief
+   * Abort this transaction manually.
+   */
   void Abort();
 
  private:
