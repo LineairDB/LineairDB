@@ -78,6 +78,49 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
                               }});
 }
 
+TEST_F(DatabaseTest, Scan) {
+  int alice = 1;
+  int bob   = 2;
+  int carol = 3;
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+                    tx.Write<int>("alice", alice);
+                    tx.Write<int>("bob", bob);
+                    tx.Write<int>("carol", carol);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    auto count =
+                        tx.Scan("alice", "carol", [&](auto key, auto value) {
+                          if (key == "alice") ASSERT_EQ(alice, value);
+                          if (key == "bob") ASSERT_EQ(bob, value);
+                          if (key == "carol") ASSERT_EQ(carol, value);
+                        });
+                    ASSERT_EQ(count, 3);
+                  }});
+}
+
+TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
+  int alice = 1;
+  int bob   = 2;
+  int carol = 3;
+  int dave  = 4;
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.Write<int>("alice", alice);
+                               tx.Write<int>("bob", bob);
+                               tx.Write<int>("carol", carol);
+                             }});
+
+  TestHelper::DoTransactionsOnMultiThreads(
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
+       [&](LineairDB::Transaction& tx) {
+         auto count = tx.Scan("alice", "dave", [&](auto key, auto value) {
+           ASSERT_NE("dave", key);
+         });
+         ASSERT_EQ(count, 3);
+       }});
+}
+
 TEST_F(DatabaseTest, SaveAsString) {
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {
