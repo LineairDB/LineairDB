@@ -111,15 +111,16 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
                                tx.Write<int>("carol", carol);
                              }});
 
-  TestHelper::DoTransactionsOnMultiThreads(
+  // When there exists conflict between insertion and scanning,
+  // either one will abort.
+  const auto committed = TestHelper::DoTransactionsOnMultiThreads(
       db_.get(),
       {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {
          auto count = tx.Scan("alice", "dave",
                               [&](auto key, auto) { ASSERT_NE("dave", key); });
-         ASSERT_FALSE(count.has_value());
-         ASSERT_TRUE(tx.IsAborted());
        }});
+  ASSERT_EQ(1, committed);
 }
 
 TEST_F(DatabaseTest, SaveAsString) {

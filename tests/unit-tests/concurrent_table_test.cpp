@@ -21,6 +21,7 @@
 #include "gtest/gtest.h"
 #include "types/definitions.h"
 #include "util/epoch_framework.hpp"
+#include "util/logger.hpp"
 
 TEST(ConcurrentTableTest, Instantiate) {
   LineairDB::EpochFramework epoch;
@@ -87,40 +88,21 @@ TEST(ConcurrentTableTest, ConcurrentAndConflictedInserting) {
 }
 
 TEST(ConcurrentTableTest, Scan) {
+  LineairDB::Util::SetUpSPDLog();
   LineairDB::EpochFramework epoch;
   epoch.Start();
   LineairDB::Index::ConcurrentTable table(epoch);
-  table.Put("alice", {});
-  table.Put("bob", {});
-  table.Put("carol", {});
+  ASSERT_TRUE(table.Put("alice", {}));
+  ASSERT_TRUE(table.Put("bob", {}));
+  ASSERT_TRUE(table.Put("carol", {}));
 
-  auto count = table.Scan("alice", "carol", [](auto, auto) {});
-  ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(0, count.value());
+  auto count = table.Scan("alice", "carol", [](auto) {});
+  ASSERT_FALSE(count.has_value());
   epoch.Sync();
-  auto count_synced = table.Scan("alice", "carol", [](auto, auto) {});
-  ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(2, count_synced.value());
-}
-
-TEST(ConcurrentTableTest, ScanWithPhantomAvoidance) {
-  LineairDB::EpochFramework epoch;
-  epoch.Start();
-  LineairDB::Index::ConcurrentTable table(epoch);
-
-  table.Put("alice", {});
-  table.Put("bob", {});
-  auto count = table.Scan("alice", "carol", [](auto, auto) {});
-  ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(0, count.value());
-
   epoch.Sync();
-
-  /** interleaving **/
-  table.Put("dave", {});
-
-  auto count_synced = table.Scan("alice", "carol", [](auto, auto) {});
-  ASSERT_FALSE(count_synced.has_value());
+  auto count_synced = table.Scan("alice", "carol", [](auto) {});
+  ASSERT_TRUE(count_synced.has_value());
+  ASSERT_EQ(3, count_synced.value());
 }
 
 TEST(ConcurrentTableTest, TremendousPut) {

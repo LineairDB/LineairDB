@@ -49,16 +49,14 @@ class EpochFramework {
       : start_(false),
         stop_(false),
         global_epoch_(1),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {
-  }
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
   EpochFramework(size_t epoch_duration_ms,
                  std::function<void(EpochNumber)>&& pt)
       : start_(false),
         stop_(false),
         global_epoch_(1),
         publish_target_(pt),
-        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {
-  }
+        epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
 
   ~EpochFramework() { Stop(); }
 

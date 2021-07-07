@@ -170,7 +170,7 @@ class Database::Impl {
     callback_manager_.WaitForAllCallbacksToBeExecuted();
   }
   const Config& GetConfig() const { return config_; }
-  Index::ConcurrentTable& GetPointIndex() { return point_index_; }
+  Index::ConcurrentTable& GetIndex() { return point_index_; }
 
   // NOTE: Called by a special thread managed by EpochFramework.
   std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {

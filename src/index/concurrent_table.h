@@ -44,10 +44,9 @@ class ConcurrentTable {
   bool Put(const std::string_view key, const DataItem& value);
   DataItem* InsertIfNotExist(const std::string_view key);
   void ForEach(std::function<bool(std::string_view, DataItem&)>);
-  std::optional<size_t> Scan(
-      const std::string_view begin, const std::string_view end,
-      std::function<void(std::string_view, std::pair<void*, size_t>)>
-          operation);
+  std::optional<size_t> Scan(const std::string_view begin,
+                             const std::string_view end,
+                             std::function<void(std::string_view)> operation);
 
  private:
   std::unique_ptr<ConcurrentPointIndexBase> point_index_;
