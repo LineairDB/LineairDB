@@ -96,13 +96,17 @@ TEST(ConcurrentTableTest, Scan) {
   ASSERT_TRUE(table.Put("bob", {}));
   ASSERT_TRUE(table.Put("carol", {}));
 
-  auto count = table.Scan("alice", "carol", [](auto) {});
+  auto count = table.Scan("alice", "carol", [](auto) { return false; });
   ASSERT_FALSE(count.has_value());
   epoch.Sync();
   epoch.Sync();
-  auto count_synced = table.Scan("alice", "carol", [](auto) {});
+  auto count_synced = table.Scan("alice", "carol", [](auto) { return false; });
   ASSERT_TRUE(count_synced.has_value());
   ASSERT_EQ(3, count_synced.value());
+
+  auto count_canceled = table.Scan("alice", "carol", [](auto) { return true; });
+  ASSERT_TRUE(count_canceled.has_value());
+  ASSERT_EQ(1, count_canceled.value());
 }
 
 TEST(ConcurrentTableTest, TremendousPut) {

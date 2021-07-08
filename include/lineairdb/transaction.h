@@ -147,9 +147,11 @@ class Transaction {
    *  This key is included in the range: if there exists a data item with this
    *  key, LineairDB returns the data item.
    * @param operation
-   *  A function to be executed iteratively on data items matching the input
-   *  range. The arguments of the function are key (std::string_view) and value
-   * (std::pair).
+   *  A bool function to be executed iteratively on data items matching the
+   * input range. The arguments of the function are key (std::string_view) and
+   * value (std::pair). Return value (boolean) forces LineairDB to cancel the
+   * scanning operation; when a function returns true at some key, this function
+   * will never be invoked with the next key.
    * @return std::optional<size_t>
    *  returns the total number of rows that match the inputted range, if
    * succeed. Concurrent transactions may aborts this scan operation and returns
@@ -158,7 +160,7 @@ class Transaction {
    */
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,
-      std::function<void(std::string_view,
+      std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
 
@@ -177,12 +179,12 @@ class Transaction {
   template <typename T>
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,
-      std::function<void(std::string_view, T)> operation) {
+      std::function<bool(std::string_view, T)> operation) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
     return Scan(begin, end, [&](auto key, auto pair) {
       const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
-      operation(key, copy_constructed);
+      return operation(key, copy_constructed);
     });
   }
 

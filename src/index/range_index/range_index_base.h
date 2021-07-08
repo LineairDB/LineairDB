@@ -49,7 +49,7 @@ class RangeIndexBase {
   virtual ~RangeIndexBase(){};
   virtual std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,
-      std::function<void(std::string_view)> operation) = 0;
+      std::function<bool(std::string_view)> operation) = 0;
   virtual bool Insert(const std::string_view key)      = 0;
   virtual bool Delete(const std::string_view key)      = 0;
 

@@ -89,14 +89,26 @@ TEST_F(DatabaseTest, Scan) {
                     tx.Write<int>("carol", carol);
                   },
                   [&](LineairDB::Transaction& tx) {
+                    // Scan
                     auto count = tx.Scan<decltype(alice)>(
                         "alice", "carol", [&](auto key, decltype(alice) value) {
-                          if (key == "alice") ASSERT_EQ(alice, value);
-                          if (key == "bob") ASSERT_EQ(bob, value);
-                          if (key == "carol") ASSERT_EQ(carol, value);
+                          if (key == "alice") EXPECT_EQ(alice, value);
+                          if (key == "bob") EXPECT_EQ(bob, value);
+                          if (key == "carol") EXPECT_EQ(carol, value);
+                          return false;
                         });
                     ASSERT_TRUE(count.has_value());
                     ASSERT_EQ(count.value(), 3);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    // Cancel
+                    auto count = tx.Scan<decltype(alice)>(
+                        "alice", "carol", [&](auto key, decltype(alice) value) {
+                          if (key == "alice") EXPECT_EQ(alice, value);
+                          return true;
+                        });
+                    ASSERT_TRUE(count.has_value());
+                    ASSERT_EQ(count.value(), 1);
                   }});
 }
 
@@ -117,8 +129,10 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
       db_.get(),
       {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {
-         auto count = tx.Scan("alice", "dave",
-                              [&](auto key, auto) { ASSERT_NE("dave", key); });
+         tx.Scan("alice", "dave", [&](auto key, auto) {
+           EXPECT_NE("dave", key);
+           return false;
+         });
        }});
   ASSERT_EQ(1, committed);
 }

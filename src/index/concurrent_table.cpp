@@ -40,10 +40,10 @@ ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
   }
   switch (config.range_index) {
     case Config::RangeIndex::EpochROWEX:
-      range_index_ = std::make_unique<EpochBasedRangeIndex>(epoch_framework);
+      range_index_ = std::make_unique<EpochBasedRangeIndex>(epoch_manager_ref_);
       break;
     default:
-      range_index_ = std::make_unique<EpochBasedRangeIndex>(epoch_framework);
+      range_index_ = std::make_unique<EpochBasedRangeIndex>(epoch_manager_ref_);
       break;
   }
   if (recovery_set.empty()) return;
@@ -81,7 +81,7 @@ bool ConcurrentTable::Put(const std::string_view key, const DataItem& rhs) {
 
 std::optional<size_t> ConcurrentTable::Scan(
     const std::string_view begin, const std::string_view end,
-    std::function<void(std::string_view)> operation) {
+    std::function<bool(std::string_view)> operation) {
   return range_index_->Scan(begin, end, operation);
 };
 
@@ -89,8 +89,7 @@ DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
   // NOTE We assume that derived table has set semantics;
   // i.e., concurrent #put operations always result in a single winner
   // and the other operations return false.
-  auto inserted = Put(key, {nullptr, 0, 0});
-  if (inserted) range_index_->Insert(key);
+  Put(key, {nullptr, 0, 0});
   auto current = Get(key);
   assert(current != nullptr);
   return current;

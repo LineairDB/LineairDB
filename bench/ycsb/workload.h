@@ -55,12 +55,8 @@ struct Workload {
       return Workload(95, 5, 0, 0, 0, Distribution::Zipfian);
     } else if (w == "c") {
       return Workload(100, 0, 0, 0, 0, Distribution::Zipfian);
-      // } else if (w == "d") {
-      // return Workload(95, 0, 5, 0, 0, recordcount, reps, 0,
-      // Distribution::Latest);
-      // } else if (w == "e") {
-      // return Workload(0, 0, 5, 95, 0, recordcount, reps, 0,
-      // Distribution::Uniform);
+    } else if (w == "e") {
+      return Workload(0, 0, 5, 95, 0, Distribution::Uniform);
     } else if (w == "f") {
       return Workload(50, 0, 0, 0, 50, Distribution::Zipfian);
     } else if (w == "f+bw") {

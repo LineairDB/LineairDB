@@ -127,14 +127,14 @@ void Transaction::Impl::Write(const std::string_view key,
 
 const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::string_view end,
-    std::function<void(std::string_view,
+    std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
   auto result =
       db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
         const auto read_result = Read(key);
-        if (IsAborted()) return;
-        operation(key, read_result);
+        if (IsAborted()) return true;
+        return operation(key, read_result);
       });
   if (!result.has_value()) { Abort(); }
   return result;
@@ -176,7 +176,7 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
 }
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::string_view end,
-    std::function<void(std::string_view,
+    std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
   return tx_pimpl_->Scan(begin, end, operation);

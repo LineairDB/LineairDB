@@ -15,7 +15,7 @@
  */
 
 /**
- * YCSB Benchmark: workload [a, b, c, d]
+ * YCSB Benchmark: workload [a, b, c, d, e]
  *
  * implementation references:
  * https://github.com/brianfrankcooper/YCSB/wiki
@@ -46,6 +46,7 @@
 #include <chrono>
 #include <random>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -101,9 +102,11 @@ std::atomic<bool> finish_flag{false};
 void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
                      RandomGenerator* rand, void* payload,
                      bool use_handler = true) {
-  std::function<void(LineairDB::Transaction&, std::string, void*, size_t)>
+  std::function<void(LineairDB::Transaction&, std::string_view,
+                     std::string_view, void*, size_t)>
       operation;
 
+  bool is_scan = false;
   {  // choose operation what I do
     size_t what_i_do  = rand->UniformRandom(99);
     size_t proportion = 0;
@@ -115,8 +118,8 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     } else if (what_i_do < (proportion += workload.insert_proportion)) {
       operation = YCSB::Interface::Insert;
     } else if (what_i_do < (proportion += workload.scan_proportion)) {
-      SPDLOG_ERROR("Scan operator is not implemented");
-      exit(1);
+      operation = YCSB::Interface::Scan;
+      is_scan   = true;
     } else if (what_i_do < (proportion += workload.rmw_proportion)) {
       operation = YCSB::Interface::ReadModifyWrite;
     } else {
@@ -141,8 +144,12 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 
   if (use_handler) {
     auto& tx = db.BeginTransaction();
-    for (auto& key : keys) {
-      operation(tx, key, payload, workload.payload_size);
+    if (is_scan) {
+      operation(tx, keys.front(), keys.back(), payload, workload.payload_size);
+    } else {
+      for (auto& key : keys) {
+        operation(tx, key, "", payload, workload.payload_size);
+      }
     }
     bool precommitted = db.EndTransaction(tx, [&](LineairDB::TxStatus) {});
     auto* result      = thread_local_result.Get();
@@ -155,9 +162,16 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     }
   } else {
     db.ExecuteTransaction(
-        [operation, keys, payload, workload](LineairDB::Transaction& tx) {
-          for (auto& key : keys) {
-            operation(tx, key, payload, workload.payload_size);
+        [is_scan, operation, keys, payload,
+         workload](LineairDB::Transaction& tx) {
+          if (is_scan) {
+            operation(tx, keys.front(), keys.back(), payload,
+                      workload.payload_size);
+
+          } else {
+            for (auto& key : keys) {
+              operation(tx, key, "", payload, workload.payload_size);
+            }
           }
         },
         [](LineairDB::TxStatus) {},
@@ -173,7 +187,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
           }
         });
   }
-}  // namespace YCSB
+}
 
 rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
                                  bool use_handler = true) {

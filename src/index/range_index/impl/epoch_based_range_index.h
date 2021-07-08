@@ -62,7 +62,7 @@ class EpochBasedRangeIndex final : public RangeIndexBase {
   ~EpochBasedRangeIndex() final override;
   std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,
-      std::function<void(std::string_view)> operation) final override;
+      std::function<bool(std::string_view)> operation) final override;
   bool Insert(const std::string_view key) final override;
   bool Delete(const std::string_view key) final override;
 
@@ -98,7 +98,7 @@ class EpochBasedRangeIndex final : public RangeIndexBase {
 
   // TODO WANTFIX for performance: use a concurrent data strucuture to
   // manipulate these sets efficiently
-  std::shared_mutex lock_;
+  std::recursive_mutex lock_;
 
   size_t indexed_epoch_;
   std::atomic<bool> manager_stop_flag_;

@@ -43,44 +43,47 @@ EpochBasedRangeIndex::EpochBasedRangeIndex(LineairDB::EpochFramework& e)
           }
           indexed_epoch_ = global;
 
-          std::lock_guard<decltype(lock_)> guard(lock_);
           {
-            auto it = remove_if(predicate_list_.begin(), predicate_list_.end(),
-                                [&](const auto& pred) {
-                                  const auto del = 2 <= global - pred.epoch;
-                                  return del;
-                                });
-            predicate_list_.erase(it, predicate_list_.end());
-          }
-          {
-            auto it = remove_if(insert_or_delete_key_set_.begin(),
-                                insert_or_delete_key_set_.end(),
-                                [&](const auto& pred) {
-                                  const auto del = 2 <= global - pred.epoch;
-
-                                  return del;
-                                });
-
-            // Before deleting the set of insert_or_delete_keys, we update the
-            // index container to contain such outdated (already committed)
-            // insertions and deletions.
-            auto outdated_start = it;
-
-            for (; it != insert_or_delete_key_set_.end(); it++) {
-              if (it->is_delete_event) {
-                assert(0 < container_.count(it->key));
-                container_.at(it->key).is_deleted = true;
-              } else {
-                if (0 < container_.count(it->key)) {
-                  auto& entry      = container_.at(it->key);
-                  entry.is_deleted = false;
-                }
-                container_.emplace(it->key, IndexItem{false, it->epoch});
-              }
+            std::lock_guard<decltype(lock_)> guard(lock_);
+            {
+              // Clear predicate list
+              auto it = remove_if(predicate_list_.begin(),
+                                  predicate_list_.end(), [&](const auto& pred) {
+                                    const auto del = 2 <= global - pred.epoch;
+                                    return del;
+                                  });
+              predicate_list_.erase(it, predicate_list_.end());
             }
+            {
+              // Clear insert_or_delete_keys
+              auto it = remove_if(insert_or_delete_key_set_.begin(),
+                                  insert_or_delete_key_set_.end(),
+                                  [&](const auto& pred) {
+                                    const auto del = 2 <= global - pred.epoch;
+                                    return del;
+                                  });
 
-            insert_or_delete_key_set_.erase(outdated_start,
-                                            insert_or_delete_key_set_.end());
+              // Before deleting the set of insert_or_delete_keys, we update the
+              // index container to contain such outdated (already committed)
+              // insertions and deletions.
+              auto outdated_start = it;
+
+              for (; it != insert_or_delete_key_set_.end(); it++) {
+                if (it->is_delete_event) {
+                  assert(0 < container_.count(it->key));
+                  container_.at(it->key).is_deleted = true;
+                } else {
+                  if (0 < container_.count(it->key)) {
+                    auto& entry      = container_.at(it->key);
+                    entry.is_deleted = false;
+                  }
+                  container_.emplace(it->key, IndexItem{false, it->epoch});
+                }
+              }
+
+              insert_or_delete_key_set_.erase(outdated_start,
+                                              insert_or_delete_key_set_.end());
+            }
           }
         }
       }){};
@@ -91,7 +94,7 @@ EpochBasedRangeIndex::~EpochBasedRangeIndex() {
 
 std::optional<size_t> EpochBasedRangeIndex::Scan(
     const std::string_view b, const std::string_view e,
-    std::function<void(std::string_view)> operation) {
+    std::function<bool(std::string_view)> operation) {
   size_t hit       = 0;
   const auto begin = std::string(b);
   const auto end   = std::string(e);
@@ -99,7 +102,7 @@ std::optional<size_t> EpochBasedRangeIndex::Scan(
   // TODO: we can optimize to avoid locking for read-only transactions.
   std::lock_guard<decltype(lock_)> guard(lock_);
 
-  if (IsOverlapWithInsertOrDelete(b, e)) return std::nullopt;
+  if (IsOverlapWithInsertOrDelete(b, e)) { return std::nullopt; }
 
   {
     auto it     = container_.lower_bound(begin);
@@ -107,7 +110,8 @@ std::optional<size_t> EpochBasedRangeIndex::Scan(
     for (; it != it_end; it++) {
       if (it->second.is_deleted) continue;
       hit++;
-      operation(it->first);
+      auto cancel = operation(it->first);
+      if (cancel) break;
     }
   }
 
