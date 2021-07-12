@@ -19,7 +19,6 @@
 
 #include <lineairdb/transaction.h>
 
-#include <charconv>
 #include <string_view>
 
 namespace YCSB {
