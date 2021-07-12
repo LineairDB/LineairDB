@@ -125,16 +125,19 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
 
   // When there exists conflict between insertion and scanning,
   // either one will abort.
+  auto hit             = 0;
   const auto committed = TestHelper::DoTransactionsOnMultiThreads(
       db_.get(),
       {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {
-         tx.Scan("alice", "dave", [&](auto key, auto) {
-           EXPECT_NE("dave", key);
+         tx.Scan("alice", "dave", [&](auto, auto) {
+           hit++;
            return false;
          });
        }});
-  ASSERT_EQ(1, committed);
+  // the key "dave" has been inserted by concurrent transaction and thus
+  // it is not visible for #Scan operation.
+  if (committed == 2) { ASSERT_EQ(3, hit); }
 }
 
 TEST_F(DatabaseTest, SaveAsString) {
