@@ -127,11 +127,14 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:afdd2606ae46302941e64f1cb083f5747"><td class="mdescLeft">&#160;</td><td class="mdescRight">Creates a new transaction. Via this interface, the callee thread of this method can manipulate <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s key-value storage directly. Note that the behavior and performance characteristics will affect from the selected callback manager and log manager; For example, if you have set Config::CallbackManager to ThreadLocal, the callee thread of this method may have to call Database::RequestCommit more frequently, in order to resolve the congestion of the thread-local commit callback queue.  <a href="#afdd2606ae46302941e64f1cb083f5747">More...</a><br /></td></tr>
 <tr class="separator:afdd2606ae46302941e64f1cb083f5747"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3090d3016716a1f1def8357ca7dd94d8"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#a3090d3016716a1f1def8357ca7dd94d8">EndTransaction</a> (<a class="el" href="classLineairDB_1_1Transaction.html">Transaction</a> &amp;tx, <a class="el" href="classLineairDB_1_1Database.html#a38efc92beb0118c691946019de77c9ea">CallbackType</a> clbk)</td></tr>
-<tr class="memdesc:a3090d3016716a1f1def8357ca7dd94d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Terminates the transaction. If <a class="el" href="classLineairDB_1_1Transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38">Transaction::Abort</a> has not been called, <a class="el" href="namespaceLineairDB.html">LineairDB</a> tries to commit <code>tx</code>.  <a href="#a3090d3016716a1f1def8357ca7dd94d8">More...</a><br /></td></tr>
+<tr class="memdesc:a3090d3016716a1f1def8357ca7dd94d8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Terminates the transaction. If <a class="el" href="classLineairDB_1_1Transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38" title="Abort this transaction manually. ">Transaction::Abort</a> has not been called, <a class="el" href="namespaceLineairDB.html">LineairDB</a> tries to commit <code>tx</code>.  <a href="#a3090d3016716a1f1def8357ca7dd94d8">More...</a><br /></td></tr>
 <tr class="separator:a3090d3016716a1f1def8357ca7dd94d8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad41349e9df9ad939de6d77e7b69dc469"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#ad41349e9df9ad939de6d77e7b69dc469">Fence</a> () const noexcept</td></tr>
 <tr class="memdesc:ad41349e9df9ad939de6d77e7b69dc469"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="classLineairDB_1_1Database.html#ad41349e9df9ad939de6d77e7b69dc469" title="Fence() waits termination of transactions which is currently in progress. You can execute transaction...">Fence()</a> waits termination of transactions which is currently in progress. You can execute transactions in the order you want by interleaving <a class="el" href="classLineairDB_1_1Database.html#ad41349e9df9ad939de6d77e7b69dc469" title="Fence() waits termination of transactions which is currently in progress. You can execute transaction...">Fence()</a> between ExecuteTransaction functions. Note that no <a class="el" href="classLineairDB_1_1Database.html#ad41349e9df9ad939de6d77e7b69dc469" title="Fence() waits termination of transactions which is currently in progress. You can execute transaction...">Fence()</a> call may result in a execution sequence which is not same as the program (invoking) order of the ExecuteTransaction functions. If you know some dependency of transactions (e.g., database population), use this method to order them. Thread-safe.  <a href="#ad41349e9df9ad939de6d77e7b69dc469">More...</a><br /></td></tr>
 <tr class="separator:ad41349e9df9ad939de6d77e7b69dc469"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abff04164aad657e2b72100885d699e38"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#abff04164aad657e2b72100885d699e38">WaitForCheckpoint</a> () const noexcept</td></tr>
+<tr class="memdesc:abff04164aad657e2b72100885d699e38"><td class="mdescLeft">&#160;</td><td class="mdescRight">WaitForCheckpoint Waits for the completion of the next checkpoint. Note that this method may take longer than the time specified in <code><a class="el" href="structLineairDB_1_1Config.html#a9dc0559305ed0a5d88d26367f1239809" title="It uses as the interval time (seconds) for checkpointing. The longer is the better for the performanc...">LineairDB::Config.checkpoint_period</a> (default value: 30 seconds)</code> in the worst cases. When the WAL (logging) is disabled and durability is guaranteed by only checkpointing, this interface is preferable; it ensures that the currently active transactions are durable.  <a href="#abff04164aad657e2b72100885d699e38">More...</a><br /></td></tr>
+<tr class="separator:abff04164aad657e2b72100885d699e38"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aad71b1f7a86e96639030d37fed9b7695"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classLineairDB_1_1Database.html#aad71b1f7a86e96639030d37fed9b7695">RequestCallbacks</a> ()</td></tr>
 <tr class="memdesc:aad71b1f7a86e96639030d37fed9b7695"><td class="mdescLeft">&#160;</td><td class="mdescRight">Requests executions of callback functions of already completed (committed or (aborted) transactions. Note that <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s callback queues may be overloading in some combination of configurations (e.g., too long epoch size, too small thread-pool size, or weird implementation of the selected CallbackManager).  <a href="#aad71b1f7a86e96639030d37fed9b7695">More...</a><br /></td></tr>
 <tr class="separator:aad71b1f7a86e96639030d37fed9b7695"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -356,8 +359,8 @@ Friends</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Terminates the transaction. If <a class="el" href="classLineairDB_1_1Transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38">Transaction::Abort</a> has not been called, <a class="el" href="namespaceLineairDB.html">LineairDB</a> tries to commit <code>tx</code>. </p>
-<dl class="section pre"><dt>Precondition</dt><dd>To achieve user abort, <a class="el" href="classLineairDB_1_1Transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38">Transaction::Abort</a> must be called before this method. </dd></dl>
+<p>Terminates the transaction. If <a class="el" href="classLineairDB_1_1Transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38" title="Abort this transaction manually. ">Transaction::Abort</a> has not been called, <a class="el" href="namespaceLineairDB.html">LineairDB</a> tries to commit <code>tx</code>. </p>
+<dl class="section pre"><dt>Precondition</dt><dd>To achieve user abort, <a class="el" href="classLineairDB_1_1Transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38" title="Abort this transaction manually. ">Transaction::Abort</a> must be called before this method. </dd></dl>
 <dl class="section post"><dt>Postcondition</dt><dd>The first argument <code>tx</code> might have been deleted. </dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -539,6 +542,33 @@ false if the <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s concur
 </div><div class="memdoc">
 
 <p>Requests executions of callback functions of already completed (committed or (aborted) transactions. Note that <a class="el" href="namespaceLineairDB.html">LineairDB</a>'s callback queues may be overloading in some combination of configurations (e.g., too long epoch size, too small thread-pool size, or weird implementation of the selected CallbackManager). </p>
+
+</div>
+</div>
+<a id="abff04164aad657e2b72100885d699e38"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abff04164aad657e2b72100885d699e38">&#9670;&nbsp;</a></span>WaitForCheckpoint()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void LineairDB::Database::WaitForCheckpoint </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td> const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">noexcept</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>WaitForCheckpoint Waits for the completion of the next checkpoint. Note that this method may take longer than the time specified in <code><a class="el" href="structLineairDB_1_1Config.html#a9dc0559305ed0a5d88d26367f1239809" title="It uses as the interval time (seconds) for checkpointing. The longer is the better for the performanc...">LineairDB::Config.checkpoint_period</a> (default value: 30 seconds)</code> in the worst cases. When the WAL (logging) is disabled and durability is guaranteed by only checkpointing, this interface is preferable; it ensures that the currently active transactions are durable. </p>
 
 </div>
 </div>

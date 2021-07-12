@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['txstatus',['TxStatus',['../namespaceLineairDB.html#a4f1bbaf1231308bbcb015d600f21a881',1,'LineairDB']]]
+  ['rangeindex',['RangeIndex',['../structLineairDB_1_1Config.html#a2b10eed6dfcc7ed85bd3f67b95172c87',1,'LineairDB::Config']]]
 ];

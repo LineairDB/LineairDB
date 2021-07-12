@@ -14,6 +14,9 @@ var structLineairDB_1_1Config =
     [ "Logger", "structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351", [
       [ "ThreadLocalLogger", "structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e", null ]
     ] ],
+    [ "RangeIndex", "structLineairDB_1_1Config.html#a2b10eed6dfcc7ed85bd3f67b95172c87", [
+      [ "EpochROWEX", "structLineairDB_1_1Config.html#a2b10eed6dfcc7ed85bd3f67b95172c87ab4e93ffd02b6eaef1acb5370bfc0b635", null ]
+    ] ],
     [ "callback_engine", "structLineairDB_1_1Config.html#aef6b9d93a50d155bd97c1c297af16a88", null ],
     [ "checkpoint_period", "structLineairDB_1_1Config.html#a9dc0559305ed0a5d88d26367f1239809", null ],
     [ "concurrency_control_protocol", "structLineairDB_1_1Config.html#ace6b3b6b3936931d08b76c08c4478cda", null ],
@@ -23,5 +26,6 @@ var structLineairDB_1_1Config =
     [ "enable_recovery", "structLineairDB_1_1Config.html#af46d36b103c1e9bee72a12740af8c77d", null ],
     [ "epoch_duration_ms", "structLineairDB_1_1Config.html#a1d96cbe2e9823bbc9c73c942750f7f72", null ],
     [ "logger", "structLineairDB_1_1Config.html#a1ea4e01684a9093cea446ebda4cac678", null ],
-    [ "max_thread", "structLineairDB_1_1Config.html#a162aa1d7763b6d0a8998d126b1df8911", null ]
+    [ "max_thread", "structLineairDB_1_1Config.html#a162aa1d7763b6d0a8998d126b1df8911", null ],
+    [ "range_index", "structLineairDB_1_1Config.html#ab72688efdb1bd6f17ceb09b895f9d440", null ]
 ];

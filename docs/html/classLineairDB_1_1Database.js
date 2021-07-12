@@ -15,5 +15,6 @@ var classLineairDB_1_1Database =
     [ "operator=", "classLineairDB_1_1Database.html#a3efa30ddbfacfd33270d483072b19acc", null ],
     [ "operator=", "classLineairDB_1_1Database.html#afc96bcc93a7c68b30784e36e9aa4198d", null ],
     [ "RequestCallbacks", "classLineairDB_1_1Database.html#aad71b1f7a86e96639030d37fed9b7695", null ],
+    [ "WaitForCheckpoint", "classLineairDB_1_1Database.html#abff04164aad657e2b72100885d699e38", null ],
     [ "Transaction", "classLineairDB_1_1Database.html#a49982aa325e19f0956d42fde9132caa2", null ]
 ];

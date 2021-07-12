@@ -7,6 +7,8 @@ var classLineairDB_1_1Transaction =
     [ "IsRunning", "classLineairDB_1_1Transaction.html#aa87041ff8dcce1b217a18107572c09ff", null ],
     [ "Read", "classLineairDB_1_1Transaction.html#af96be52d5b9429bb016daf00fd08cacd", null ],
     [ "Read", "classLineairDB_1_1Transaction.html#a82d6afa8eb77cb99572d1ab3e2cbe056", null ],
+    [ "Scan", "classLineairDB_1_1Transaction.html#aa3f191ec1cc689374ec193d0f9cec34e", null ],
+    [ "Scan", "classLineairDB_1_1Transaction.html#a8b813c3ac07cb38f749cdd21f47bbe9b", null ],
     [ "Write", "classLineairDB_1_1Transaction.html#a45ecb4ddb3a772f316ba68fded4b6093", null ],
     [ "Write", "classLineairDB_1_1Transaction.html#a8a6875293b2d2fad667a625fe63bfe80", null ],
     [ "Database", "classLineairDB_1_1Transaction.html#a6efef52d7a939622bbc934ff6b90ffe0", null ]

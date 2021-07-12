@@ -1,3 +1,5 @@
+# Summary
+
 LineairDB is a C++ fast transactional key-value storage library.
 It provides transaction processing for multiple keys with guarantees of both **strict serializability (linearizability)** and **recoverability** (see [Correctness](#Correctness) to further details of these properties).
 LineairDB provides some **novel concurrency-control protocol** that promise scalability for many-core CPUs machines, especially in (or even if) write-intensive and contended workloads (see [NWR](#NWR) to the detail of the protocols or [Benchmark Results](#Benchmark)).
@@ -16,6 +18,8 @@ LineairDB uses the Epoch Framework in the followings:
 
 1.  Epoch-based group commit of transactions
 2.  RCU-QSBR-like garbage collection of storage
+3.  Epoch-based checkpoint recovery
+4.  Epoch-based range index
 
 The Epoch Framework provides advantages in both correctness and performance.
 
