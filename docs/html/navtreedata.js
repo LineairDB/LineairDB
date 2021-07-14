@@ -1,14 +1,16 @@
 var NAVTREE =
 [
   [ "LineairDB", "index.html", [
-    [ "Design", "index.html#Design", [
-      [ "Correctness", "index.html#Correctness", null ],
-      [ "Non-visible Write Rule (NWR)", "index.html#NWR", null ]
+    [ "Summary", "index.html", [
+      [ "Design", "index.html#Design", [
+        [ "Correctness", "index.html#Correctness", null ],
+        [ "Non-visible Write Rule (NWR)", "index.html#NWR", null ]
+      ] ],
+      [ "Example", "index.html#autotoc_md1", null ],
+      [ "Roadmap", "index.html#autotoc_md2", null ],
+      [ "Benchmark Results", "index.html#Benchmark", null ]
     ] ],
-    [ "Example", "index.html#autotoc_md0", null ],
-    [ "Roadmap", "index.html#autotoc_md1", null ],
-    [ "Benchmark Results", "index.html#Benchmark", null ],
-    [ "The LineairDB project roadmap", "autotoc_md2.html", null ],
+    [ "The LineairDB project roadmap", "autotoc_md3.html", null ],
     [ "Namespaces", null, [
       [ "Namespace List", "namespaces.html", "namespaces" ],
       [ "Namespace Members", "namespacemembers.html", [

@@ -14,10 +14,7 @@
  *   limitations under the License.
  */
 
-#include <lineairdb/config.h>
-#include <lineairdb/database.h>
-#include <lineairdb/transaction.h>
-#include <lineairdb/tx_status.h>
+#include "lineairdb/database.h"
 
 #include <atomic>
 #include <chrono>
@@ -27,6 +24,9 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lineairdb/config.h"
+#include "lineairdb/transaction.h"
+#include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
 
 class DatabaseTest : public ::testing::Test {
@@ -76,6 +76,68 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
                                 ASSERT_EQ(value_of_alice, alice.value());
                                 ASSERT_FALSE(tx.Read<int>("bob").has_value());
                               }});
+}
+
+TEST_F(DatabaseTest, Scan) {
+  int alice = 1;
+  int bob   = 2;
+  int carol = 3;
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+                    tx.Write<int>("alice", alice);
+                    tx.Write<int>("bob", bob);
+                    tx.Write<int>("carol", carol);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    // Scan
+                    auto count = tx.Scan<decltype(alice)>(
+                        "alice", "carol", [&](auto key, decltype(alice) value) {
+                          if (key == "alice") EXPECT_EQ(alice, value);
+                          if (key == "bob") EXPECT_EQ(bob, value);
+                          if (key == "carol") EXPECT_EQ(carol, value);
+                          return false;
+                        });
+                    ASSERT_TRUE(count.has_value());
+                    ASSERT_EQ(count.value(), 3);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    // Cancel
+                    auto count = tx.Scan<decltype(alice)>(
+                        "alice", "carol", [&](auto key, decltype(alice) value) {
+                          if (key == "alice") EXPECT_EQ(alice, value);
+                          return true;
+                        });
+                    ASSERT_TRUE(count.has_value());
+                    ASSERT_EQ(count.value(), 1);
+                  }});
+}
+
+TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
+  int alice = 1;
+  int bob   = 2;
+  int carol = 3;
+  int dave  = 4;
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.Write<int>("alice", alice);
+                               tx.Write<int>("bob", bob);
+                               tx.Write<int>("carol", carol);
+                             }});
+
+  // When there exists conflict between insertion and scanning,
+  // either one will abort.
+  auto hit             = 0;
+  const auto committed = TestHelper::DoTransactionsOnMultiThreads(
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
+       [&](LineairDB::Transaction& tx) {
+         tx.Scan("alice", "dave", [&](auto, auto) {
+           hit++;
+           return false;
+         });
+       }});
+  // the key "dave" has been inserted by concurrent transaction and thus
+  // it is not visible for #Scan operation.
+  if (committed == 2) { ASSERT_EQ(3, hit); }
 }
 
 TEST_F(DatabaseTest, SaveAsString) {

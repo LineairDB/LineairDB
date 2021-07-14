@@ -23,17 +23,19 @@
 #include <string>
 #include <string_view>
 
-#include "concurrent_point_index_base.h"
+#include "point_index/concurrent_point_index_base.h"
+#include "range_index/range_index_base.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 #include "types/snapshot.hpp"
+#include "util/epoch_framework.hpp"
 
 namespace LineairDB {
 namespace Index {
 
 class ConcurrentTable {
  public:
-  ConcurrentTable(Config config             = Config(),
+  ConcurrentTable(EpochFramework& epoch_framework, Config config = Config(),
                   WriteSetType recovery_set = WriteSetType());
   ~ConcurrentTable();
 
@@ -42,9 +44,14 @@ class ConcurrentTable {
   bool Put(const std::string_view key, const DataItem& value);
   DataItem* InsertIfNotExist(const std::string_view key);
   void ForEach(std::function<bool(std::string_view, DataItem&)>);
+  std::optional<size_t> Scan(const std::string_view begin,
+                             const std::string_view end,
+                             std::function<bool(std::string_view)> operation);
 
  private:
-  std::unique_ptr<ConcurrentPointIndexBase> container_;
+  std::unique_ptr<ConcurrentPointIndexBase> point_index_;
+  std::unique_ptr<RangeIndexBase> range_index_;
+  LineairDB::EpochFramework& epoch_manager_ref_;
 };
 }  // namespace Index
 }  // namespace LineairDB

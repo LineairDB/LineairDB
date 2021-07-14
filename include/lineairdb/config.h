@@ -84,6 +84,17 @@ struct Config {
    */
   ConcurrentPointIndex concurrent_point_index = MPMCConcurrentHashSet;
 
+  enum RangeIndex { EpochROWEX };
+  /**
+   * @brief
+   * Set the type of range index.
+   * See LineairDB::Config::RangeIndex for the enum options of this
+   * configuration.
+   *
+   * Default: ROWEX (epoch-based read-optimized write-exclusive index)
+   */
+  RangeIndex range_index = EpochROWEX;
+
   enum CallbackEngine { ThreadLocal };
   /**
    * @brief

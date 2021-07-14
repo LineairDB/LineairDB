@@ -70,6 +70,7 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
 Transaction::Impl::~Impl() noexcept = default;
 
 TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
+
 const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
   if (IsAborted()) return {nullptr, 0};
@@ -87,7 +88,7 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size());
     }
   }
-  auto* index_leaf  = db_pimpl_->GetPointIndex().GetOrInsert(key);
+  auto* index_leaf  = db_pimpl_->GetIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf};
 
   const auto& result      = concurrency_control_->Read(key, index_leaf);
@@ -116,13 +117,28 @@ void Transaction::Impl::Write(const std::string_view key,
     return;
   }
 
-  auto* index_leaf = db_pimpl_->GetPointIndex().GetOrInsert(key);
+  auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
+
+const std::optional<size_t> Transaction::Impl::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<bool(std::string_view,
+                       const std::pair<const void*, const size_t>)>
+        operation) {
+  auto result =
+      db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
+        const auto read_result = Read(key);
+        if (IsAborted()) return true;
+        return operation(key, read_result);
+      });
+  if (!result.has_value()) { Abort(); }
+  return result;
+};
 
 void Transaction::Impl::Abort() {
   if (!IsAborted()) {
@@ -158,6 +174,13 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
+const std::optional<size_t> Transaction::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<bool(std::string_view,
+                       const std::pair<const void*, const size_t>)>
+        operation) {
+  return tx_pimpl_->Scan(begin, end, operation);
+};
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 

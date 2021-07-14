@@ -22,7 +22,6 @@
 #include <atomic>
 #include <thread>
 
-#include "spdlog/spdlog.h"
 #include "util/thread_key_storage.h"
 
 namespace LineairDB {
@@ -136,7 +135,7 @@ class EpochFramework {
         EpochNumber updated = global_epoch_.fetch_add(1);
         if (publish_target_) publish_target_(updated);
       }
-      if (stop_.load() && min_epoch == UINT32_MAX) break;
+      if (stop_.load() && min_epoch == THREAD_OFFLINE) break;
     }
   }
 
