@@ -98,6 +98,7 @@ std::optional<size_t> EpochBasedRangeIndex::Scan(
   size_t hit       = 0;
   const auto begin = std::string(b);
   const auto end   = std::string(e);
+  if (end < begin) return std::nullopt;
 
   // TODO: we can optimize to avoid locking for read-only transactions.
   std::lock_guard<decltype(lock_)> guard(lock_);
