@@ -92,9 +92,9 @@ TEST_F(DatabaseTest, Scan) {
                     // Scan
                     auto count = tx.Scan<decltype(alice)>(
                         "alice", "carol", [&](auto key, decltype(alice) value) {
-                          if (key == "alice") EXPECT_EQ(alice, value);
-                          if (key == "bob") EXPECT_EQ(bob, value);
-                          if (key == "carol") EXPECT_EQ(carol, value);
+                          if (key == "alice") { EXPECT_EQ(alice, value); }
+                          if (key == "bob") { EXPECT_EQ(bob, value); }
+                          if (key == "carol") { EXPECT_EQ(carol, value); }
                           return false;
                         });
                     ASSERT_TRUE(count.has_value());
@@ -104,7 +104,7 @@ TEST_F(DatabaseTest, Scan) {
                     // Cancel
                     auto count = tx.Scan<decltype(alice)>(
                         "alice", "carol", [&](auto key, decltype(alice) value) {
-                          if (key == "alice") EXPECT_EQ(alice, value);
+                          if (key == "alice") { EXPECT_EQ(alice, value); }
                           return true;
                         });
                     ASSERT_TRUE(count.has_value());

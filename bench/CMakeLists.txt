@@ -24,9 +24,12 @@ target_compile_features(ycsb
     cxx_rvalue_references)
 target_link_libraries(ycsb ${PROJECT_NAME})
 target_include_directories(ycsb PRIVATE
+  ${Boost_INCLUDE_DIRS}
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/cxxopts/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/rapidjson/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/concurrentqueue>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/msgpack/include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
 )
 
@@ -44,12 +47,14 @@ foreach(DIRNAME ${DIRS})
       cxx_return_type_deduction
       cxx_rvalue_references)
   target_include_directories(${EXNAME} PRIVATE
+    ${Boost_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/cxxopts/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/rapidjson/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/concurrentqueue>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/msgpack/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
   )
 
-  
 endforeach()
 
