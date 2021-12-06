@@ -18,6 +18,11 @@
 
 #include <concurrentqueue.h>  // moodycamel::concurrentqueue
 
+#ifdef APPLE
+#include <numa.h>
+#include <unistd.h>
+#endif
+
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -25,8 +30,6 @@
 #include <random>
 #include <thread>
 #include <vector>
-
-#include "util/numa.hpp"
 
 namespace LineairDB {
 ThreadPool::ThreadPool(size_t pool_size)
@@ -37,7 +40,15 @@ ThreadPool::ThreadPool(size_t pool_size)
   assert(work_queues_.size() == pool_size);
   for (size_t i = 0; i < pool_size; i++) {
     worker_threads_.emplace_back([&, i]() {
-      Util::NUMA::SetAffinity(i);
+#ifndef APPLE
+      const auto pid     = getpid();
+      auto* mask         = numa_bitmask_alloc();
+      const auto cpu_bit = i % mask->size;
+      numa_bitmask_setbit(mask, cpu_bit);
+
+      numa_sched_setaffinity(pid, mask);
+      numa_free_cpumask();
+#endif
       for (;;) {
         Dequeue();
         if (stop_ && IsEmpty() && shutdown_) { break; }
