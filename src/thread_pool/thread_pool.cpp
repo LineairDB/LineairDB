@@ -18,7 +18,7 @@
 
 #include <concurrentqueue.h>  // moodycamel::concurrentqueue
 
-#ifdef APPLE
+#ifndef __APPLE__
 #include <numa.h>
 #include <unistd.h>
 #endif
@@ -39,15 +39,16 @@ ThreadPool::ThreadPool(size_t pool_size)
       no_steal_queues_(pool_size) {
   assert(work_queues_.size() == pool_size);
   for (size_t i = 0; i < pool_size; i++) {
-    worker_threads_.emplace_back([&, i]() {
-#ifndef APPLE
-      const auto pid     = getpid();
-      auto* mask         = numa_bitmask_alloc();
+    worker_threads_.emplace_back([&, i, pool_size]() {
+#ifndef __APPLE__
+      const auto pid     = gettid();
+      auto* mask         = numa_bitmask_alloc(pool_size);
       const auto cpu_bit = i % mask->size;
+      numa_bitmask_clearall(mask);
       numa_bitmask_setbit(mask, cpu_bit);
 
       numa_sched_setaffinity(pid, mask);
-      numa_free_cpumask();
+      numa_free_cpumask(mask);
 #endif
       for (;;) {
         Dequeue();
@@ -55,6 +56,7 @@ ThreadPool::ThreadPool(size_t pool_size)
       }
     });
   }
+  // TODO NEED COUNTDOWN LATCH
 }
 
 ThreadPool::~ThreadPool() {
