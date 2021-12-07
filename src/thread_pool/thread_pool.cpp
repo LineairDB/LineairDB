@@ -56,7 +56,6 @@ ThreadPool::ThreadPool(size_t pool_size)
       }
     });
   }
-  // TODO NEED COUNTDOWN LATCH
 }
 
 ThreadPool::~ThreadPool() {
