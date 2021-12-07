@@ -18,6 +18,11 @@
 
 #include <concurrentqueue.h>  // moodycamel::concurrentqueue
 
+#ifndef __APPLE__
+#include <numa.h>
+#include <unistd.h>
+#endif
+
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -34,7 +39,17 @@ ThreadPool::ThreadPool(size_t pool_size)
       no_steal_queues_(pool_size) {
   assert(work_queues_.size() == pool_size);
   for (size_t i = 0; i < pool_size; i++) {
-    worker_threads_.emplace_back([&]() {
+    worker_threads_.emplace_back([&, i, pool_size]() {
+#ifndef __APPLE__
+      const auto pid     = gettid();
+      auto* mask         = numa_bitmask_alloc(std::thread::hardware_concurrency());
+      const auto cpu_bit = i % mask->size;
+      numa_bitmask_clearall(mask);
+      numa_bitmask_setbit(mask, cpu_bit);
+
+      numa_sched_setaffinity(pid, mask);
+      numa_free_cpumask(mask);
+#endif
       for (;;) {
         Dequeue();
         if (stop_ && IsEmpty() && shutdown_) { break; }
@@ -71,9 +86,8 @@ bool ThreadPool::EnqueueForAllThreads(std::function<void()>&& job) {
 
 // FYI:
 // https://github.com/cameron314/concurrentqueue/blob/d1ce7d3e3a6376f3d8e2831f6728e0048f339f77/samples.md#wait-for-a-queue-to-become-empty-without-dequeueing
-// tl;dr concurrentqueue::size_approx is not always accurate.
-// And thus you cannot use this method to wait for all queueus are (correctly)
-// empty.
+// tl;dr concurrentqueue::size_approx returns unaccurate (approx) number.
+// Thus, you cannot use this method to wait until all queues become empty.
 bool ThreadPool::IsEmpty() {
   for (auto& queue : work_queues_) {
     if (queue.size_approx() != 0) { return false; }
@@ -110,7 +124,7 @@ void ThreadPool::Dequeue() {
       if (work_queues_.size() <= idx) idx = 0;
       selected_queue = &work_queues_[idx];
 
-      // It seems that there does not exist any transaction
+      // It seems that there does not exist any active transaction
       if (my_queue == selected_queue) {
         std::this_thread::yield();
         return;

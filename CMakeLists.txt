@@ -71,7 +71,7 @@ else()
   if(APPLE) # Use libc++
     target_link_libraries(${PROJECT_NAME} c++ stdc++fs atomic pthread)
   else() # Use libstdc++
-    target_link_libraries(${PROJECT_NAME} stdc++ stdc++fs atomic pthread)
+    target_link_libraries(${PROJECT_NAME} stdc++ stdc++fs atomic pthread numa)
   endif()
 endif()
 
