@@ -42,7 +42,7 @@ ThreadPool::ThreadPool(size_t pool_size)
     worker_threads_.emplace_back([&, i, pool_size]() {
 #ifndef __APPLE__
       const auto pid     = gettid();
-      auto* mask         = numa_bitmask_alloc(pool_size);
+      auto* mask         = numa_bitmask_alloc(std::thread::hardware_concurrency());
       const auto cpu_bit = i % mask->size;
       numa_bitmask_clearall(mask);
       numa_bitmask_setbit(mask, cpu_bit);
