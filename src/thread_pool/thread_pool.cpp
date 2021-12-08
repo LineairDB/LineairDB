@@ -23,6 +23,11 @@
 #include <unistd.h>
 #endif
 
+#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 30
+#include <sys/syscall.h>
+#define gettid() syscall(SYS_gettid)
+#endif
+
 #include <atomic>
 #include <functional>
 #include <mutex>
