@@ -34,11 +34,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 ### Compiler Options
 set(CMAKE_C_FLAGS "--std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -mcx16 -fPIC")
-if (APPLE)
-  set(CMAKE_OSX_ARCHITECTURES "x86_64")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -48,7 +43,13 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   endif()
 endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -march=native -Ofast -ffast-math -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -Ofast -ffast-math -DNDEBUG")
+if (APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  # Apple Sillicon (m1) does not support `march=native`. use `mcpu` instead.
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -mcpu=apple-m1")
+else()
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -march=native")
+endif()
 
 
 
@@ -134,7 +135,7 @@ if (DOXYGEN_FOUND)
   else()
     set(doxyfile ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile)
   endif()
-  add_custom_target("doc" ${DOXYGEN_EXECUTABLE} ${doxyfile} 
+  add_custom_target("doc" ${DOXYGEN_EXECUTABLE} ${doxyfile}
     DEPENDS ${doxyfile}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
