@@ -45,16 +45,18 @@ ThreadPool::ThreadPool(size_t pool_size)
       no_steal_queues_(pool_size) {
   assert(work_queues_.size() == pool_size);
   for (size_t i = 0; i < pool_size; i++) {
-    worker_threads_.emplace_back([&, i, pool_size]() {
 #ifndef __APPLE__
-      const auto pid     = gettid();
-      auto* mask         = numa_bitmask_alloc(std::thread::hardware_concurrency());
+    worker_threads_.emplace_back([&, i, pool_size]() {
+      const auto pid = gettid();
+      auto* mask     = numa_bitmask_alloc(std::thread::hardware_concurrency());
       const auto cpu_bit = i % mask->size;
       numa_bitmask_clearall(mask);
       numa_bitmask_setbit(mask, cpu_bit);
 
       numa_sched_setaffinity(pid, mask);
       numa_free_cpumask(mask);
+#else
+    worker_threads_.emplace_back([&]() {
 #endif
       for (;;) {
         Dequeue();
