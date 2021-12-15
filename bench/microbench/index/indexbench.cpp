@@ -36,23 +36,32 @@ const std::string CHARACTERS =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 template <typename T>
-size_t benchmark(T& index, LineairDB::EpochFramework& epoch_f, size_t threads,
-                 size_t proportion, size_t duration) {
+std::pair<size_t, size_t> benchmark(T& index,
+                                    LineairDB::EpochFramework& epoch_f,
+                                    size_t threads, size_t proportion,
+                                    size_t duration) {
+  std::atomic<size_t> count_down_latch(0);
   std::atomic<bool> end_flag(false);
   std::atomic<size_t> total_succeed(0);
+  std::atomic<size_t> total_aborts(0);
   std::vector<std::future<void>> futures;
+
   for (size_t i = 0; i < threads; i++) {
     futures.push_back(std::async(std::launch::async, [&]() {
       size_t operation_succeed = 0;
+      size_t operation_aborts  = 0;
 
       std::random_device seed_gen;
       std::mt19937 engine(seed_gen());
       std::uniform_int_distribution<> dist(0, 99);
       std::uniform_int_distribution<> random_string(0, CHARACTERS.size() - 1);
 
+      count_down_latch++;
+
       for (;;) {
         if (end_flag.load()) {
           total_succeed.fetch_add(operation_succeed);
+          total_aborts.fetch_add(operation_aborts);
           break;
         };
         epoch_f.MakeMeOnline();
@@ -74,7 +83,11 @@ size_t benchmark(T& index, LineairDB::EpochFramework& epoch_f, size_t threads,
           }
 
           auto result = index.Scan(begin, end, [](auto) { return false; });
-          if (result.has_value()) operation_succeed++;
+          if (result.has_value()) {
+            operation_succeed++;
+          } else {
+            operation_aborts++;
+          }
 
         } else {
           std::string key;
@@ -88,10 +101,24 @@ size_t benchmark(T& index, LineairDB::EpochFramework& epoch_f, size_t threads,
       }
     }));
   }
+  count_down_latch++;
+  for (;;) {
+    if (count_down_latch.load() == threads + 1) break;
+    std::this_thread::yield();
+  }
+  const auto begin = std::chrono::high_resolution_clock::now();
   std::this_thread::sleep_for(std::chrono::milliseconds(duration));
   end_flag.store(true);
   for (auto& fut : futures) { fut.wait(); }
-  return total_succeed.load();
+  const auto end = std::chrono::high_resolution_clock::now();
+
+  const auto duration_ns =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
+          .count();
+  auto success_ops = (total_succeed.load() / duration_ns) * 1000;
+  auto aborts_ops  = (total_aborts.load() / duration_ns) * 1000;
+
+  return std::make_pair(success_ops, aborts_ops);
 }
 
 int main(int argc, char** argv) {
@@ -127,6 +154,7 @@ int main(int argc, char** argv) {
 
   /** run benchmark **/
   auto ops = 0;
+  auto aps = 0;
 
   {
     using namespace LineairDB::Index;
@@ -143,14 +171,14 @@ int main(int argc, char** argv) {
     }
 
     ConcurrentTable index(epoch_framework, config);
-    ops = benchmark<decltype(index)>(index, epoch_framework, threads,
-                                     proportion, measurement_duration);
+    auto res = benchmark<decltype(index)>(index, epoch_framework, threads,
+                                          proportion, measurement_duration);
+    ops      = res.first;
+    aps      = res.second;
   }
-  SPDLOG_INFO("Lockbench: measurement has finisihed.");
-  SPDLOG_INFO(
-      "structure: {0} Operations per "
-      "seconds (ops): {1}",
-      structure, ops);
+  SPDLOG_INFO("IndexBench: measurement has finisihed.");
+  SPDLOG_INFO("Structure;CommitPS;AbortPS;OPS");
+  SPDLOG_INFO("{0};{1};{2};{3}", structure, ops, aps, ops + aps);
 
   /** Output result as json format **/
   rapidjson::Document result_json(rapidjson::kObjectType);
