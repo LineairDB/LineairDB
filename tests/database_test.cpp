@@ -47,6 +47,7 @@ TEST_F(DatabaseTest, InstantiateWithConfig) {
   db_.reset(nullptr);
   LineairDB::Config conf;
   conf.checkpoint_period = 1;
+  ASSERT_EQ("./lineairdb_logs", conf.lineairdb_logs_dir);
   ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
 }
 

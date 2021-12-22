@@ -221,7 +221,7 @@ class Database::Impl {
     SPDLOG_INFO("Start recovery process");
     // Start recovery from logfiles
     EpochNumber highest_epoch = 1;
-    const auto durable_epoch  = Recovery::Logger::GetDurableEpochFromLog();
+    const auto durable_epoch  = logger_.GetDurableEpochFromLog();
     SPDLOG_DEBUG("  Durable epoch is resumed from {0}", highest_epoch);
     logger_.SetDurableEpoch(durable_epoch);
     [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(

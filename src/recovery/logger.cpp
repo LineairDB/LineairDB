@@ -37,10 +37,12 @@ namespace LineairDB {
 namespace Recovery {
 
 Logger::Logger(const Config& config)
-    : durable_epoch_(0),
-      durable_epoch_working_file_(DurableEpochNumberWorkingFileName,
-                                  std::ofstream::trunc) {
-  std::experimental::filesystem::create_directory("lineairdb_logs");
+    : DurableEpochNumberFileName(config.lineairdb_logs_dir + "/durable_epoch_working.json"),
+      DurableEpochNumberWorkingFileName(config.lineairdb_logs_dir + "/durable_epoch.json"),
+      durable_epoch_(0),
+      durable_epoch_working_file_(DurableEpochNumberWorkingFileName, std::ofstream::trunc) {
+
+  std::experimental::filesystem::create_directory(config.lineairdb_logs_dir);
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
     case Config::Logger::ThreadLocalLogger:
@@ -81,7 +83,7 @@ EpochNumber Logger::FlushDurableEpoch() {
   durable_epoch_working_file_ << durable_epoch_;
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(DurableEpochNumberWorkingFileName, DurableEpochNumberFileName)) {
+  if (rename(DurableEpochNumberWorkingFileName.c_str(), DurableEpochNumberFileName.c_str())) {
     SPDLOG_ERROR(
         "Durability Error: fail to flush the durable epoch number {0:d}. "
         "errno: {1}",
@@ -99,7 +101,7 @@ EpochNumber Logger::GetDurableEpoch() { return durable_epoch_; }
 void Logger::SetDurableEpoch(const EpochNumber e) { durable_epoch_ = e; }
 
 EpochNumber Logger::GetDurableEpochFromLog() {
-  std::ifstream file(Recovery::Logger::DurableEpochNumberFileName,
+  std::ifstream file(DurableEpochNumberFileName,
                      std::ios::binary | std::ios::ate);
   EpochNumber epoch;
   auto filesize = file.tellg();
