@@ -60,7 +60,6 @@ class ThreadLocalLogger final : public LoggerBase {
     size_t thread_id;
     std::atomic<EpochNumber> durable_epoch;
     EpochNumber truncated_epoch;
-    std::fstream log_file;
     Logger::LogRecords log_records;
     MSGPACK_DEFINE(log_records);
 

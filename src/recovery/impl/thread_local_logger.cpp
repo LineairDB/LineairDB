@@ -80,8 +80,8 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     // The log record is not persisted when 1) this thread buffers its log
     // records and 2) will be terminated soon after here.
     // To ensure durability, we immediately flush the log records.
-    msgpack::pack(my_storage->log_file, my_storage->log_records);
-    my_storage->log_file.flush();
+    msgpack::pack(log_file, my_storage->log_records);
+    log_file.flush();
     my_storage->log_records.clear();
     my_storage->durable_epoch.store(epoch);
   }
@@ -91,8 +91,8 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
   auto* my_storage = thread_key_storage_.Get();
 
   if (!my_storage->log_records.empty()) {
-    msgpack::pack(my_storage->log_file, my_storage->log_records);
-    my_storage->log_file.flush();
+    msgpack::pack(log_file, my_storage->log_records);
+    log_file.flush();
     my_storage->log_records.clear();
   }
 
@@ -159,7 +159,7 @@ void ThreadLocalLogger::TruncateLogs(
     exit(1);
   }
   my_storage->truncated_epoch = checkpoint_completed_epoch;
-  my_storage->log_file        = std::fstream(
+  log_file        = std::fstream(
       GetLogFileName(),
       std::fstream::out | std::fstream::binary | std::fstream::ate);
 }

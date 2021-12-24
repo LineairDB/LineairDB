@@ -44,13 +44,14 @@ namespace Recovery {
 class CPRManager {
  public:
   enum class Phase { REST, IN_PROGRESS, WAIT_FLUSH };
-  constexpr static auto CheckpointFileName = "lineairdb_logs/checkpoint.log";
-  constexpr static auto CheckpointWorkingFileName =
-      "lineairdb_logs/checkpoint.working.log";
+  const std::string CheckpointFileName;
+  const std::string CheckpointWorkingFileName;
 
   CPRManager(const LineairDB::Config& c_ref,
              LineairDB::Index::ConcurrentTable& t_ref, EpochFramework& e_ref)
-      : config_ref_(c_ref),
+      : CheckpointFileName(c_ref.lineairdb_logs_dir + "/checkpoint.working.log"),
+	CheckpointWorkingFileName(c_ref.lineairdb_logs_dir + "/checkpoint.log"),
+        config_ref_(c_ref),
         table_ref_(t_ref),
         epoch_manager_ref_(e_ref),
         current_phase_(Phase::REST),
@@ -150,7 +151,7 @@ class CPRManager {
               new_file.flush();
 
               // NOTE POSIX ensures that rename syscall provides atomicity
-              if (rename(CheckpointWorkingFileName, CheckpointFileName)) {
+              if (rename(CheckpointWorkingFileName.c_str(), CheckpointFileName.c_str())) {
                 SPDLOG_ERROR(
                     "Durability Error: fail to rename checkpoint of the "
                     "epoch "
