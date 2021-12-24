@@ -38,7 +38,7 @@ namespace Recovery {
 
 class ThreadLocalLogger final : public LoggerBase {
  public:
-  ThreadLocalLogger();
+  ThreadLocalLogger(const Config&);
   void RememberMe(const EpochNumber) final override;
   void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
                bool entrusting) final override;
@@ -46,8 +46,12 @@ class ThreadLocalLogger final : public LoggerBase {
   void TruncateLogs(
       const EpochNumber checkpoint_completed_epoch) final override;
   EpochNumber GetMinDurableEpochForAllThreads() final override;
+  std::string GetLogFileName();
+  std::string GetWorkingLogFileName();
 
  private:
+  const Config& config;
+  std::fstream log_file;
   struct ThreadLocalStorageNode {
    private:
     static std::atomic<size_t> ThreadIdCounter;
@@ -63,17 +67,8 @@ class ThreadLocalLogger final : public LoggerBase {
     ThreadLocalStorageNode()
         : thread_id(ThreadIdCounter.fetch_add(1)),
           durable_epoch(EpochFramework::THREAD_OFFLINE),
-          truncated_epoch(0),
-          log_file(GetLogFileName(), std::fstream::out | std::fstream::binary |
-                                         std::fstream::ate) {}
+          truncated_epoch(0) {}
     ~ThreadLocalStorageNode() {}
-    std::string GetLogFileName() {
-      return "lineairdb_logs/thread" + std::to_string(thread_id) + ".log";
-    }
-    std::string GetWorkingLogFileName() {
-      return "lineairdb_logs/thread" + std::to_string(thread_id) +
-             ".working.log";
-    }
   };
 
  private:

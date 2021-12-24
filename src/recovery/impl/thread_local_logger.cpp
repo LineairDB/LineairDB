@@ -36,7 +36,11 @@
 namespace LineairDB {
 namespace Recovery {
 
-ThreadLocalLogger::ThreadLocalLogger() { LineairDB::Util::SetUpSPDLog(); }
+ThreadLocalLogger::ThreadLocalLogger(const Config& config)
+  : config(config) {
+    LineairDB::Util::SetUpSPDLog();
+    log_file = std::fstream(GetLogFileName(), std::fstream::out | std::fstream::binary | std::fstream::ate);
+}
 
 void ThreadLocalLogger::RememberMe(const EpochNumber epoch) {
   auto* my_storage = thread_key_storage_.Get();
@@ -101,7 +105,7 @@ void ThreadLocalLogger::TruncateLogs(
 
   assert(my_storage->truncated_epoch <= checkpoint_completed_epoch);
   if (checkpoint_completed_epoch == my_storage->truncated_epoch) return;
-  auto log_filename = my_storage->GetLogFileName();
+  auto log_filename = GetLogFileName();
   std::ifstream old_file(log_filename,
                          std::ifstream::in | std::ifstream::binary);
 
@@ -144,19 +148,19 @@ void ThreadLocalLogger::TruncateLogs(
                    deserialized_records.end());
   }
 
-  std::ofstream new_file(my_storage->GetWorkingLogFileName());
+  std::ofstream new_file(GetWorkingLogFileName());
   msgpack::pack(new_file, records);
   new_file.flush();
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(log_filename.c_str(), my_storage->GetLogFileName().c_str())) {
+  if (rename(log_filename.c_str(), GetLogFileName().c_str())) {
     SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
                  errno);
     exit(1);
   }
   my_storage->truncated_epoch = checkpoint_completed_epoch;
   my_storage->log_file        = std::fstream(
-      my_storage->GetLogFileName(),
+      GetLogFileName(),
       std::fstream::out | std::fstream::binary | std::fstream::ate);
 }
 
@@ -169,6 +173,20 @@ EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {
         if (epoch < min_flushed_epoch) min_flushed_epoch = epoch;
       });
   return min_flushed_epoch;
+}
+
+std::string ThreadLocalLogger::GetLogFileName() {
+  auto* my_storage = thread_key_storage_.Get();
+  auto thread_id = my_storage->thread_id;
+  // TODO: think of beautiful path concatation in C++
+  return config.lineairdb_logs_dir + "/thread" + std::to_string(thread_id) + ".log";
+}
+
+std::string ThreadLocalLogger::GetWorkingLogFileName() {
+  auto* my_storage = thread_key_storage_.Get();
+  auto thread_id = my_storage->thread_id;
+  return config.lineairdb_logs_dir + "/thread" + std::to_string(thread_id) +
+         ".working.log";
 }
 
 std::atomic<size_t> ThreadLocalLogger::ThreadLocalStorageNode::ThreadIdCounter =

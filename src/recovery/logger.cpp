@@ -46,10 +46,10 @@ Logger::Logger(const Config& config)
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
     case Config::Logger::ThreadLocalLogger:
-      logger_ = std::make_unique<ThreadLocalLogger>();
+      logger_ = std::make_unique<ThreadLocalLogger>(config);
       break;
     default:
-      logger_ = std::make_unique<ThreadLocalLogger>();
+      logger_ = std::make_unique<ThreadLocalLogger>(config);
       break;
   }
 }
