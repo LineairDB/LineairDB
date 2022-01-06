@@ -46,12 +46,11 @@ class ThreadLocalLogger final : public LoggerBase {
   void TruncateLogs(
       const EpochNumber checkpoint_completed_epoch) final override;
   EpochNumber GetMinDurableEpochForAllThreads() final override;
-  std::string GetLogFileName();
-  std::string GetWorkingLogFileName();
+  std::string GetLogFileName(size_t thread_id);
+  std::string GetWorkingLogFileName(size_t thread_id);
 
  private:
   const Config& config;
-  std::fstream log_file;
   struct ThreadLocalStorageNode {
    private:
     static std::atomic<size_t> ThreadIdCounter;
@@ -60,13 +59,15 @@ class ThreadLocalLogger final : public LoggerBase {
     size_t thread_id;
     std::atomic<EpochNumber> durable_epoch;
     EpochNumber truncated_epoch;
+    std::fstream log_file;
     Logger::LogRecords log_records;
     MSGPACK_DEFINE(log_records);
 
     ThreadLocalStorageNode()
         : thread_id(ThreadIdCounter.fetch_add(1)),
           durable_epoch(EpochFramework::THREAD_OFFLINE),
-          truncated_epoch(0) {}
+          truncated_epoch(0),
+          log_file(0){}
     ~ThreadLocalStorageNode() {}
   };
 

@@ -232,7 +232,7 @@ class Database::Impl {
 
     highest_epoch = std::max(highest_epoch, durable_epoch);
     auto&& recovery_set =
-        Recovery::Logger::GetRecoverySetFromLogs(durable_epoch);
+        logger_.GetRecoverySetFromLogs(durable_epoch);
     for (auto& entry : recovery_set) {
       highest_epoch = std::max(
           highest_epoch, entry.data_item_copy.transaction_id.load().epoch);

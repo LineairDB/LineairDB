@@ -39,6 +39,7 @@ namespace Recovery {
 Logger::Logger(const Config& config)
     : DurableEpochNumberFileName(config.lineairdb_logs_dir + "/durable_epoch_working.json"),
       DurableEpochNumberWorkingFileName(config.lineairdb_logs_dir + "/durable_epoch.json"),
+      WorkingDir(config.lineairdb_logs_dir),
       durable_epoch_(0),
       durable_epoch_working_file_(DurableEpochNumberWorkingFileName, std::ofstream::trunc) {
 
@@ -130,9 +131,10 @@ static inline std::vector<std::string> glob(const std::string& pat) {
 
 WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   SPDLOG_DEBUG("Replay the logs in epoch 0-{0}", durable_epoch);
+  SPDLOG_DEBUG("Check WrokingDirectory {0}", WorkingDir);
 
-  auto logfiles                      = glob("lineairdb_logs/thread*");
-  constexpr auto checkpoint_filename = "lineairdb_logs/checkpoint.log";
+  auto logfiles                      = glob(WorkingDir + "/thread*");
+  const std::string checkpoint_filename = WorkingDir + "/checkpoint.log";
   bool checkpoint_file_exists        = false;
   {
     std::ifstream ifs(checkpoint_filename);
@@ -169,6 +171,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
         SPDLOG_ERROR(
             "  Stop recovery procedure: msgpack deserialize failure on file "
             "{0}. Some records may not be recovered.");
+        SPDLOG_DEBUG("Error code: {0}", e.what());
         return recovery_set;
       } catch (...) {
         SPDLOG_ERROR(

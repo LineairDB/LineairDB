@@ -34,6 +34,7 @@ class Logger {
   constexpr static EpochNumber NumberIsNotUpdated = 0;
   const std::string DurableEpochNumberFileName;
   const std::string DurableEpochNumberWorkingFileName;
+  const std::string WorkingDir;
 
   Logger(const Config&);
   ~Logger();
@@ -49,7 +50,7 @@ class Logger {
   EpochNumber GetDurableEpoch();
   void SetDurableEpoch(const EpochNumber);
   EpochNumber GetDurableEpochFromLog();
-  static WriteSetType GetRecoverySetFromLogs(const EpochNumber durable_epoch);
+  WriteSetType GetRecoverySetFromLogs(const EpochNumber durable_epoch);
 
   struct LogRecord {
     struct KeyValuePair {

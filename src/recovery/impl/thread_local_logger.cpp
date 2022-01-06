@@ -39,7 +39,6 @@ namespace Recovery {
 ThreadLocalLogger::ThreadLocalLogger(const Config& config)
   : config(config) {
     LineairDB::Util::SetUpSPDLog();
-    log_file = std::fstream(GetLogFileName(), std::fstream::out | std::fstream::binary | std::fstream::ate);
 }
 
 void ThreadLocalLogger::RememberMe(const EpochNumber epoch) {
@@ -80,8 +79,14 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     // The log record is not persisted when 1) this thread buffers its log
     // records and 2) will be terminated soon after here.
     // To ensure durability, we immediately flush the log records.
-    msgpack::pack(log_file, my_storage->log_records);
-    log_file.flush();
+
+    // TODO: to be good initiation if this file is not initialized via somehow
+    if (!my_storage->log_file) {
+      my_storage->log_file = std::fstream(
+        GetLogFileName(my_storage->thread_id), std::fstream::out | std::fstream::binary | std::fstream::ate);
+    }
+    msgpack::pack(my_storage->log_file, my_storage->log_records);
+    my_storage->log_file.flush();
     my_storage->log_records.clear();
     my_storage->durable_epoch.store(epoch);
   }
@@ -91,8 +96,12 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
   auto* my_storage = thread_key_storage_.Get();
 
   if (!my_storage->log_records.empty()) {
-    msgpack::pack(log_file, my_storage->log_records);
-    log_file.flush();
+    if (!my_storage->log_file) {
+      my_storage->log_file = std::fstream(
+        GetLogFileName(my_storage->thread_id), std::fstream::out | std::fstream::binary | std::fstream::ate);
+    }
+    msgpack::pack(my_storage->log_file, my_storage->log_records);
+    my_storage->log_file.flush();
     my_storage->log_records.clear();
   }
 
@@ -105,7 +114,7 @@ void ThreadLocalLogger::TruncateLogs(
 
   assert(my_storage->truncated_epoch <= checkpoint_completed_epoch);
   if (checkpoint_completed_epoch == my_storage->truncated_epoch) return;
-  auto log_filename = GetLogFileName();
+  auto log_filename = GetLogFileName(my_storage->thread_id);
   std::ifstream old_file(log_filename,
                          std::ifstream::in | std::ifstream::binary);
 
@@ -148,19 +157,19 @@ void ThreadLocalLogger::TruncateLogs(
                    deserialized_records.end());
   }
 
-  std::ofstream new_file(GetWorkingLogFileName());
+  std::ofstream new_file(GetWorkingLogFileName(my_storage->thread_id));
   msgpack::pack(new_file, records);
   new_file.flush();
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(log_filename.c_str(), GetLogFileName().c_str())) {
+  if (rename(log_filename.c_str(), GetLogFileName(my_storage->thread_id).c_str())) {
     SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
                  errno);
     exit(1);
   }
   my_storage->truncated_epoch = checkpoint_completed_epoch;
-  log_file        = std::fstream(
-      GetLogFileName(),
+  my_storage->log_file        = std::fstream(
+      GetLogFileName(my_storage->thread_id),
       std::fstream::out | std::fstream::binary | std::fstream::ate);
 }
 
@@ -175,16 +184,12 @@ EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {
   return min_flushed_epoch;
 }
 
-std::string ThreadLocalLogger::GetLogFileName() {
-  auto* my_storage = thread_key_storage_.Get();
-  auto thread_id = my_storage->thread_id;
+std::string ThreadLocalLogger::GetLogFileName(size_t thread_id) {
   // TODO: think of beautiful path concatation in C++
   return config.lineairdb_logs_dir + "/thread" + std::to_string(thread_id) + ".log";
 }
 
-std::string ThreadLocalLogger::GetWorkingLogFileName() {
-  auto* my_storage = thread_key_storage_.Get();
-  auto thread_id = my_storage->thread_id;
+std::string ThreadLocalLogger::GetWorkingLogFileName(size_t thread_id) {
   return config.lineairdb_logs_dir + "/thread" + std::to_string(thread_id) +
          ".working.log";
 }
