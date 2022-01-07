@@ -43,6 +43,7 @@ class DatabaseTest : public ::testing::Test {
 };
 
 TEST_F(DatabaseTest, Instantiate) {}
+
 TEST_F(DatabaseTest, InstantiateWithConfig) {
   db_.reset(nullptr);
   LineairDB::Config conf;
@@ -204,4 +205,23 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
           ASSERT_EQ(0xBEEF, current_value);
         }
       }});
+}
+
+TEST_F(DatabaseTest, NoConfigTransaction) {
+  // NOTE: this test will take default 5 seconds for checkpointing
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  int value_of_alice = 1;
+  TestHelper::DoTransactions(
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) {
+         tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
+                  sizeof(int));
+       },
+       [&](LineairDB::Transaction& tx) {
+         auto alice = tx.Read("alice");
+         ASSERT_NE(alice.first, nullptr);
+         ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
+         ASSERT_EQ(0, tx.Read("bob").second);
+       }});
 }
