@@ -131,7 +131,7 @@ static inline std::vector<std::string> glob(const std::string& pat) {
 
 WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   SPDLOG_DEBUG("Replay the logs in epoch 0-{0}", durable_epoch);
-  SPDLOG_DEBUG("Check WrokingDirectory {0}", WorkingDir);
+  SPDLOG_DEBUG("Check WorkingDirectory {0}", WorkingDir);
 
   auto logfiles                      = glob(WorkingDir + "/thread*");
   const std::string checkpoint_filename = WorkingDir + "/checkpoint.log";
