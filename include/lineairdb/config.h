@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <thread>
+#include <string>
 
 namespace LineairDB {
 
