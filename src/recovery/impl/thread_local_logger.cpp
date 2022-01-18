@@ -37,7 +37,7 @@ namespace LineairDB {
 namespace Recovery {
 
 ThreadLocalLogger::ThreadLocalLogger(const Config& config)
-  : config(config) {
+  : WorkingDir(config.lineairdb_logs_dir) {
     LineairDB::Util::SetUpSPDLog();
 }
 
@@ -186,11 +186,11 @@ EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {
 
 std::string ThreadLocalLogger::GetLogFileName(size_t thread_id) {
   // TODO: think of beautiful path concatation in C++
-  return config.lineairdb_logs_dir + "/thread" + std::to_string(thread_id) + ".log";
+  return WorkingDir + "/thread" + std::to_string(thread_id) + ".log";
 }
 
 std::string ThreadLocalLogger::GetWorkingLogFileName(size_t thread_id) {
-  return config.lineairdb_logs_dir + "/thread" + std::to_string(thread_id) +
+  return WorkingDir + "/thread" + std::to_string(thread_id) +
          ".working.log";
 }
 

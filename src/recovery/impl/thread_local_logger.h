@@ -50,7 +50,7 @@ class ThreadLocalLogger final : public LoggerBase {
   std::string GetWorkingLogFileName(size_t thread_id);
 
  private:
-  const Config& config;
+  std::string WorkingDir;
   struct ThreadLocalStorageNode {
    private:
     static std::atomic<size_t> ThreadIdCounter;
