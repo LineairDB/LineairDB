@@ -128,21 +128,21 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
                                tx.Write<int>("carol", carol);
                              }});
 
-  // When there exists conflict between insertion and scanning,
-  // either one will abort.
-  auto hit             = 0;
+  std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
       db_.get(),
       {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {
-         tx.Scan("alice", "dave", [&](auto, auto) {
-           hit++;
-           return false;
-         });
+         auto scan = [&]() {
+           return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
+         };
+         first = scan();
+         std::this_thread::yield();
+         second = scan();
        }});
-  // the key "dave" has been inserted by concurrent transaction and thus
-  // it is not visible for #Scan operation.
-  if (committed == 2) { ASSERT_EQ(3, hit); }
+  if (committed == 2 && first.has_value() && second.has_value()) {
+    ASSERT_EQ(first, second);
+  }
 }
 
 TEST_F(DatabaseTest, SaveAsString) {

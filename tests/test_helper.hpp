@@ -129,7 +129,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
   }
 
   return committed;
-}  // namespace TestHelper
+}
 
 }  // namespace TestHelper
 #endif /* LINEAIRDB_TEST_HELPER_HPP */
