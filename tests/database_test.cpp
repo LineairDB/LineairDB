@@ -131,7 +131,7 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
   // When there exists conflict between insertion and scanning,
   // either one will abort.
   auto hit             = 0;
-  const auto committed = TestHelper::DoTransactionsOnMultiThreads(
+  const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
       db_.get(),
       {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {

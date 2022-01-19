@@ -84,15 +84,16 @@ class Database::Impl {
       bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
                                            callback       = clbk,
                                            precommit_clbk = prclbk]() {
+        epoch_framework_.MakeMeOnline();
         Transaction tx(this);
 
         transaction_procedure(tx);
         if (tx.IsAborted()) {
           callback(LineairDB::TxStatus::Aborted);
+          epoch_framework_.MakeMeOffline();
           return;
         }
 
-        epoch_framework_.MakeMeOnline();
         bool committed = tx.Precommit();
         if (committed) {
           tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
