@@ -63,6 +63,7 @@ struct DataItem {
   }
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
+    cc_tag = rhs.cc_tag;
     buffer.Reset(rhs.buffer);
     return *this;
   }
