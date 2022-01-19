@@ -119,16 +119,19 @@ class Database::Impl {
     }
   }
 
-  Transaction& BeginTransaction() { return *(new Transaction(this)); }
+  Transaction& BeginTransaction() {
+    epoch_framework_.MakeMeOnline();
+    return *(new Transaction(this));
+  }
 
   bool EndTransaction(Transaction& tx, CallbackType clbk) {
     if (tx.IsAborted()) {
       clbk(TxStatus::Aborted);
       delete &tx;
+      epoch_framework_.MakeMeOffline();
       return false;
     }
 
-    epoch_framework_.MakeMeOnline();
     bool committed = tx.Precommit();
     if (committed) {
       tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
