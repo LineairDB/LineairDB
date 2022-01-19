@@ -37,6 +37,7 @@ class DatabaseTest : public ::testing::Test {
     std::experimental::filesystem::remove_all("lineairdb_logs");
     config_.max_thread        = 4;
     config_.checkpoint_period = 1;
+    config_.epoch_duration_ms = 1;
     db_                       = std::make_unique<LineairDB::Database>(config_);
   }
 };
@@ -83,33 +84,37 @@ TEST_F(DatabaseTest, Scan) {
   int bob   = 2;
   int carol = 3;
   TestHelper::DoTransactions(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-                    tx.Write<int>("alice", alice);
-                    tx.Write<int>("bob", bob);
-                    tx.Write<int>("carol", carol);
-                  },
-                  [&](LineairDB::Transaction& tx) {
-                    // Scan
-                    auto count = tx.Scan<decltype(alice)>(
-                        "alice", "carol", [&](auto key, decltype(alice) value) {
-                          if (key == "alice") { EXPECT_EQ(alice, value); }
-                          if (key == "bob") { EXPECT_EQ(bob, value); }
-                          if (key == "carol") { EXPECT_EQ(carol, value); }
-                          return false;
-                        });
-                    ASSERT_TRUE(count.has_value());
-                    ASSERT_EQ(count.value(), 3);
-                  },
-                  [&](LineairDB::Transaction& tx) {
-                    // Cancel
-                    auto count = tx.Scan<decltype(alice)>(
-                        "alice", "carol", [&](auto key, decltype(alice) value) {
-                          if (key == "alice") { EXPECT_EQ(alice, value); }
-                          return true;
-                        });
-                    ASSERT_TRUE(count.has_value());
-                    ASSERT_EQ(count.value(), 1);
-                  }});
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) {
+         tx.Write<int>("alice", alice);
+         tx.Write<int>("bob", bob);
+         tx.Write<int>("carol", carol);
+       },
+       // Note: in some index engine (e.g.,
+       // epoch_based_range_index), inserting transactions might be
+       // deferred to execute. Therefore, the following scan
+       // operation might be aborted when the insertions is not
+       // executed, since their key ranges are conflicting with the insertions.
+       [&](LineairDB::Transaction& tx) {
+         // Scan
+         auto count = tx.Scan<decltype(alice)>(
+             "alice", "carol", [&](auto key, decltype(alice) value) {
+               if (key == "alice") { EXPECT_EQ(alice, value); }
+               if (key == "bob") { EXPECT_EQ(bob, value); }
+               if (key == "carol") { EXPECT_EQ(carol, value); }
+               return false;
+             });
+         if (count.has_value()) { ASSERT_EQ(count.value(), 3); }
+       },
+       [&](LineairDB::Transaction& tx) {
+         // Cancel
+         auto count = tx.Scan<decltype(alice)>(
+             "alice", "carol", [&](auto key, decltype(alice) value) {
+               if (key == "alice") { EXPECT_EQ(alice, value); }
+               return true;
+             });
+         if (count.has_value()) { ASSERT_EQ(count.value(), 1); };
+       }});
 }
 
 TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
