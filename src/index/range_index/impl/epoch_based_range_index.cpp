@@ -116,22 +116,18 @@ std::optional<size_t> EpochBasedRangeIndex::Scan(
     }
   }
 
-  const auto global_epoch = epoch_manager_ref_.GetGlobalEpoch();
-  predicate_list_.emplace_back(Predicate{begin, end, global_epoch});
+  const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
+  predicate_list_.emplace_back(Predicate{begin, end, epoch});
 
   return hit;
 };
 bool EpochBasedRangeIndex::Insert(const std::string_view key) {
   std::lock_guard<decltype(lock_)> guard(lock_);
   if (IsInPredicateSet(key)) { return false; }
-  // NOTE:
-  // The global epoch read here may be larger than the epoch of the transaction
-  // which invokes this method.
-  // It may cause unnecessary aborts(there are false positives),
-  // but it won't miss any phantom anomaly (there are no false negatives).
-  const auto global_epoch = epoch_manager_ref_.GetGlobalEpoch();
+
+  const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
   insert_or_delete_key_set_.push_back(
-      InsertOrDeleteEvent{std::string(key), false, global_epoch});
+      InsertOrDeleteEvent{std::string(key), false, epoch});
 
   return true;
 };
@@ -139,14 +135,9 @@ bool EpochBasedRangeIndex::Insert(const std::string_view key) {
 bool EpochBasedRangeIndex::Delete(const std::string_view key) {
   std::lock_guard<decltype(lock_)> guard(lock_);
   if (IsInPredicateSet(key)) { return false; }
-  // NOTE:
-  // The global epoch read here may be larger than the epoch of the transaction
-  // which invokes this method.
-  // It may cause unnecessary aborts(there are false positives),
-  // but it won't miss any phantom anomaly (there are no false negatives).
-  const auto global_epoch = epoch_manager_ref_.GetGlobalEpoch();
+  const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
   insert_or_delete_key_set_.push_back(
-      InsertOrDeleteEvent{std::string(key), true, global_epoch});
+      InsertOrDeleteEvent{std::string(key), true, epoch});
 
   return true;
 };

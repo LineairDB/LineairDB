@@ -54,14 +54,24 @@ size_t DoTransactionsOnMultiThreads(
   std::atomic<size_t> terminated(0);
   std::atomic<size_t> committed(0);
   std::vector<std::future<void>> jobs;
+  std::atomic<size_t> waits(0);
+  std::atomic<bool> barrier(false);
   for (auto& tx : txns) {
     jobs.push_back(std::async(std::launch::async, [&]() {
+      waits.fetch_add(1);
+      for (;;) {
+        if (barrier.load()) break;
+      }
       db->ExecuteTransaction(tx, [&](const auto status) {
         terminated++;
         if (status == LineairDB::TxStatus::Committed) { committed++; }
       });
     }));
   }
+  for (;;) {
+    if (waits.load() == txns.size()) break;
+  }
+  barrier.store(true);
 
   for (auto& job : jobs) { job.wait(); }
 
@@ -81,9 +91,17 @@ size_t DoHandlerTransactionsOnMultiThreads(
     LineairDB::Database* db, const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);
   std::atomic<size_t> committed(0);
+
   std::vector<std::future<void>> jobs;
+  std::atomic<bool> barrier(false);
+  std::atomic<size_t> waits(0);
+
   for (auto& proc : txns) {
     jobs.push_back(std::async(std::launch::async, [&]() {
+      waits.fetch_add(1);
+      for (;;) {
+        if (barrier.load()) break;
+      }
       auto& tx = db->BeginTransaction();
       proc(tx);
       db->EndTransaction(tx, [&](auto status) {
@@ -94,6 +112,10 @@ size_t DoHandlerTransactionsOnMultiThreads(
       });
     }));
   }
+  for (;;) {
+    if (waits.load() == txns.size()) break;
+  }
+  barrier.store(true);
 
   for (auto& job : jobs) { job.wait(); }
 
@@ -107,7 +129,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
   }
 
   return committed;
-}  // namespace TestHelper
+}
 
 }  // namespace TestHelper
 #endif /* LINEAIRDB_TEST_HELPER_HPP */
