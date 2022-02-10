@@ -21,9 +21,25 @@ project(lineairdb-example)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT TARGET lineairdb)
-    find_package(lineairdb REQUIRED)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics -fsanitize=address")
 endif()
 
-add_executable(lineairdb_example example.cpp)
-target_link_libraries(lineairdb_example PRIVATE lineairdb)
+
+find_package(lineairdb REQUIRED)
+if (NOT lineairdb_FOUND)
+    message(FATAL_ERROR
+        "LineairDB is not installed. Use 'make; make install' in the project root directory to install the header & libraries.")
+endif()
+
+add_executable(${PROJECT_NAME} example.cpp)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb pthread)
+else()
+  if(APPLE) # Use libc++
+    target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb c++ stdc++fs atomic pthread)
+  else() # Use libstdc++
+    target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb stdc++ stdc++fs atomic pthread numa)
+  endif()
+endif()
