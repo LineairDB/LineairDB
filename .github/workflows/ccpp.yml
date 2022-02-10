@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 jobs:
-  ci:
+  build:
     strategy:
       fail-fast: true
       matrix:
@@ -41,8 +41,7 @@ jobs:
           BUILDTYPE: ${{ matrix.build }}
         if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
-          mkdir -p build
-          cd build
+          mkdir -p build; cd $_
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
           make
           sudo make install
@@ -59,6 +58,13 @@ jobs:
         run: |
           cd build
           ctest -V
+
+      - name: ${{ matrix.build }} build example/example.cpp
+        run: |
+          mkdir -p example/build; cd $_
+          cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
+          make
+          ./lineairdb_example
 
       - uses: actions/upload-artifact@v2
         if: failure()
