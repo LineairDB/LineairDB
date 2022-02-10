@@ -60,11 +60,15 @@ jobs:
           ctest -V
 
       - name: ${{ matrix.build }} build example/example.cpp
+        env:
+          CXX: ${{ matrix.compiler }}
+          BUILDTYPE: ${{ matrix.build }}
+        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           mkdir -p example/build; cd $_
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
           make
-          ./lineairdb_example
+          ./lineairdb-example
 
       - uses: actions/upload-artifact@v2
         if: failure()
