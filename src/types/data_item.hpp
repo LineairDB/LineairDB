@@ -37,33 +37,26 @@ namespace LineairDB {
 struct DataItem {
   std::atomic<TransactionId> transaction_id;
   DataBuffer buffer;
-  DataBuffer checkpoint_buffer;              // a.k.a. stable version
-  std::atomic<NWRPivotObject> pivot_object;  // for NWR
-  enum class CCTag { NotInitialized, RW_LOCK } cc_tag;
-  union {
-    Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
-  };
+  DataBuffer checkpoint_buffer;                     // a.k.a. stable version
+  std::atomic<NWRPivotObject> pivot_object;         // for NWR
+  Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
 
   std::byte* value() { return &buffer.value[0]; }
   const std::byte* value() const { return &buffer.value[0]; }
   size_t size() const { return buffer.size; }
 
-  DataItem() : pivot_object(NWRPivotObject()), cc_tag(CCTag::NotInitialized) {}
+  DataItem() : pivot_object(NWRPivotObject()) {}
   DataItem(const std::byte* v, size_t s, TransactionId tid = 0)
-      : transaction_id(tid),
-        pivot_object(NWRPivotObject()),
-        cc_tag(CCTag::NotInitialized) {
+      : transaction_id(tid), pivot_object(NWRPivotObject()) {
     Reset(v, s);
   }
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
-        pivot_object(NWRPivotObject()),
-        cc_tag(CCTag::NotInitialized) {
+        pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
   }
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
-    cc_tag = rhs.cc_tag;
     buffer.Reset(rhs.buffer);
     return *this;
   }
@@ -81,8 +74,10 @@ struct DataItem {
   }
 
   void ExclusiveLock() {
-    if (cc_tag == CCTag::NotInitialized) {
-      // Silo, Silo+NWR. they uses transaction_id as the lock
+    // Acquire exclusive locking for all protocols:
+
+    {
+      // for Silo, Silo+NWR. they uses transaction_id as the lock
       for (;;) {
         auto tid = transaction_id.load();
         if (tid.tid & 1llu) {
@@ -93,32 +88,28 @@ struct DataItem {
         new_tid.tid += 1llu;
         if (transaction_id.compare_exchange_weak(tid, new_tid)) break;
       }
-
-    } else if (cc_tag == CCTag::RW_LOCK) {
-      // TwoPhaseLocking. it uses rw_lock.
-      GetRWLockRef().Lock();
     }
+
+    // for TwoPhaseLocking. it uses rw_lock.
+    { GetRWLockRef().Lock(); }
   }
 
   void ExclusiveUnlock() {
-    if (cc_tag == CCTag::NotInitialized) {
-      // Silo, Silo+NWR. they uses transaction_id as the lock
+    // Release exclusive locking for all protocols:
+
+    // for Silo, Silo+NWR. they uses transaction_id as the lock
+    {
       auto tid = transaction_id.load();
       tid.tid -= 1llu;
       transaction_id.store(tid);
-    } else if (cc_tag == CCTag::RW_LOCK) {
-      // TwoPhaseLocking. it uses rw_lock.
-      GetRWLockRef().UnLock();
     }
+    // for TwoPhaseLocking. it uses rw_lock.
+    { GetRWLockRef().UnLock(); }
   }
 
   decltype(readers_writers_lock)& GetRWLockRef() {
-    if (cc_tag != CCTag::RW_LOCK) {
-      new (&readers_writers_lock) decltype(readers_writers_lock);
-      cc_tag = CCTag::RW_LOCK;
-    }
     return readers_writers_lock;
-  }
+  };
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_ITEM_HPP */
