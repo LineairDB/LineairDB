@@ -37,13 +37,13 @@ namespace LineairDB {
 namespace Recovery {
 
 Logger::Logger(const Config& config)
-    : DurableEpochNumberFileName(config.lineairdb_logs_dir + "/durable_epoch_working.json"),
-      DurableEpochNumberWorkingFileName(config.lineairdb_logs_dir + "/durable_epoch.json"),
-      WorkingDir(config.lineairdb_logs_dir),
+    : DurableEpochNumberFileName(config.work_dir + "/durable_epoch_working.json"),
+      DurableEpochNumberWorkingFileName(config.work_dir + "/durable_epoch.json"),
+      WorkingDir(config.work_dir),
       durable_epoch_(0),
       durable_epoch_working_file_(DurableEpochNumberWorkingFileName, std::ofstream::trunc) {
 
-  std::experimental::filesystem::create_directory(config.lineairdb_logs_dir);
+  std::experimental::filesystem::create_directory(config.work_dir);
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
     case Config::Logger::ThreadLocalLogger:

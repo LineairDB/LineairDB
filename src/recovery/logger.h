@@ -73,7 +73,7 @@ class Logger {
   std::unique_ptr<LoggerBase> logger_;
   EpochNumber durable_epoch_;
   std::ofstream durable_epoch_working_file_;
-  std::string lineairdb_logs_dir_;
+  std::string work_dir_;
 };
 
 }  // namespace Recovery

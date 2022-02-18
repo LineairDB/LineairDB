@@ -157,8 +157,7 @@ struct Config {
    *
    * Default: "lineairdb_logs"
    */
-  // TODO: think of variable name, perhaps, sort of "work_dir" would be intuitive
-  std::string lineairdb_logs_dir = "./lineairdb_logs";
+  std::string work_dir = "./lineairdb_logs";
 };
 }  // namespace LineairDB
 

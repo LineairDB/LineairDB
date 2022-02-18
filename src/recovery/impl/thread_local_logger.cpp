@@ -37,7 +37,7 @@ namespace LineairDB {
 namespace Recovery {
 
 ThreadLocalLogger::ThreadLocalLogger(const Config& config)
-  : WorkingDir(config.lineairdb_logs_dir) {
+  : WorkingDir(config.work_dir) {
     LineairDB::Util::SetUpSPDLog();
 }
 

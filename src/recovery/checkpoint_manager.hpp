@@ -49,8 +49,8 @@ class CPRManager {
 
   CPRManager(const LineairDB::Config& c_ref,
              LineairDB::Index::ConcurrentTable& t_ref, EpochFramework& e_ref)
-      : CheckpointFileName(c_ref.lineairdb_logs_dir + "/checkpoint.log"),
-        CheckpointWorkingFileName(c_ref.lineairdb_logs_dir + "/checkpoint.working.log"),
+      : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
+        CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
         config_ref_(c_ref),
         table_ref_(t_ref),
         epoch_manager_ref_(e_ref),
