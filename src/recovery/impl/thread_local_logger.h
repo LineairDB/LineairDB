@@ -46,8 +46,8 @@ class ThreadLocalLogger final : public LoggerBase {
   void TruncateLogs(
       const EpochNumber checkpoint_completed_epoch) final override;
   EpochNumber GetMinDurableEpochForAllThreads() final override;
-  std::string GetLogFileName(size_t thread_id);
-  std::string GetWorkingLogFileName(size_t thread_id);
+  std::string GetLogFileName(size_t thread_id) const;
+  std::string GetWorkingLogFileName(size_t thread_id) const;
 
  private:
   std::string WorkingDir;

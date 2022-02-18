@@ -184,12 +184,12 @@ EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {
   return min_flushed_epoch;
 }
 
-std::string ThreadLocalLogger::GetLogFileName(size_t thread_id) {
+std::string ThreadLocalLogger::GetLogFileName(size_t thread_id) const {
   // TODO: think of beautiful path concatation in C++
   return WorkingDir + "/thread" + std::to_string(thread_id) + ".log";
 }
 
-std::string ThreadLocalLogger::GetWorkingLogFileName(size_t thread_id) {
+std::string ThreadLocalLogger::GetWorkingLogFileName(size_t thread_id) const {
   return WorkingDir + "/thread" + std::to_string(thread_id) +
          ".working.log";
 }
