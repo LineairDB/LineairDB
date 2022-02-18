@@ -66,8 +66,7 @@ class ThreadLocalLogger final : public LoggerBase {
     ThreadLocalStorageNode()
         : thread_id(ThreadIdCounter.fetch_add(1)),
           durable_epoch(EpochFramework::THREAD_OFFLINE),
-          truncated_epoch(0),
-          log_file(0){}
+          truncated_epoch(0) {}
     ~ThreadLocalStorageNode() {}
   };
 

@@ -80,8 +80,7 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     // records and 2) will be terminated soon after here.
     // To ensure durability, we immediately flush the log records.
 
-    // TODO: to be good initiation if this file is not initialized via somehow
-    if (!my_storage->log_file) {
+    if (!my_storage->log_file.is_open()) {
       my_storage->log_file = std::fstream(
         GetLogFileName(my_storage->thread_id), std::fstream::out | std::fstream::binary | std::fstream::ate);
     }
@@ -96,7 +95,7 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
   auto* my_storage = thread_key_storage_.Get();
 
   if (!my_storage->log_records.empty()) {
-    if (!my_storage->log_file) {
+    if (!my_storage->log_file.is_open()) {
       my_storage->log_file = std::fstream(
         GetLogFileName(my_storage->thread_id), std::fstream::out | std::fstream::binary | std::fstream::ate);
     }
