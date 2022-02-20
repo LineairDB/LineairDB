@@ -14,8 +14,8 @@
  *   limitations under the License.
  */
 
-#ifndef LINEAIRDB_INDEX_EPOCH_BASED_RANGE_INDEX_H
-#define LINEAIRDB_INDEX_EPOCH_BASED_RANGE_INDEX_H
+#ifndef LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_H
+#define LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_H
 
 #include <atomic>
 #include <cassert>
@@ -35,31 +35,27 @@ namespace Index {
 
 /**
  * @brief
- * Single-Producer Multiple-Consumer (SPMC) Read-Optimized Write-EXclusive
- * (ROWREX) Index.
- * There exists a special thread generates the index periodically (per epoch).
- * Other worker threads fetch the generated index and use it simultaneously
- * without locking. All update operations (such as Insert/Delete) are grouped
- * by each epoch and updated as a batch by the special thread.
- * We named it Epoch-based ROWEX.
- * This data structure has small overhead on read (optimized) and is be
- * exclusive on write by a special thread.
+ * Range-index with phantom avoidance via precision locking [1].
+ * We named it PrecisionLockingIndex.
+ * It consists of a sorted index, a insert/delete key set (L_u), and a predicate
+ * set (L_p).
  * @note
- * To deal with the phantom anomaly, all the key sets of reads (scan) and
- * writes (insert/delete) that occurred in an epoch are recorded in the shared
- * data structure. If a transaction detects a conflict, it is immediately
- * aborted. Since neither update->scan nor scan->update can track by concurrency
- * control protocols in LineairDB, so we cannot deny the possibility that these
- * edges may become the `last path` of a dependency cycle and result in the
- * correctness failure.
- * @todo Introduce and implement some concurrent data structure. The current
- * mutex-guarded implementation is very conservative and primitive, and suffers
- * from performance.
+ * The special thread updates the index periodically (per epoch). It
+ * means that other worker threads fetch the (maybe stale) index. To prevent
+ * anomalies caused by the stale index (i.e., to prevent phantoms), we use L_u
+ * and L_p. All update operations (such as Insert/Delete) and scan operations
+ * are grouped as L_u and L_p for each epoch, respectively. Updates in L_u will
+ * be applied as a batch by the special thread. If a transaction detects that
+ * the addition of an element to L_u satisfies with some predicate in L_p, or
+ * vice versa, we will fail the transaction because a phantom may exist.
+ *
+ * @ref [1] https://dl.acm.org/doi/pdf/10.1145/582318.582340
+ *
  */
-class EpochBasedRangeIndex final : public RangeIndexBase {
+class PrecisionLockingIndex final : public RangeIndexBase {
  public:
-  EpochBasedRangeIndex(LineairDB::EpochFramework&);
-  ~EpochBasedRangeIndex() final override;
+  PrecisionLockingIndex(LineairDB::EpochFramework&);
+  ~PrecisionLockingIndex() final override;
   std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,
       std::function<bool(std::string_view)> operation) final override;
@@ -85,7 +81,6 @@ class EpochBasedRangeIndex final : public RangeIndexBase {
 
   struct IndexItem {
     bool is_deleted;
-    EpochNumber updated_at;
   };
 
   using PredicateList            = std::vector<Predicate>;
@@ -96,15 +91,12 @@ class EpochBasedRangeIndex final : public RangeIndexBase {
   InsertOrDeleteKeySet insert_or_delete_key_set_;
   ROWEXRangeIndexContainer container_;
 
-  // TODO WANTFIX for performance: use a concurrent data strucuture to
-  // manipulate these sets efficiently
   std::recursive_mutex lock_;
 
-  size_t indexed_epoch_;
   std::atomic<bool> manager_stop_flag_;
   std::thread manager_;
 };
 }  // namespace Index
 }  // namespace LineairDB
 
-#endif /*  LINEAIRDB_INDEX_EPOCH_BASED_RANGE_INDEX_H*/
+#endif /*  LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_H*/

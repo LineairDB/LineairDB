@@ -163,7 +163,7 @@ int main(int argc, char** argv) {
     epoch_framework.Start();
     LineairDB::Config config;
     if (structure == "LockBasedIndex") {
-      config.range_index = decltype(config)::RangeIndex::EpochROWEX;
+      config.range_index = decltype(config)::RangeIndex::PrecisionLockingIndex;
     } else {
       std::cout << "invalid structure name." << std::endl
                 << options.help() << std::endl;
@@ -186,7 +186,9 @@ int main(int argc, char** argv) {
   result_json.AddMember(
       "structure", rapidjson::Value(structure.c_str(), allocator), allocator);
   result_json.AddMember("threads", threads, allocator);
-  result_json.AddMember("ops", ops, allocator);
+  result_json.AddMember("cps", ops, allocator);
+  result_json.AddMember("aps", aps, allocator);
+  result_json.AddMember("ops", ops + aps, allocator);
 
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

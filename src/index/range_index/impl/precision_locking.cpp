@@ -14,7 +14,7 @@
  *   limitations under the License.
  */
 
-#include "epoch_based_range_index.h"
+#include "precision_locking.h"
 
 #include <algorithm>
 #include <atomic>
@@ -30,18 +30,11 @@
 namespace LineairDB {
 namespace Index {
 
-EpochBasedRangeIndex::EpochBasedRangeIndex(LineairDB::EpochFramework& e)
-    : RangeIndexBase(e),
-      indexed_epoch_(0),
-      manager_stop_flag_(false),
-      manager_([&]() {
+PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
+    : RangeIndexBase(e), manager_stop_flag_(false), manager_([&]() {
         while (manager_stop_flag_.load() != true) {
+          epoch_manager_ref_.Sync();
           const auto global = epoch_manager_ref_.GetGlobalEpoch();
-          if (indexed_epoch_ == global) {
-            std::this_thread::yield();
-            continue;
-          }
-          indexed_epoch_ = global;
 
           {
             std::lock_guard<decltype(lock_)> guard(lock_);
@@ -76,8 +69,9 @@ EpochBasedRangeIndex::EpochBasedRangeIndex(LineairDB::EpochFramework& e)
                   if (0 < container_.count(it->key)) {
                     auto& entry      = container_.at(it->key);
                     entry.is_deleted = false;
+                  } else {
+                    container_.emplace(it->key, IndexItem{false});
                   }
-                  container_.emplace(it->key, IndexItem{false, it->epoch});
                 }
               }
 
@@ -87,12 +81,13 @@ EpochBasedRangeIndex::EpochBasedRangeIndex(LineairDB::EpochFramework& e)
           }
         }
       }){};
-EpochBasedRangeIndex::~EpochBasedRangeIndex() {
+
+PrecisionLockingIndex::~PrecisionLockingIndex() {
   manager_stop_flag_.store(true);
   manager_.join();
 };
 
-std::optional<size_t> EpochBasedRangeIndex::Scan(
+std::optional<size_t> PrecisionLockingIndex::Scan(
     const std::string_view b, const std::string_view e,
     std::function<bool(std::string_view)> operation) {
   size_t hit       = 0;
@@ -121,7 +116,7 @@ std::optional<size_t> EpochBasedRangeIndex::Scan(
 
   return hit;
 };
-bool EpochBasedRangeIndex::Insert(const std::string_view key) {
+bool PrecisionLockingIndex::Insert(const std::string_view key) {
   std::lock_guard<decltype(lock_)> guard(lock_);
   if (IsInPredicateSet(key)) { return false; }
 
@@ -132,7 +127,7 @@ bool EpochBasedRangeIndex::Insert(const std::string_view key) {
   return true;
 };
 
-bool EpochBasedRangeIndex::Delete(const std::string_view key) {
+bool PrecisionLockingIndex::Delete(const std::string_view key) {
   std::lock_guard<decltype(lock_)> guard(lock_);
   if (IsInPredicateSet(key)) { return false; }
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
@@ -142,14 +137,14 @@ bool EpochBasedRangeIndex::Delete(const std::string_view key) {
   return true;
 };
 
-bool EpochBasedRangeIndex::IsInPredicateSet(const std::string_view key) {
+bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
   for (auto it = predicate_list_.begin(); it != predicate_list_.end(); it++) {
     if (it->begin <= key && key <= it->end) return true;
   }
   return false;
 }
 
-bool EpochBasedRangeIndex::IsOverlapWithInsertOrDelete(
+bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
     const std::string_view begin, const std::string_view end) {
   for (auto it = insert_or_delete_key_set_.begin();
        it != insert_or_delete_key_set_.end(); it++) {
