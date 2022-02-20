@@ -21,10 +21,9 @@
 #include <cassert>
 #include <cstdint>
 #include <functional>
-#include <set>
+#include <map>
 #include <shared_mutex>
 #include <string_view>
-#include <vector>
 
 #include "index/range_index/range_index_base.h"
 #include "types/definitions.h"
@@ -70,21 +69,22 @@ class PrecisionLockingIndex final : public RangeIndexBase {
   struct Predicate {
     std::string begin;
     std::string end;
-    EpochNumber epoch;
+    Predicate(std::string_view b, std::string_view e): begin(b), end(e) {}
   };
 
   struct InsertOrDeleteEvent {
     std::string key;
     bool is_delete_event;
-    EpochNumber epoch;
+    InsertOrDeleteEvent(std::string_view k, bool i): key(k), is_delete_event(i){}
   };
 
   struct IndexItem {
     bool is_deleted;
   };
 
-  using PredicateList            = std::vector<Predicate>;
-  using InsertOrDeleteKeySet     = std::vector<InsertOrDeleteEvent>;
+  using PredicateList = std::map<EpochNumber, std::vector<Predicate>>;
+  using InsertOrDeleteKeySet =
+      std::map<EpochNumber, std::vector<InsertOrDeleteEvent>>;
   using ROWEXRangeIndexContainer = std::map<std::string, IndexItem>;
 
   PredicateList predicate_list_;

@@ -34,49 +34,54 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
     : RangeIndexBase(e), manager_stop_flag_(false), manager_([&]() {
         while (manager_stop_flag_.load() != true) {
           epoch_manager_ref_.Sync();
-          const auto global = epoch_manager_ref_.GetGlobalEpoch();
+          const auto global       = epoch_manager_ref_.GetGlobalEpoch();
+          const auto stable_epoch = global - 2;
 
           {
             std::lock_guard<decltype(lock_)> guard(lock_);
             {
               // Clear predicate list
-              auto it = remove_if(predicate_list_.begin(),
-                                  predicate_list_.end(), [&](const auto& pred) {
-                                    const auto del = 2 <= global - pred.epoch;
-                                    return del;
-                                  });
-              predicate_list_.erase(it, predicate_list_.end());
+              auto it = predicate_list_.begin();
+              if (it->first <= stable_epoch) {
+                const auto beg = it;
+                while (it != predicate_list_.end() &&
+                       it->first <= stable_epoch) {
+                  it++;
+                }
+                predicate_list_.erase(beg, it);
+              }
             }
             {
               // Clear insert_or_delete_keys
-              auto it = remove_if(insert_or_delete_key_set_.begin(),
-                                  insert_or_delete_key_set_.end(),
-                                  [&](const auto& pred) {
-                                    const auto del = 2 <= global - pred.epoch;
-                                    return del;
-                                  });
+              auto it = insert_or_delete_key_set_.begin();
+              if (it->first <= stable_epoch) {
+                const auto beg = it;
+                while (it != insert_or_delete_key_set_.end() &&
+                       it->first <= stable_epoch) {
+                  it++;
+                }
+                const auto end = it;
 
-              // Before deleting the set of insert_or_delete_keys, we update the
-              // index container to contain such outdated (already committed)
-              // insertions and deletions.
-              auto outdated_start = it;
-
-              for (; it != insert_or_delete_key_set_.end(); it++) {
-                if (it->is_delete_event) {
-                  assert(0 < container_.count(it->key));
-                  container_.at(it->key).is_deleted = true;
-                } else {
-                  if (0 < container_.count(it->key)) {
-                    auto& entry      = container_.at(it->key);
-                    entry.is_deleted = false;
-                  } else {
-                    container_.emplace(it->key, IndexItem{false});
+                // Before deleting the set of insert_or_delete_keys, we update
+                // the index container to apply such outdated (already
+                // committed) insertions and deletions.
+                for (it = beg; it != end; it++) {
+                  for (const auto& event : it->second) {
+                    if (event.is_delete_event) {
+                      assert(0 < container_.count(event.key));
+                      container_.at(event.key).is_deleted = true;
+                    } else {
+                      if (0 < container_.count(event.key)) {
+                        auto& entry      = container_.at(event.key);
+                        entry.is_deleted = false;
+                      } else {
+                        container_.emplace(event.key, IndexItem{false});
+                      }
+                    }
                   }
                 }
+                insert_or_delete_key_set_.erase(beg, end);
               }
-
-              insert_or_delete_key_set_.erase(outdated_start,
-                                              insert_or_delete_key_set_.end());
             }
           }
         }
@@ -112,7 +117,7 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
   }
 
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
-  predicate_list_.emplace_back(Predicate{begin, end, epoch});
+  predicate_list_[epoch].emplace_back(b, e);
 
   return hit;
 };
@@ -121,8 +126,7 @@ bool PrecisionLockingIndex::Insert(const std::string_view key) {
   if (IsInPredicateSet(key)) { return false; }
 
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
-  insert_or_delete_key_set_.push_back(
-      InsertOrDeleteEvent{std::string(key), false, epoch});
+  insert_or_delete_key_set_[epoch].emplace_back(key, false);
 
   return true;
 };
@@ -131,15 +135,16 @@ bool PrecisionLockingIndex::Delete(const std::string_view key) {
   std::lock_guard<decltype(lock_)> guard(lock_);
   if (IsInPredicateSet(key)) { return false; }
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
-  insert_or_delete_key_set_.push_back(
-      InsertOrDeleteEvent{std::string(key), true, epoch});
+  insert_or_delete_key_set_[epoch].emplace_back(key, true);
 
   return true;
 };
 
 bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
   for (auto it = predicate_list_.begin(); it != predicate_list_.end(); it++) {
-    if (it->begin <= key && key <= it->end) return true;
+    for (const auto& predicate : it->second) {
+      if (predicate.begin <= key && key <= predicate.end) return true;
+    }
   }
   return false;
 }
@@ -148,7 +153,9 @@ bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
     const std::string_view begin, const std::string_view end) {
   for (auto it = insert_or_delete_key_set_.begin();
        it != insert_or_delete_key_set_.end(); it++) {
-    if (begin <= it->key && it->key <= end) return true;
+    for (const auto event : it->second) {
+      if (begin <= event.key && event.key <= end) return true;
+    }
   }
   return false;
 }
