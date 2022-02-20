@@ -86,9 +86,6 @@ std::optional<size_t> ConcurrentTable::Scan(
 };
 
 DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
-  // NOTE We assume that derived table has set semantics;
-  // i.e., concurrent #put operations always result in a single winner
-  // and the other operations return false.
   Put(key, {nullptr, 0, 0});
   auto current = Get(key);
   assert(current != nullptr);

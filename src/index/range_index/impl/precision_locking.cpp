@@ -38,7 +38,8 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
           const auto stable_epoch = global - 2;
 
           {
-            std::lock_guard<decltype(lock_)> guard(lock_);
+            std::lock_guard<decltype(plock_)> p_guard(plock_);
+            std::lock_guard<decltype(ulock_)> u_guard(ulock_);
             {
               // Clear predicate list
               auto it = predicate_list_.begin();
@@ -67,17 +68,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
                 // committed) insertions and deletions.
                 for (it = beg; it != end; it++) {
                   for (const auto& event : it->second) {
-                    if (event.is_delete_event) {
-                      assert(0 < container_.count(event.key));
-                      container_.at(event.key).is_deleted = true;
-                    } else {
-                      if (0 < container_.count(event.key)) {
-                        auto& entry      = container_.at(event.key);
-                        entry.is_deleted = false;
-                      } else {
-                        container_.emplace(event.key, IndexItem{false});
-                      }
-                    }
+                    container_[event.key].is_deleted = event.is_delete_event;
                   }
                 }
                 insert_or_delete_key_set_.erase(beg, end);
@@ -100,9 +91,8 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
   const auto end   = std::string(e);
   if (end < begin) return std::nullopt;
 
-  // TODO: we can optimize to avoid locking for read-only transactions.
-  std::lock_guard<decltype(lock_)> guard(lock_);
-
+  std::lock_guard<decltype(plock_)> p_guard(plock_);
+  std::shared_lock<decltype(ulock_)> u_guard(ulock_);
   if (IsOverlapWithInsertOrDelete(b, e)) { return std::nullopt; }
 
   {
@@ -117,24 +107,27 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
   }
 
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
+
   predicate_list_[epoch].emplace_back(b, e);
 
   return hit;
 };
 bool PrecisionLockingIndex::Insert(const std::string_view key) {
-  std::lock_guard<decltype(lock_)> guard(lock_);
+  std::shared_lock<decltype(plock_)> p_guard(plock_);
   if (IsInPredicateSet(key)) { return false; }
 
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
+  std::lock_guard<decltype(ulock_)> u_guard(ulock_);
   insert_or_delete_key_set_[epoch].emplace_back(key, false);
 
   return true;
 };
 
 bool PrecisionLockingIndex::Delete(const std::string_view key) {
-  std::lock_guard<decltype(lock_)> guard(lock_);
+  std::shared_lock<decltype(plock_)> p_guard(plock_);
   if (IsInPredicateSet(key)) { return false; }
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
+  std::lock_guard<decltype(ulock_)> u_guard(ulock_);
   insert_or_delete_key_set_[epoch].emplace_back(key, true);
 
   return true;
@@ -153,7 +146,7 @@ bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
     const std::string_view begin, const std::string_view end) {
   for (auto it = insert_or_delete_key_set_.begin();
        it != insert_or_delete_key_set_.end(); it++) {
-    for (const auto event : it->second) {
+    for (const auto& event : it->second) {
       if (begin <= event.key && event.key <= end) return true;
     }
   }

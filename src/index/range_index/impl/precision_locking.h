@@ -88,10 +88,12 @@ class PrecisionLockingIndex final : public RangeIndexBase {
   using ROWEXRangeIndexContainer = std::map<std::string, IndexItem>;
 
   PredicateList predicate_list_;
-  InsertOrDeleteKeySet insert_or_delete_key_set_;
-  ROWEXRangeIndexContainer container_;
+  std::shared_mutex plock_;
 
-  std::recursive_mutex lock_;
+  InsertOrDeleteKeySet insert_or_delete_key_set_;
+  std::shared_mutex ulock_;
+
+  ROWEXRangeIndexContainer container_;
 
   std::atomic<bool> manager_stop_flag_;
   std::thread manager_;
