@@ -91,6 +91,7 @@ class EpochFramework {
       auto current_epoch = global_epoch_.load();
       auto reload_epoch  = global_epoch_.load();
       while (current_epoch == reload_epoch) {
+        if (stop_.load()) return reload_epoch;
         std::this_thread::yield();
         reload_epoch = global_epoch_.load();
       }
@@ -101,7 +102,6 @@ class EpochFramework {
       // The first while loop waits for all threads that are in the old epoch
       // when Sync() is called. The next while loop waits for all threads to
       // progress to the next epoch.
-
       if (reload_count == 2) return reload_epoch;
     }
   }
