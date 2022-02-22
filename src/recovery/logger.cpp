@@ -37,17 +37,20 @@ namespace LineairDB {
 namespace Recovery {
 
 Logger::Logger(const Config& config)
-    : durable_epoch_(0),
-      durable_epoch_working_file_(DurableEpochNumberWorkingFileName,
-                                  std::ofstream::trunc) {
-  std::experimental::filesystem::create_directory("lineairdb_logs");
+    : DurableEpochNumberFileName(config.work_dir + "/durable_epoch.json"),
+      DurableEpochNumberWorkingFileName(config.work_dir + "/durable_epoch.working.json"),
+      WorkingDir(config.work_dir),
+      durable_epoch_(0),
+      durable_epoch_working_file_(DurableEpochNumberWorkingFileName, std::ofstream::trunc) {
+
+  std::experimental::filesystem::create_directory(config.work_dir);
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
     case Config::Logger::ThreadLocalLogger:
-      logger_ = std::make_unique<ThreadLocalLogger>();
+      logger_ = std::make_unique<ThreadLocalLogger>(config);
       break;
     default:
-      logger_ = std::make_unique<ThreadLocalLogger>();
+      logger_ = std::make_unique<ThreadLocalLogger>(config);
       break;
   }
 }
@@ -81,7 +84,7 @@ EpochNumber Logger::FlushDurableEpoch() {
   durable_epoch_working_file_ << durable_epoch_;
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(DurableEpochNumberWorkingFileName, DurableEpochNumberFileName)) {
+  if (rename(DurableEpochNumberWorkingFileName.c_str(), DurableEpochNumberFileName.c_str())) {
     SPDLOG_ERROR(
         "Durability Error: fail to flush the durable epoch number {0:d}. "
         "errno: {1}",
@@ -99,7 +102,7 @@ EpochNumber Logger::GetDurableEpoch() { return durable_epoch_; }
 void Logger::SetDurableEpoch(const EpochNumber e) { durable_epoch_ = e; }
 
 EpochNumber Logger::GetDurableEpochFromLog() {
-  std::ifstream file(Recovery::Logger::DurableEpochNumberFileName,
+  std::ifstream file(DurableEpochNumberFileName,
                      std::ios::binary | std::ios::ate);
   EpochNumber epoch;
   auto filesize = file.tellg();
@@ -128,9 +131,10 @@ static inline std::vector<std::string> glob(const std::string& pat) {
 
 WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   SPDLOG_DEBUG("Replay the logs in epoch 0-{0}", durable_epoch);
+  SPDLOG_DEBUG("Check WorkingDirectory {0}", WorkingDir);
 
-  auto logfiles                      = glob("lineairdb_logs/thread*");
-  constexpr auto checkpoint_filename = "lineairdb_logs/checkpoint.log";
+  auto logfiles                      = glob(WorkingDir + "/thread*");
+  const std::string checkpoint_filename = WorkingDir + "/checkpoint.log";
   bool checkpoint_file_exists        = false;
   {
     std::ifstream ifs(checkpoint_filename);
@@ -167,6 +171,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
         SPDLOG_ERROR(
             "  Stop recovery procedure: msgpack deserialize failure on file "
             "{0}. Some records may not be recovered.");
+        SPDLOG_DEBUG("Error code: {0}", e.what());
         return recovery_set;
       } catch (...) {
         SPDLOG_ERROR(

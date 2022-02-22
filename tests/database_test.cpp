@@ -34,7 +34,7 @@ class DatabaseTest : public ::testing::Test {
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
-    std::experimental::filesystem::remove_all("lineairdb_logs");
+    std::experimental::filesystem::remove_all(config_.work_dir);
     config_.max_thread        = 4;
     config_.checkpoint_period = 1;
     config_.epoch_duration_ms = 1;
@@ -43,6 +43,7 @@ class DatabaseTest : public ::testing::Test {
 };
 
 TEST_F(DatabaseTest, Instantiate) {}
+
 TEST_F(DatabaseTest, InstantiateWithConfig) {
   db_.reset(nullptr);
   LineairDB::Config conf;
@@ -203,4 +204,23 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
           ASSERT_EQ(0xBEEF, current_value);
         }
       }});
+}
+
+TEST_F(DatabaseTest, NoConfigTransaction) {
+  // NOTE: this test will take default 5 seconds for checkpointing
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  int value_of_alice = 1;
+  TestHelper::DoTransactions(
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) {
+         tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
+                  sizeof(int));
+       },
+       [&](LineairDB::Transaction& tx) {
+         auto alice = tx.Read("alice");
+         ASSERT_NE(alice.first, nullptr);
+         ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
+         ASSERT_EQ(0, tx.Read("bob").second);
+       }});
 }

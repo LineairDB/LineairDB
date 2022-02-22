@@ -32,10 +32,9 @@ namespace Recovery {
 class Logger {
  public:
   constexpr static EpochNumber NumberIsNotUpdated = 0;
-  constexpr static auto DurableEpochNumberFileName =
-      "lineairdb_logs/durable_epoch.json";
-  constexpr static auto DurableEpochNumberWorkingFileName =
-      "lineairdb_logs/durable_epoch_working.json";
+  const std::string DurableEpochNumberFileName;
+  const std::string DurableEpochNumberWorkingFileName;
+  const std::string WorkingDir;
 
   Logger(const Config&);
   ~Logger();
@@ -50,8 +49,8 @@ class Logger {
   EpochNumber FlushDurableEpoch();
   EpochNumber GetDurableEpoch();
   void SetDurableEpoch(const EpochNumber);
-  static EpochNumber GetDurableEpochFromLog();
-  static WriteSetType GetRecoverySetFromLogs(const EpochNumber durable_epoch);
+  EpochNumber GetDurableEpochFromLog();
+  WriteSetType GetRecoverySetFromLogs(const EpochNumber durable_epoch);
 
   struct LogRecord {
     struct KeyValuePair {
@@ -74,6 +73,7 @@ class Logger {
   std::unique_ptr<LoggerBase> logger_;
   EpochNumber durable_epoch_;
   std::ofstream durable_epoch_working_file_;
+  std::string work_dir_;
 };
 
 }  // namespace Recovery

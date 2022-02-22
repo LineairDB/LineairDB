@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <thread>
+#include <string>
 
 namespace LineairDB {
 
@@ -149,6 +150,14 @@ struct Config {
    * Default: 30
    */
   size_t checkpoint_period = 30;
+  /**
+   * @brief
+   * The directory path that lineardb use as working directory.
+   * All of data, logs and related files are stored in the directory.
+   *
+   * Default: "lineairdb_logs"
+   */
+  std::string work_dir = "./lineairdb_logs";
 };
 }  // namespace LineairDB
 

@@ -221,7 +221,7 @@ class Database::Impl {
     SPDLOG_INFO("Start recovery process");
     // Start recovery from logfiles
     EpochNumber highest_epoch = 1;
-    const auto durable_epoch  = Recovery::Logger::GetDurableEpochFromLog();
+    const auto durable_epoch  = logger_.GetDurableEpochFromLog();
     SPDLOG_DEBUG("  Durable epoch is resumed from {0}", highest_epoch);
     logger_.SetDurableEpoch(durable_epoch);
     [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(
@@ -232,7 +232,7 @@ class Database::Impl {
 
     highest_epoch = std::max(highest_epoch, durable_epoch);
     auto&& recovery_set =
-        Recovery::Logger::GetRecoverySetFromLogs(durable_epoch);
+        logger_.GetRecoverySetFromLogs(durable_epoch);
     for (auto& entry : recovery_set) {
       highest_epoch = std::max(
           highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
