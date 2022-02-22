@@ -84,7 +84,7 @@ struct Config {
    */
   ConcurrentPointIndex concurrent_point_index = MPMCConcurrentHashSet;
 
-  enum RangeIndex { PrecisionLockingIndex };
+  enum RangeIndex { EpochROWEX };
   /**
    * @brief
    * Set the type of range index.
@@ -93,7 +93,7 @@ struct Config {
    *
    * Default: ROWEX (epoch-based read-optimized write-exclusive index)
    */
-  RangeIndex range_index = PrecisionLockingIndex;
+  RangeIndex range_index = EpochROWEX;
 
   enum CallbackEngine { ThreadLocal };
   /**

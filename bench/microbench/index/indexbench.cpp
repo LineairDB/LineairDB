@@ -35,21 +35,11 @@
 const std::string CHARACTERS =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-constexpr auto PopulationSize = 100000;
-
 template <typename T>
-void Population(T& index) {
-  for (auto i = 0; i < PopulationSize; i++) {
-    const auto i_str  = std::to_string(i);
-    const auto result = index.GetOrInsert(i_str);
-  }
-}
-
-template <typename T>
-std::pair<size_t, size_t> Benchmark(T& index,
+std::pair<size_t, size_t> benchmark(T& index,
                                     LineairDB::EpochFramework& epoch_f,
                                     size_t threads, size_t proportion,
-                                    bool populated, size_t duration) {
+                                    size_t duration) {
   std::atomic<size_t> count_down_latch(0);
   std::atomic<bool> end_flag(false);
   std::atomic<size_t> total_succeed(0);
@@ -64,7 +54,6 @@ std::pair<size_t, size_t> Benchmark(T& index,
       std::random_device seed_gen;
       std::mt19937 engine(seed_gen());
       std::uniform_int_distribution<> dist(0, 99);
-      std::uniform_int_distribution<> dist_for_populated(0, PopulationSize);
       std::uniform_int_distribution<> random_string(0, CHARACTERS.size() - 1);
 
       count_down_latch++;
@@ -84,26 +73,16 @@ std::pair<size_t, size_t> Benchmark(T& index,
           std::string end;
 
           for (;;) {
-            if (populated) {
-              begin = std::to_string(dist_for_populated(engine));
-              end   = std::to_string(dist_for_populated(engine));
-            } else {
-              for (auto i = 0; i < 5; i++) {
-                begin += CHARACTERS[random_string(engine)];
-                end += CHARACTERS[random_string(engine)];
-              }
+            for (auto i = 0; i < 5; i++) {
+              begin += CHARACTERS[random_string(engine)];
+              end += CHARACTERS[random_string(engine)];
             }
-
             if (begin < end) break;
             begin.clear();
             end.clear();
           }
 
-          auto result = index.Scan(begin, end, [&](auto key) {
-            index.GetOrInsert(key);
-            return false;
-          });
-
+          auto result = index.Scan(begin, end, [](auto) { return false; });
           if (result.has_value()) {
             operation_succeed++;
           } else {
@@ -112,12 +91,8 @@ std::pair<size_t, size_t> Benchmark(T& index,
 
         } else {
           std::string key;
-          if (populated) {
-            key = std::to_string(dist_for_populated(engine));
-          } else {
-            for (auto i = 0; i < 5; i++) {
-              key += CHARACTERS[random_string(engine)];
-            }
+          for (auto i = 0; i < 5; i++) {
+            key += CHARACTERS[random_string(engine)];
           }
           index.GetOrInsert(key);
           operation_succeed++;
@@ -156,11 +131,9 @@ int main(int argc, char** argv) {
        cxxopts::value<size_t>()->default_value(
            std::to_string(std::thread::hardware_concurrency())))  //
       ("s,structure", "Index data structure",
-       cxxopts::value<std::string>()->default_value("PrecisionLocking"))  //
+       cxxopts::value<std::string>()->default_value("LockBasedIndex"))  //
       ("p,proportion", "Proportion of 'scan' operation",
        cxxopts::value<size_t>()->default_value("10"))  //
-      ("P,populated", "All data items are populated before benchmarking",
-       cxxopts::value<bool>()->default_value("false"))  //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
        cxxopts::value<size_t>()->default_value("2000"))  //
       ("o,output", "Output JSON filename",
@@ -177,7 +150,6 @@ int main(int argc, char** argv) {
   const uint64_t threads          = result["thread"].as<size_t>();
   const auto measurement_duration = result["duration"].as<size_t>();
   const auto proportion           = result["proportion"].as<size_t>();
-  const auto populated            = result["populated"].as<bool>();
   const auto structure            = result["structure"].as<std::string>();
 
   /** run benchmark **/
@@ -190,8 +162,8 @@ int main(int argc, char** argv) {
     LineairDB::EpochFramework epoch_framework;
     epoch_framework.Start();
     LineairDB::Config config;
-    if (structure == "PrecisionLocking") {
-      config.range_index = decltype(config)::RangeIndex::PrecisionLockingIndex;
+    if (structure == "LockBasedIndex") {
+      config.range_index = decltype(config)::RangeIndex::EpochROWEX;
     } else {
       std::cout << "invalid structure name." << std::endl
                 << options.help() << std::endl;
@@ -199,15 +171,10 @@ int main(int argc, char** argv) {
     }
 
     ConcurrentTable index(epoch_framework, config);
-    SPDLOG_INFO("IndexBench: index population starts.");
-    if (populated) Population<decltype(index)>(index);
-    SPDLOG_INFO("IndexBench: population has finished.");
-
-    auto res =
-        Benchmark<decltype(index)>(index, epoch_framework, threads, proportion,
-                                   populated, measurement_duration);
-    ops = res.first;
-    aps = res.second;
+    auto res = benchmark<decltype(index)>(index, epoch_framework, threads,
+                                          proportion, measurement_duration);
+    ops      = res.first;
+    aps      = res.second;
   }
   SPDLOG_INFO("IndexBench: measurement has finisihed.");
   SPDLOG_INFO("Structure;CommitPS;AbortPS;OPS");
@@ -219,9 +186,7 @@ int main(int argc, char** argv) {
   result_json.AddMember(
       "structure", rapidjson::Value(structure.c_str(), allocator), allocator);
   result_json.AddMember("threads", threads, allocator);
-  result_json.AddMember("cps", ops, allocator);
-  result_json.AddMember("aps", aps, allocator);
-  result_json.AddMember("ops", ops + aps, allocator);
+  result_json.AddMember("ops", ops, allocator);
 
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);

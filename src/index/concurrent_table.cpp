@@ -20,7 +20,7 @@
 
 #include "lineairdb/config.h"
 #include "point_index/impl/mpmc_concurrent_set_impl.h"
-#include "range_index/impl/precision_locking.h"
+#include "range_index/impl/epoch_based_range_index.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 
@@ -39,11 +39,11 @@ ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
       break;
   }
   switch (config.range_index) {
-    case Config::RangeIndex::PrecisionLockingIndex:
-      range_index_ = std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
+    case Config::RangeIndex::EpochROWEX:
+      range_index_ = std::make_unique<EpochBasedRangeIndex>(epoch_manager_ref_);
       break;
     default:
-      range_index_ = std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
+      range_index_ = std::make_unique<EpochBasedRangeIndex>(epoch_manager_ref_);
       break;
   }
   if (recovery_set.empty()) return;
@@ -86,6 +86,9 @@ std::optional<size_t> ConcurrentTable::Scan(
 };
 
 DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
+  // NOTE We assume that derived table has set semantics;
+  // i.e., concurrent #put operations always result in a single winner
+  // and the other operations return false.
   Put(key, {nullptr, 0, 0});
   auto current = Get(key);
   assert(current != nullptr);
