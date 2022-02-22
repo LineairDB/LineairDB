@@ -91,10 +91,9 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   auto* index_leaf  = db_pimpl_->GetIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf};
 
-  const auto& result      = concurrency_control_->Read(key, index_leaf);
-  snapshot.data_item_copy = result;
-  read_set_.emplace_back(std::move(snapshot));
-  return {result.value(), result.size()};
+  snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
+  auto& ref               = read_set_.emplace_back(std::move(snapshot));
+  return {ref.data_item_copy.value(), ref.data_item_copy.size()};
 }
 
 void Transaction::Impl::Write(const std::string_view key,
