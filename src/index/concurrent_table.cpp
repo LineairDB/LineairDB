@@ -30,20 +30,22 @@ namespace Index {
 ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
                                  WriteSetType recovery_set)
     : epoch_manager_ref_(epoch_framework) {
-  switch (config.concurrent_point_index) {
-    case Config::ConcurrentPointIndex::MPMCConcurrentHashSet:
+  switch (config.index_structure) {
+    case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
       point_index_ = std::make_unique<MPMCConcurrentSetImpl>();
       break;
     default:
       point_index_ = std::make_unique<MPMCConcurrentSetImpl>();
       break;
   }
-  switch (config.range_index) {
-    case Config::RangeIndex::PrecisionLockingIndex:
-      range_index_ = std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
+  switch (config.index_structure) {
+    case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
+      range_index_ =
+          std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
       break;
     default:
-      range_index_ = std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
+      range_index_ =
+          std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
       break;
   }
   if (recovery_set.empty()) return;

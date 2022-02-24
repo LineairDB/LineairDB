@@ -28,7 +28,6 @@
 #include "lineairdb/transaction.h"
 #include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
-
 class DatabaseTest : public ::testing::Test {
  protected:
   LineairDB::Config config_;
@@ -99,7 +98,7 @@ TEST_F(DatabaseTest, Scan) {
        [&](LineairDB::Transaction& tx) {
          // Scan
          auto count = tx.Scan<decltype(alice)>(
-             "alice", "carol", [&](auto key, decltype(alice) value) {
+             "alice", "carol", [&](auto key, auto value) {
                if (key == "alice") { EXPECT_EQ(alice, value); }
                if (key == "bob") { EXPECT_EQ(bob, value); }
                if (key == "carol") { EXPECT_EQ(carol, value); }
@@ -110,7 +109,7 @@ TEST_F(DatabaseTest, Scan) {
        [&](LineairDB::Transaction& tx) {
          // Cancel
          auto count = tx.Scan<decltype(alice)>(
-             "alice", "carol", [&](auto key, decltype(alice) value) {
+             "alice", "carol", [&](auto key, auto value) {
                if (key == "alice") { EXPECT_EQ(alice, value); }
                return true;
              });

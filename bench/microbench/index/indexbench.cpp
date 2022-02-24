@@ -40,8 +40,7 @@ constexpr auto PopulationSize = 100000;
 template <typename T>
 void Population(T& index) {
   for (auto i = 0; i < PopulationSize; i++) {
-    const auto i_str  = std::to_string(i);
-    const auto result = index.GetOrInsert(i_str);
+    index.GetOrInsert(std::to_string(i));
   }
 }
 
@@ -191,7 +190,7 @@ int main(int argc, char** argv) {
     epoch_framework.Start();
     LineairDB::Config config;
     if (structure == "PrecisionLocking") {
-      config.range_index = decltype(config)::RangeIndex::PrecisionLockingIndex;
+      config.index_structure = decltype(config)::IndexStructure::HashTableWithPrecisionLockingIndex;
     } else {
       std::cout << "invalid structure name." << std::endl
                 << options.help() << std::endl;
