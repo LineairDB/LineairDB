@@ -49,6 +49,10 @@ class HashTableWithPrecisionLockingIndex {
   }
   bool Put(const std::string_view key, const T& rhs){ return Put(key, rhs);}
 
+  void ForcePutBlankEntry(const std::string_view key) {
+    point_index_.Put(key, new T());
+  }
+
   /**
    * @brief Scan with key and values
    *

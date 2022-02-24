@@ -52,20 +52,16 @@ DataItem* ConcurrentTable::Get(const std::string_view key) {
 
 DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
   auto* item = index_->Get(key);
-  if (item == nullptr) { return InsertIfNotExist(key); }
+  if (item == nullptr) { 
+    index_->ForcePutBlankEntry(key);
+    item = index_->Get(key);
+  }
   return item;
 }
 
 // return false if a corresponding entry already exists
 bool ConcurrentTable::Put(const std::string_view key, DataItem&& rhs) {
   return index_->Put(key, std::forward<decltype(rhs)>(rhs));
-}
-
-DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
-  Put(key, {nullptr, 0, 0});
-  auto* current = Get(key);
-  assert(current != nullptr);
-  return current;
 }
 
 void ConcurrentTable::ForEach(

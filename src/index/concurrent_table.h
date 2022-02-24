@@ -40,7 +40,6 @@ class ConcurrentTable {
   DataItem* Get(const std::string_view key);
   DataItem* GetOrInsert(const std::string_view key);
   bool Put(const std::string_view key, DataItem&& value);
-  DataItem* InsertIfNotExist(const std::string_view key);
   void ForEach(std::function<bool(std::string_view, DataItem&)>);
   std::optional<size_t> Scan(const std::string_view begin,
                              const std::string_view end,
