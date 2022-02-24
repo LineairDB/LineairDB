@@ -74,27 +74,16 @@ struct Config {
    */
   Logger logger = ThreadLocalLogger;
 
-  enum ConcurrentPointIndex { MPMCConcurrentHashSet };
+  enum IndexStructure { HashTableWithPrecisionLockingIndex };
   /**
    * @brief
-   * Set the type of concurrent point index.
-   * See LineairDB::Config::ConcurrentPointIndex for the enum options of this
+   * Set the type of index.
+   * See LineairDB::Config::IndexStructure for the enum options of this
    * configuration.
    *
-   * Default: MPMCConcurrentHashSet
+   * Default: Hash table with precision locking index
    */
-  ConcurrentPointIndex concurrent_point_index = MPMCConcurrentHashSet;
-
-  enum RangeIndex { PrecisionLockingIndex };
-  /**
-   * @brief
-   * Set the type of range index.
-   * See LineairDB::Config::RangeIndex for the enum options of this
-   * configuration.
-   *
-   * Default: ROWEX (epoch-based read-optimized write-exclusive index)
-   */
-  RangeIndex range_index = PrecisionLockingIndex;
+  IndexStructure index_structure = HashTableWithPrecisionLockingIndex;
 
   enum CallbackEngine { ThreadLocal };
   /**
