@@ -83,36 +83,44 @@ TEST_F(DatabaseTest, Scan) {
   int alice = 1;
   int bob   = 2;
   int carol = 3;
+  TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
+    tx.template Write<decltype(alice)>("alice", alice);
+    tx.template Write<decltype(bob)>("bob", bob);
+    tx.template Write<decltype(carol)>("carol", carol);
+  });
   TestHelper::DoTransactions(
       db_.get(),
+      // Note: in some index engine (e.g.,
+      // epoch_based_range_index), inserting transactions might be
+      // deferred to execute. Therefore, the following scan
+      // operation might be aborted when the insertions is not
+      // executed, since their key ranges are conflicting with the insertions.
       {[&](LineairDB::Transaction& tx) {
-         tx.Write<int>("alice", alice);
-         tx.Write<int>("bob", bob);
-         tx.Write<int>("carol", carol);
-       },
-       // Note: in some index engine (e.g.,
-       // epoch_based_range_index), inserting transactions might be
-       // deferred to execute. Therefore, the following scan
-       // operation might be aborted when the insertions is not
-       // executed, since their key ranges are conflicting with the insertions.
-       [&](LineairDB::Transaction& tx) {
          // Scan
-         auto count = tx.Scan<decltype(alice)>(
-             "alice", "carol", [&](auto key, auto value) {
-               if (key == "alice") { EXPECT_EQ(alice, value); }
-               if (key == "bob") { EXPECT_EQ(bob, value); }
-               if (key == "carol") { EXPECT_EQ(carol, value); }
-               return false;
-             });
+         auto count = tx.Scan<decltype(alice)>("alice", "carol",
+                                               [&](auto key, auto value) {
+                                                 if (key == "alice") {
+                                                   EXPECT_EQ(alice, value);
+                                                 }
+                                                 if (key == "bob") {
+                                                   EXPECT_EQ(bob, value);
+                                                 }
+                                                 if (key == "carol") {
+                                                   EXPECT_EQ(carol, value);
+                                                 }
+                                                 return false;
+                                               });
          if (count.has_value()) { ASSERT_EQ(count.value(), 3); }
        },
        [&](LineairDB::Transaction& tx) {
          // Cancel
-         auto count = tx.Scan<decltype(alice)>(
-             "alice", "carol", [&](auto key, auto value) {
-               if (key == "alice") { EXPECT_EQ(alice, value); }
-               return true;
-             });
+         auto count = tx.Scan<decltype(alice)>("alice", "carol",
+                                               [&](auto key, auto value) {
+                                                 if (key == "alice") {
+                                                   EXPECT_EQ(alice, value);
+                                                 }
+                                                 return true;
+                                               });
          if (count.has_value()) { ASSERT_EQ(count.value(), 1); };
        }});
 }
@@ -208,7 +216,7 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
 TEST_F(DatabaseTest, NoConfigTransaction) {
   // NOTE: this test will take default 5 seconds for checkpointing
   db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>();
+  db_                = std::make_unique<LineairDB::Database>();
   int value_of_alice = 1;
   TestHelper::DoTransactions(
       db_.get(),

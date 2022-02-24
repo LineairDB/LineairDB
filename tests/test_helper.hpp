@@ -30,6 +30,23 @@
 using TransactionProcedure = std::function<void(LineairDB::Transaction&)>;
 
 namespace TestHelper {
+
+void RetryTransactionUntilCommit(LineairDB::Database* db,
+                                 const TransactionProcedure procedure) {
+  std::atomic<bool> uncommitted(true);
+  std::atomic<bool> terminated(false);
+  while (uncommitted) {
+    db->ExecuteTransaction(procedure, [&](const auto status) {
+      if (status == LineairDB::TxStatus::Committed) uncommitted.store(false);
+      terminated.store(true);
+    });
+    while(!terminated)  {
+      std::this_thread::yield();
+    }
+    db->Fence();
+  }
+}
+
 bool DoTransactions(LineairDB::Database* db,
                     const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);

@@ -58,6 +58,7 @@ class PrecisionLockingIndex {
                              const std::string_view end,
                              std::function<bool(std::string_view)> operation);
   bool Insert(const std::string_view key);
+  void ForceInsert(const std::string_view key);
   bool Delete(const std::string_view key);
 
  private:

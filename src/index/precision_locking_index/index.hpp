@@ -51,6 +51,7 @@ class HashTableWithPrecisionLockingIndex {
 
   void ForcePutBlankEntry(const std::string_view key) {
     point_index_.Put(key, new T());
+    range_index_.ForceInsert(key);
   }
 
   /**

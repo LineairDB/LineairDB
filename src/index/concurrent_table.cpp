@@ -52,9 +52,10 @@ DataItem* ConcurrentTable::Get(const std::string_view key) {
 
 DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
   auto* item = index_->Get(key);
-  if (item == nullptr) { 
+  if (item == nullptr) {
     index_->ForcePutBlankEntry(key);
     item = index_->Get(key);
+    assert(item != nullptr);
   }
   return item;
 }
