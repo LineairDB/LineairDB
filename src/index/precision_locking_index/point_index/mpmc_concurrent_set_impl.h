@@ -14,35 +14,110 @@
  *   limitations under the License.
  */
 
-#include "mpmc_concurrent_set_impl.h"
+#ifndef LINEAIRDB_MPMC_CONCURRENT_SET_IMPL_H
+#define LINEAIRDB_MPMC_CONCURRENT_SET_IMPL_H
 
 #include <atomic>
 #include <cassert>
+#include <cstdint>
 #include <functional>
 #include <mutex>
+#include <new>
 #include <string_view>
+#include <vector>
 
 #include "types/data_item.hpp"
 #include "types/definitions.h"
+#include "util/epoch_framework.hpp"
 
 namespace LineairDB {
 namespace Index {
 
-MPMCConcurrentSetImpl::~MPMCConcurrentSetImpl() {
+/**
+ * @brief
+ * Multi-Producer Multi-Consumer (MPMC) hash-table,
+ * based on the open addressing & linear-probing strategy.
+ * @note We focus on the performance for reads (gets), not for writes (puts).
+ * In other words, we provide lock-free #Get and (maybe locking) #Put.
+ * This is because LineairDB requires that point-indexes have to
+ * hold only indirection pointer to each data item; once an indirection is
+ * created and stored into the index, it will not be changed by #puts.
+ */
+
+template <typename T>
+class MPMCConcurrentSetImpl {
+  // TODO WANTFIX replace std::hardware_destructive_interference_size
+  // TODO performance fix hashed prefix uint64_t key
+  struct alignas(64) TableNode {
+    std::string key;
+    const T* value;
+    uint64_t key_8b_prefix;
+    TableNode() : value(nullptr) { assert(key.empty()); };
+    TableNode(std::string_view k, const T* const v)
+        : key(k), value(v), key_8b_prefix(string_to_uint64_t(k)) {}
+  };
+  // static_assert(sizeof(TableNode) ==
+  //             std::hardware_destructive_interference_size);
+
+  static constexpr size_t InitialTableSize = 1024;
+  static constexpr double RehashThreshold  = 0.75;
+  static constexpr uintptr_t RedirectedPtr = 0x4B1D;
+  inline static bool IsRedirectedPtr(void* ptr) {
+    return reinterpret_cast<uintptr_t>(ptr) == RedirectedPtr;
+  }
+  inline static TableNode* GetRedirectedPtr() {
+    return reinterpret_cast<TableNode*>(RedirectedPtr);
+  }
+  inline static uint64_t string_to_uint64_t(std::string_view k) {
+    uint64_t result        = 0;
+    const size_t copy_size = std::min(k.size(), sizeof(uint64_t));
+    std::memcpy(&result, k.data(), copy_size);
+    return result;
+  }
+
+  using TableType = std::vector<std::atomic<TableNode*>>;
+
+ public:
+  MPMCConcurrentSetImpl()
+      : table_(new TableType(InitialTableSize)), populated_count_(0) {
+    epoch_framework_.Start();
+  }
+  ~MPMCConcurrentSetImpl();
+  T* Get(const std::string_view);
+  bool Put(const std::string_view, const T* const);
+  void ForAllWithExclusiveLock(
+      std::function<void(const std::string_view, const T*)>);
+  void Clear();  // thread-unsafe
+  void ForEach(std::function<bool(std::string_view, T&)>);
+
+ private:
+  inline size_t Hash(std::string_view, TableType*);
+  bool Rehash();
+
+ private:
+  std::atomic<TableType*> table_;
+  std::atomic<size_t> populated_count_;
+  std::mutex table_lock_;
+  EpochFramework epoch_framework_;
+};
+
+
+/** the followings are implementation **/
+
+template <typename T>
+MPMCConcurrentSetImpl<T>::~MPMCConcurrentSetImpl() {
   Clear();
   delete table_.load();
 }
 
-// WANTFIX
-// Replace linear-probing with hopscotch-hashing or cuckoo-hashing to reduce the
-// computational costs of find operation.
-DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
+template <typename T>
+T* MPMCConcurrentSetImpl<T>::Get(const std::string_view key) {
   epoch_framework_.MakeMeOnline();
   auto* table = table_.load(std::memory_order::memory_order_relaxed);
   __builtin_prefetch(table, 0, 3);
   size_t hash    = Hash(key, table);
   auto* bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
-  DataItem* return_value_p = nullptr;
+  T* return_value_p = nullptr;
 
   // lineair probing
   for (;;) {
@@ -60,7 +135,7 @@ DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
     // Optimization: we assume that cmp of uint64_T is faster than strcmp.
     if (bucket_p->key_8b_prefix == string_to_uint64_t(key)) {
       if (bucket_p->key == key) {
-        return_value_p = const_cast<DataItem*>(bucket_p->value);
+        return_value_p = const_cast<T*>(bucket_p->value);
         break;
       }
     }
@@ -74,14 +149,17 @@ DataItem* MPMCConcurrentSetImpl::Get(const std::string_view key) {
   return return_value_p;
 }
 
-bool MPMCConcurrentSetImpl::Put(const std::string_view key,
-                                const DataItem* const value_p) {
+template <typename T>
+bool MPMCConcurrentSetImpl<T>::Put(const std::string_view key,
+                                const T* const value_p) {
   epoch_framework_.MakeMeOnline();
   auto* table    = table_.load(std::memory_order::memory_order_seq_cst);
   size_t hash    = Hash(key, table);
   auto* new_node = new TableNode(key, value_p);
 
-  // lineair probing
+  // TODO: WANTFIX
+  // Replace linear-probing with hopscotch-hashing or cuckoo-hashing to reduce
+  // the computational costs of find operation.
   for (;;) {
     auto& bucket_atm = (*table)[hash];
     auto* node       = bucket_atm.load(std::memory_order::memory_order_relaxed);
@@ -124,7 +202,8 @@ bool MPMCConcurrentSetImpl::Put(const std::string_view key,
 }
 
 // FYI: https://preshing.com/20160222/a-resizable-concurrent-map/
-bool MPMCConcurrentSetImpl::Rehash() {
+template <typename T>
+bool MPMCConcurrentSetImpl<T>::Rehash() {
   std::lock_guard<std::mutex> lock(table_lock_);
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   if ((populated_count_.load() / static_cast<double>(table->size())) <
@@ -180,8 +259,18 @@ bool MPMCConcurrentSetImpl::Rehash() {
   return true;
 }
 
-void MPMCConcurrentSetImpl::ForAllWithExclusiveLock(
-    std::function<void(const std::string_view, const DataItem*)> f) {
+template <typename T>
+inline size_t MPMCConcurrentSetImpl<T>::Hash(std::string_view key,
+                                          TableType* table) {
+  auto capacity = table->size();
+  auto hashed   = std::hash<std::string_view>()(key);
+  hashed        = hashed ^ capacity;
+  return hashed % capacity;
+}
+
+template <typename T>
+void MPMCConcurrentSetImpl<T>::ForAllWithExclusiveLock(
+    std::function<void(const std::string_view, const T*)> f) {
   std::lock_guard<std::mutex> lock(table_lock_);
   epoch_framework_.MakeMeOnline();
   for (auto& bucket_atm :
@@ -194,35 +283,33 @@ void MPMCConcurrentSetImpl::ForAllWithExclusiveLock(
   epoch_framework_.MakeMeOffline();
 }
 
-inline size_t MPMCConcurrentSetImpl::Hash(std::string_view key,
-                                          TableType* table) {
-  auto capacity = table->size();
-  auto hashed   = std::hash<std::string_view>()(key);
-  hashed        = hashed ^ capacity;
-  return hashed % capacity;
-}
-
-void MPMCConcurrentSetImpl::Clear() {
+template <typename T>
+void MPMCConcurrentSetImpl<T>::Clear() {
   std::lock_guard<std::mutex> lock(table_lock_);
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   for (auto& bucket_atm : *table) {
     auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
     if (node == nullptr) continue;
+    delete node->value;
 
     delete node;
   }
   table->clear();
 }
 
-void MPMCConcurrentSetImpl::ForEach(
-    std::function<bool(std::string_view, DataItem&)> f) {
+template <typename T>
+void MPMCConcurrentSetImpl<T>::ForEach(
+    std::function<bool(std::string_view, T&)> f) {
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   for (auto& bucket_atm : *table) {
     auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
     if (node == nullptr) continue;
-    auto is_success = f(node->key, *const_cast<DataItem*>(node->value));
+    auto is_success = f(node->key, *const_cast<T*>(node->value));
     if (!is_success) break;
   }
 }
+
 }  // namespace Index
 }  // namespace LineairDB
+
+#endif /* LINEAIRDB_MPMC_CONCURRENT_SET_IMPL_H */

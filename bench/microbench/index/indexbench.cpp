@@ -98,8 +98,7 @@ std::pair<size_t, size_t> Benchmark(T& index,
             end.clear();
           }
 
-          auto result = index.Scan(begin, end, [&](auto key) {
-            index.GetOrInsert(key);
+          auto result = index.Scan(begin, end, [&](auto, auto) {
             return false;
           });
 

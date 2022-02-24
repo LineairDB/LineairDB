@@ -14,28 +14,19 @@
  *   limitations under the License.
  */
 
-#ifndef LINEAIRDB_CONCURRENT_POINT_INDEX_BASE_H
-#define LINEAIRDB_CONCURRENT_POINT_INDEX_BASE_H
+#include "mpmc_concurrent_set_impl.h"
 
+#include <atomic>
+#include <cassert>
 #include <functional>
+#include <mutex>
 #include <string_view>
 
 #include "types/data_item.hpp"
+#include "types/definitions.h"
 
 namespace LineairDB {
 namespace Index {
 
-class ConcurrentPointIndexBase {
- public:
-  virtual ~ConcurrentPointIndexBase() {}
-  virtual DataItem* Get(const std::string_view key)                     = 0;
-  virtual bool Put(const std::string_view key, const DataItem* const v) = 0;
-  virtual void ForAllWithExclusiveLock(
-      std::function<void(const std::string_view, const DataItem*)> f)    = 0;
-  virtual void Clear()                                                   = 0;
-  virtual void ForEach(std::function<bool(std::string_view, DataItem&)>) = 0;
-};
 }  // namespace Index
 }  // namespace LineairDB
-
-#endif /* LINEAIRDB_CONCURRENT_POINT_INDEX_BASE_H */

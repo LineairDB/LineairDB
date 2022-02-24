@@ -25,7 +25,6 @@
 #include <shared_mutex>
 #include <string_view>
 
-#include "index/range_index/range_index_base.h"
 #include "types/definitions.h"
 #include "util/epoch_framework.hpp"
 
@@ -51,15 +50,15 @@ namespace Index {
  * @ref [1] https://dl.acm.org/doi/pdf/10.1145/582318.582340
  *
  */
-class PrecisionLockingIndex final : public RangeIndexBase {
+class PrecisionLockingIndex {
  public:
   PrecisionLockingIndex(LineairDB::EpochFramework&);
-  ~PrecisionLockingIndex() final override;
-  std::optional<size_t> Scan(
-      const std::string_view begin, const std::string_view end,
-      std::function<bool(std::string_view)> operation) final override;
-  bool Insert(const std::string_view key) final override;
-  bool Delete(const std::string_view key) final override;
+  ~PrecisionLockingIndex();
+  std::optional<size_t> Scan(const std::string_view begin,
+                             const std::string_view end,
+                             std::function<bool(std::string_view)> operation);
+  bool Insert(const std::string_view key);
+  bool Delete(const std::string_view key);
 
  private:
   bool IsInPredicateSet(const std::string_view);
@@ -69,13 +68,14 @@ class PrecisionLockingIndex final : public RangeIndexBase {
   struct Predicate {
     std::string begin;
     std::string end;
-    Predicate(std::string_view b, std::string_view e): begin(b), end(e) {}
+    Predicate(std::string_view b, std::string_view e) : begin(b), end(e) {}
   };
 
   struct InsertOrDeleteEvent {
     std::string key;
     bool is_delete_event;
-    InsertOrDeleteEvent(std::string_view k, bool i): key(k), is_delete_event(i){}
+    InsertOrDeleteEvent(std::string_view k, bool i)
+        : key(k), is_delete_event(i) {}
   };
 
   struct IndexItem {
@@ -89,12 +89,10 @@ class PrecisionLockingIndex final : public RangeIndexBase {
 
   PredicateList predicate_list_;
   std::shared_mutex plock_;
-
   InsertOrDeleteKeySet insert_or_delete_key_set_;
   std::shared_mutex ulock_;
-
   ROWEXRangeIndexContainer container_;
-
+  EpochFramework& epoch_manager_ref_;
   std::atomic<bool> manager_stop_flag_;
   std::thread manager_;
 };

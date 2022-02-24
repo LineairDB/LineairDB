@@ -23,8 +23,7 @@
 #include <string>
 #include <string_view>
 
-#include "point_index/concurrent_point_index_base.h"
-#include "range_index/range_index_base.h"
+#include "index/precision_locking_index/index.hpp"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 #include "types/snapshot.hpp"
@@ -37,20 +36,21 @@ class ConcurrentTable {
  public:
   ConcurrentTable(EpochFramework& epoch_framework, Config config = Config(),
                   WriteSetType recovery_set = WriteSetType());
-  ~ConcurrentTable();
 
   DataItem* Get(const std::string_view key);
   DataItem* GetOrInsert(const std::string_view key);
-  bool Put(const std::string_view key, const DataItem& value);
+  bool Put(const std::string_view key, DataItem&& value);
   DataItem* InsertIfNotExist(const std::string_view key);
   void ForEach(std::function<bool(std::string_view, DataItem&)>);
   std::optional<size_t> Scan(const std::string_view begin,
                              const std::string_view end,
                              std::function<bool(std::string_view)> operation);
+  std::optional<size_t> Scan(
+      const std::string_view begin, const std::string_view end,
+      std::function<bool(std::string_view, DataItem&)> operation);
 
  private:
-  std::unique_ptr<ConcurrentPointIndexBase> point_index_;
-  std::unique_ptr<RangeIndexBase> range_index_;
+  std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>> index_;
   LineairDB::EpochFramework& epoch_manager_ref_;
 };
 }  // namespace Index

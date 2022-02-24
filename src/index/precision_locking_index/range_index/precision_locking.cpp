@@ -31,7 +31,9 @@ namespace LineairDB {
 namespace Index {
 
 PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
-    : RangeIndexBase(e), manager_stop_flag_(false), manager_([&]() {
+    : manager_stop_flag_(false),
+      epoch_manager_ref_(e),
+      manager_([&]() {
         while (manager_stop_flag_.load() != true) {
           epoch_manager_ref_.Sync();
           const auto global       = epoch_manager_ref_.GetGlobalEpoch();
