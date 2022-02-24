@@ -22,7 +22,7 @@
 #include <optional>
 #include <string_view>
 
-#include "point_index/mpmc_concurrent_set_impl.h"
+#include "point_index/mpmc_concurrent_set_impl.hpp"
 #include "range_index/precision_locking.h"
 
 namespace LineairDB {

@@ -130,7 +130,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
                        const std::pair<const void*, const size_t>)>
         operation) {
   auto result =
-      db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key, auto) {
+      db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
         const auto read_result = Read(key);
         if (IsAborted()) return true;
         return operation(key, read_result);
