@@ -36,7 +36,7 @@ class DatabaseTest : public ::testing::Test {
     std::experimental::filesystem::remove_all(config_.work_dir);
     config_.max_thread        = 4;
     config_.checkpoint_period = 1;
-    config_.epoch_duration_ms = 1;
+    config_.epoch_duration_ms = 100;
     db_                       = std::make_unique<LineairDB::Database>(config_);
   }
 };
@@ -90,11 +90,6 @@ TEST_F(DatabaseTest, Scan) {
   });
   TestHelper::DoTransactions(
       db_.get(),
-      // Note: in some index engine (e.g.,
-      // epoch_based_range_index), inserting transactions might be
-      // deferred to execute. Therefore, the following scan
-      // operation might be aborted when the insertions is not
-      // executed, since their key ranges are conflicting with the insertions.
       {[&](LineairDB::Transaction& tx) {
          // Scan
          auto count = tx.Scan<decltype(alice)>("alice", "carol",
@@ -130,11 +125,11 @@ TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
   int bob   = 2;
   int carol = 3;
   int dave  = 4;
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               tx.Write<int>("alice", alice);
-                               tx.Write<int>("bob", bob);
-                               tx.Write<int>("carol", carol);
-                             }});
+  TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
+    tx.template Write<decltype(alice)>("alice", alice);
+    tx.template Write<decltype(bob)>("bob", bob);
+    tx.template Write<decltype(carol)>("carol", carol);
+  });
 
   std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(

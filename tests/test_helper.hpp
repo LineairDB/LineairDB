@@ -21,12 +21,12 @@
 #include <lineairdb/lineairdb.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <future>
 #include <thread>
 #include <vector>
-#include <chrono>
 
 using TransactionProcedure = std::function<void(LineairDB::Transaction&)>;
 
@@ -37,11 +37,12 @@ void RetryTransactionUntilCommit(LineairDB::Database* db,
   std::atomic<bool> uncommitted(true);
   std::atomic<bool> terminated(false);
   while (uncommitted) {
+    terminated.store(false);
     db->ExecuteTransaction(procedure, [&](const auto status) {
       if (status == LineairDB::TxStatus::Committed) uncommitted.store(false);
       terminated.store(true);
     });
-    while(!terminated)  {
+    while (!terminated) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
@@ -123,9 +124,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
       auto& tx = db->BeginTransaction();
       proc(tx);
       db->EndTransaction(tx, [&](auto status) {
-        if (status == LineairDB::TxStatus::Committed) {
-          committed++;
-        }
+        if (status == LineairDB::TxStatus::Committed) { committed++; }
         terminated++;
       });
     }));

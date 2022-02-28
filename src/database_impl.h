@@ -89,6 +89,7 @@ class Database::Impl {
 
         transaction_procedure(tx);
         if (tx.IsAborted()) {
+          if(precommit_clbk) precommit_clbk.value()(LineairDB::TxStatus::Aborted);
           callback(LineairDB::TxStatus::Aborted);
           epoch_framework_.MakeMeOffline();
           return;
@@ -97,6 +98,7 @@ class Database::Impl {
         bool committed = tx.Precommit();
         if (committed) {
           tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
+
           if (precommit_clbk.has_value()) {
             precommit_clbk.value()(TxStatus::Committed);
           }
