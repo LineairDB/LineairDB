@@ -95,14 +95,8 @@ class CPRManager {
               assert(checkpoint_epoch != 0);
               epoch_manager_ref_.MakeMeOffline();
 
-              // sleep for the end of the epoch `e+1` (`e+2` <= current).
-              const auto wait_until_epoch = checkpoint_epoch_.load() + 1;
-              for (;;) {
-                const auto current_epoch = epoch_manager_ref_.GetGlobalEpoch();
-                if (wait_until_epoch <= current_epoch) { break; }
-                std::this_thread::sleep_for(
-                    std::chrono::milliseconds(epoch_duration));
-              }
+              // Wait for a stable epoch
+              epoch_manager_ref_.Sync();
             }
 
             {  //  WAIT_FLUSH: save consistent snapshot
@@ -153,7 +147,8 @@ class CPRManager {
                            CheckpointWorkingFileName, CheckpointFileName);
 
               // NOTE POSIX ensures that rename syscall provides atomicity
-              if (rename(CheckpointWorkingFileName.c_str(), CheckpointFileName.c_str())) {
+              if (rename(CheckpointWorkingFileName.c_str(),
+                         CheckpointFileName.c_str())) {
                 SPDLOG_ERROR(
                     "Durability Error: fail to rename checkpoint of the "
                     "epoch "
