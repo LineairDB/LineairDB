@@ -45,7 +45,7 @@ struct DataItem {
   const std::byte* value() const { return &buffer.value[0]; }
   size_t size() const { return buffer.size; }
 
-  DataItem() : pivot_object(NWRPivotObject()) {}
+  DataItem() : transaction_id(0), pivot_object(NWRPivotObject()) {}
   DataItem(const std::byte* v, size_t s, TransactionId tid = 0)
       : transaction_id(tid), pivot_object(NWRPivotObject()) {
     Reset(v, s);

@@ -18,9 +18,8 @@
 
 #include <functional>
 
+#include "index/precision_locking_index/index.hpp"
 #include "lineairdb/config.h"
-#include "point_index/impl/mpmc_concurrent_set_impl.h"
-#include "range_index/impl/precision_locking.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 
@@ -32,71 +31,55 @@ ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
     : epoch_manager_ref_(epoch_framework) {
   switch (config.index_structure) {
     case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
-      point_index_ = std::make_unique<MPMCConcurrentSetImpl>();
+      index_ = std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
+          epoch_manager_ref_);
       break;
     default:
-      point_index_ = std::make_unique<MPMCConcurrentSetImpl>();
+      index_ = std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
+          epoch_manager_ref_);
       break;
   }
-  switch (config.index_structure) {
-    case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
-      range_index_ =
-          std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
-      break;
-    default:
-      range_index_ =
-          std::make_unique<PrecisionLockingIndex>(epoch_manager_ref_);
-      break;
-  }
+
   if (recovery_set.empty()) return;
   for (auto& entry : recovery_set) {
-    point_index_->Put(entry.key, entry.index_cache);
+    index_->Put(entry.key, *entry.index_cache);
   }
-}
-
-ConcurrentTable::~ConcurrentTable() {
-  point_index_->ForAllWithExclusiveLock(
-      [](const std::string_view, const DataItem* i) {
-        assert(i != nullptr);
-        delete i;
-      });
-  point_index_->Clear();
 }
 
 DataItem* ConcurrentTable::Get(const std::string_view key) {
-  return point_index_->Get(key);
+  return index_->Get(key);
 }
 
 DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
-  auto* item = point_index_->Get(key);
-  if (item == nullptr) { return InsertIfNotExist(key); }
+  auto* item = index_->Get(key);
+  if (item == nullptr) {
+    index_->ForcePutBlankEntry(key);
+    item = index_->Get(key);
+    assert(item != nullptr);
+  }
   return item;
 }
 
 // return false if a corresponding entry already exists
-bool ConcurrentTable::Put(const std::string_view key, const DataItem& rhs) {
-  auto* value  = new DataItem(rhs);
-  bool success = point_index_->Put(key, value);
-  if (!success) delete value;
-  return range_index_->Insert(key);
-}
-
-std::optional<size_t> ConcurrentTable::Scan(
-    const std::string_view begin, const std::string_view end,
-    std::function<bool(std::string_view)> operation) {
-  return range_index_->Scan(begin, end, operation);
-};
-
-DataItem* ConcurrentTable::InsertIfNotExist(const std::string_view key) {
-  Put(key, {nullptr, 0, 0});
-  auto current = Get(key);
-  assert(current != nullptr);
-  return current;
+bool ConcurrentTable::Put(const std::string_view key, DataItem&& rhs) {
+  return index_->Put(key, std::forward<decltype(rhs)>(rhs));
 }
 
 void ConcurrentTable::ForEach(
     std::function<bool(std::string_view, DataItem&)> f) {
-  point_index_->ForEach(f);
+  index_->ForEach(f);
+};
+
+std::optional<size_t> ConcurrentTable::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<bool(std::string_view)> operation) {
+  return index_->Scan(begin, end, operation);
+};
+
+std::optional<size_t> ConcurrentTable::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<bool(std::string_view, DataItem&)> operation) {
+  return index_->Scan(begin, end, operation);
 };
 
 }  // namespace Index

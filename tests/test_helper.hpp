@@ -21,6 +21,7 @@
 #include <lineairdb/lineairdb.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <future>
@@ -30,6 +31,24 @@
 using TransactionProcedure = std::function<void(LineairDB::Transaction&)>;
 
 namespace TestHelper {
+
+void RetryTransactionUntilCommit(LineairDB::Database* db,
+                                 const TransactionProcedure procedure) {
+  std::atomic<bool> uncommitted(true);
+  std::atomic<bool> terminated(false);
+  while (uncommitted) {
+    terminated.store(false);
+    db->ExecuteTransaction(procedure, [&](const auto status) {
+      if (status == LineairDB::TxStatus::Committed) uncommitted.store(false);
+      terminated.store(true);
+    });
+    while (!terminated) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  }
+  db->Fence();
+}
+
 bool DoTransactions(LineairDB::Database* db,
                     const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);
@@ -105,10 +124,8 @@ size_t DoHandlerTransactionsOnMultiThreads(
       auto& tx = db->BeginTransaction();
       proc(tx);
       db->EndTransaction(tx, [&](auto status) {
-        if (status == LineairDB::TxStatus::Committed) {
-          committed++;
-          terminated++;
-        }
+        if (status == LineairDB::TxStatus::Committed) { committed++; }
+        terminated++;
       });
     }));
   }

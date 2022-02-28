@@ -131,10 +131,10 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
                              }});
 }
 
-size_t getLogDirectorySize() {
+size_t getLogDirectorySize(const LineairDB::Config& conf) {
   namespace fs = std::experimental::filesystem;
   size_t size  = 0;
-  for (const auto& entry : fs::directory_iterator("lineairdb_logs")) {
+  for (const auto& entry : fs::directory_iterator(conf.work_dir)) {
     if (entry.path().filename().generic_string().find("working") !=
         std::string::npos)
       continue;
@@ -153,15 +153,14 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
     tx.Write<int>("alice", value);
   });
 
-  std::experimental::filesystem::path log_path = "lineairdb_logs";
   size_t filesize                              = 0;
-  ASSERT_EQ(filesize, getLogDirectorySize());
+  ASSERT_EQ(filesize, getLogDirectorySize(config));
   bool filesize_is_monotonically_increasing = true;
 
   auto begin = std::chrono::high_resolution_clock::now();
 
   for (;;) {
-    const size_t current_file_size = getLogDirectorySize();
+    const size_t current_file_size = getLogDirectorySize(config);
     if (filesize <= current_file_size) {
       filesize = current_file_size;
     } else {
@@ -176,7 +175,7 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
     assert(begin < now);
     size_t elapsed =
         std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
-    if (config.checkpoint_period * 3 < elapsed) break;
+    if (config.checkpoint_period * 10 < elapsed) break;
   }
   ASSERT_FALSE(filesize_is_monotonically_increasing);
 }
@@ -192,9 +191,8 @@ TEST_F(DurabilityTest,
     tx.Write<int>("alice", value);
   });
 
-  std::experimental::filesystem::path log_path = "lineairdb_logs";
   size_t filesize                              = 0;
-  ASSERT_EQ(filesize, getLogDirectorySize());
+  ASSERT_EQ(filesize, getLogDirectorySize(config));
   bool filesize_is_monotonically_increasing = true;
 
   auto begin = std::chrono::high_resolution_clock::now();
@@ -213,7 +211,7 @@ TEST_F(DurabilityTest,
   });
 
   for (;;) {
-    const size_t current_file_size = getLogDirectorySize();
+    const size_t current_file_size = getLogDirectorySize(config);
     if (filesize <= current_file_size) {
       filesize = current_file_size;
     } else {
@@ -225,7 +223,7 @@ TEST_F(DurabilityTest,
     assert(begin < now);
     size_t elapsed =
         std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
-    if (config.checkpoint_period * 3 < elapsed) break;
+    if (config.checkpoint_period * 10 < elapsed) break;
   }
   stop.store(true);
   worker_thread.join();

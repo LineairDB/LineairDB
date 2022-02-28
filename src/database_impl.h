@@ -89,6 +89,7 @@ class Database::Impl {
 
         transaction_procedure(tx);
         if (tx.IsAborted()) {
+          if(precommit_clbk) precommit_clbk.value()(LineairDB::TxStatus::Aborted);
           callback(LineairDB::TxStatus::Aborted);
           epoch_framework_.MakeMeOffline();
           return;
@@ -97,6 +98,7 @@ class Database::Impl {
         bool committed = tx.Precommit();
         if (committed) {
           tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
+
           if (precommit_clbk.has_value()) {
             precommit_clbk.value()(TxStatus::Committed);
           }
@@ -237,7 +239,7 @@ class Database::Impl {
       highest_epoch = std::max(
           highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
 
-      point_index_.Put(entry.key, entry.data_item_copy);
+      point_index_.Put(entry.key, std::move(entry.data_item_copy));
     }
     SPDLOG_DEBUG("  Global epoch is resumed from {0}", highest_epoch);
     epoch_framework_.SetGlobalEpoch(highest_epoch);

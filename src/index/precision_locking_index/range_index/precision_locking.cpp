@@ -31,7 +31,9 @@ namespace LineairDB {
 namespace Index {
 
 PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
-    : RangeIndexBase(e), manager_stop_flag_(false), manager_([&]() {
+    : epoch_manager_ref_(e),
+      manager_stop_flag_(false),
+      manager_([&]() {
         while (manager_stop_flag_.load() != true) {
           epoch_manager_ref_.Sync();
           const auto global       = epoch_manager_ref_.GetGlobalEpoch();
@@ -68,6 +70,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
                 // committed) insertions and deletions.
                 for (it = beg; it != end; it++) {
                   for (const auto& event : it->second) {
+
                     container_[event.key].is_deleted = event.is_delete_event;
                   }
                 }
@@ -122,6 +125,12 @@ bool PrecisionLockingIndex::Insert(const std::string_view key) {
 
   return true;
 };
+
+void PrecisionLockingIndex::ForceInsert(const std::string_view key) {
+  const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
+  std::lock_guard<decltype(ulock_)> u_guard(ulock_);
+  insert_or_delete_key_set_[epoch].emplace_back(key, false);
+}
 
 bool PrecisionLockingIndex::Delete(const std::string_view key) {
   std::shared_lock<decltype(plock_)> p_guard(plock_);
