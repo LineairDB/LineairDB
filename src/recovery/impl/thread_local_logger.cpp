@@ -193,8 +193,5 @@ std::string ThreadLocalLogger::GetWorkingLogFileName(size_t thread_id) const {
          ".working.log";
 }
 
-std::atomic<size_t> ThreadLocalLogger::ThreadLocalStorageNode::ThreadIdCounter =
-    {0};
-
 }  // namespace Recovery
 }  // namespace LineairDB

@@ -52,9 +52,6 @@ class ThreadLocalLogger final : public LoggerBase {
  private:
   std::string WorkingDir;
   struct ThreadLocalStorageNode {
-   private:
-    static std::atomic<size_t> ThreadIdCounter;
-
    public:
     size_t thread_id;
     std::atomic<EpochNumber> durable_epoch;
@@ -64,8 +61,7 @@ class ThreadLocalLogger final : public LoggerBase {
     MSGPACK_DEFINE(log_records);
 
     ThreadLocalStorageNode()
-        : thread_id(ThreadIdCounter.fetch_add(1)),
-          durable_epoch(EpochFramework::THREAD_OFFLINE),
+        : durable_epoch(EpochFramework::THREAD_OFFLINE),
           truncated_epoch(0) {}
     ~ThreadLocalStorageNode() {}
   };

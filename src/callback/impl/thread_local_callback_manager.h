@@ -41,9 +41,6 @@ class ThreadLocalCallbackManager final : public CallbackManagerBase {
 
  private:
   struct ThreadLocalStorageNode {
-   private:
-    static std::atomic<size_t> ThreadIdCounter;
-
    public:
     std::queue<std::pair<EpochNumber, LineairDB::Database::CallbackType>>
         callback_queue;
@@ -56,7 +53,6 @@ class ThreadLocalCallbackManager final : public CallbackManagerBase {
   };
 
  private:
-  inline size_t GetThreadId();
   inline WorkStealingQueueNode* GetMyWorkStealingQueue();
 
  private:
