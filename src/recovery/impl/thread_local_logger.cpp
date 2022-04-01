@@ -36,9 +36,12 @@
 namespace LineairDB {
 namespace Recovery {
 
+std::atomic<size_t> ThreadLocalLogger::ThreadLocalStorageNode::ThreadIdCounter =
+    {0};
+
 ThreadLocalLogger::ThreadLocalLogger(const Config& config)
-  : WorkingDir(config.work_dir) {
-    LineairDB::Util::SetUpSPDLog();
+    : WorkingDir(config.work_dir) {
+  LineairDB::Util::SetUpSPDLog();
 }
 
 void ThreadLocalLogger::RememberMe(const EpochNumber epoch) {
@@ -82,7 +85,8 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
 
     if (!my_storage->log_file.is_open()) {
       my_storage->log_file = std::fstream(
-        GetLogFileName(my_storage->thread_id), std::fstream::out | std::fstream::binary | std::fstream::ate);
+          GetLogFileName(my_storage->thread_id),
+          std::fstream::out | std::fstream::binary | std::fstream::ate);
     }
     msgpack::pack(my_storage->log_file, my_storage->log_records);
     my_storage->log_file.flush();
@@ -97,7 +101,8 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
   if (!my_storage->log_records.empty()) {
     if (!my_storage->log_file.is_open()) {
       my_storage->log_file = std::fstream(
-        GetLogFileName(my_storage->thread_id), std::fstream::out | std::fstream::binary | std::fstream::ate);
+          GetLogFileName(my_storage->thread_id),
+          std::fstream::out | std::fstream::binary | std::fstream::ate);
     }
     msgpack::pack(my_storage->log_file, my_storage->log_records);
     my_storage->log_file.flush();
@@ -161,15 +166,16 @@ void ThreadLocalLogger::TruncateLogs(
   new_file.flush();
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(log_filename.c_str(), GetLogFileName(my_storage->thread_id).c_str())) {
+  if (rename(log_filename.c_str(),
+             GetLogFileName(my_storage->thread_id).c_str())) {
     SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
                  errno);
     exit(1);
   }
   my_storage->truncated_epoch = checkpoint_completed_epoch;
   my_storage->log_file        = std::fstream(
-      GetLogFileName(my_storage->thread_id),
-      std::fstream::out | std::fstream::binary | std::fstream::ate);
+             GetLogFileName(my_storage->thread_id),
+             std::fstream::out | std::fstream::binary | std::fstream::ate);
 }
 
 EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {
@@ -189,8 +195,7 @@ std::string ThreadLocalLogger::GetLogFileName(size_t thread_id) const {
 }
 
 std::string ThreadLocalLogger::GetWorkingLogFileName(size_t thread_id) const {
-  return WorkingDir + "/thread" + std::to_string(thread_id) +
-         ".working.log";
+  return WorkingDir + "/thread" + std::to_string(thread_id) + ".working.log";
 }
 
 }  // namespace Recovery
