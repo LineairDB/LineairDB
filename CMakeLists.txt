@@ -90,7 +90,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 ### Third-party libraries
-target_include_directories(${PROJECT_NAME} PUBLIC
+target_include_directories(
+  ${PROJECT_NAME} SYSTEM
+  PUBLIC
   ${Boost_INCLUDE_DIRS}
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/rapidjson/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/libcuckoo>

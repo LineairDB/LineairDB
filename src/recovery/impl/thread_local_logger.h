@@ -51,6 +51,7 @@ class ThreadLocalLogger final : public LoggerBase {
 
  private:
   std::string WorkingDir;
+
   struct ThreadLocalStorageNode {
    private:
     static std::atomic<size_t> ThreadIdCounter;
