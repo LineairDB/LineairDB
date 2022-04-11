@@ -39,7 +39,8 @@ class HashTableWithPrecisionLockingIndex {
   /**
    * @note return false if a phantom anomaly has detected.
    */
-  bool Put(const std::string_view key, T&& rhs) {
+  bool Put(const std::string_view key, T&& rhs) { return Put(key, rhs); }
+  bool Put(const std::string_view key, const T& rhs) {
     bool r_success = range_index_.Insert(key);
     if (!r_success) return false;
     auto* value    = new T(rhs);
@@ -47,7 +48,6 @@ class HashTableWithPrecisionLockingIndex {
     if (!p_success) delete value;
     return true;
   }
-  bool Put(const std::string_view key, const T& rhs) { return Put(key, rhs); }
 
   void ForcePutBlankEntry(const std::string_view key) {
     auto* new_entry = new T();
