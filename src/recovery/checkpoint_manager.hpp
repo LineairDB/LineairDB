@@ -60,7 +60,6 @@ class CPRManager {
         stop_(false),
         manager_thread_([&]() {
           if (!config_ref_.enable_checkpointing) return;
-          const auto epoch_duration    = config_ref_.epoch_duration_ms;
           const auto checkpoint_period = config_ref_.checkpoint_period;
           for (;;) {
             {  // REST Phase: sleep

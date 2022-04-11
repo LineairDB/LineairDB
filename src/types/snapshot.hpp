@@ -36,7 +36,8 @@ struct Snapshot {
       : key(k), index_cache(i), is_read_modify_write(false) {
     if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
-  Snapshot(const Snapshot& rhs) = default;
+  Snapshot(const Snapshot&) = default;
+  Snapshot& operator=(const Snapshot&) = default;
 
   static bool Compare(Snapshot& left, Snapshot& right) {
     return left.key < right.key;
