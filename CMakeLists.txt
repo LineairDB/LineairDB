@@ -26,7 +26,7 @@ project(
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
                       "${PROJECT_SOURCE_DIR}/cmake/modules")
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
-add_compile_definitions(_LIBCPP_NO_EXPERIMENTAL_DEPRECATION_WARNING_FILESYSTEM )
+add_compile_definitions(_LIBCPP_NO_EXPERIMENTAL_DEPRECATION_WARNING_FILESYSTEM)
 
 # Options
 option(BUILD_TESTS "Build testing executables" ON)
@@ -125,7 +125,9 @@ install(
 # Tests
 if(BUILD_TESTS)
   enable_testing()
-  add_subdirectory(third_party/googletest)
+  if(NOT TARGET gtest)
+    add_subdirectory(third_party/googletest)
+  endif()
   add_subdirectory(tests)
 endif()
 
