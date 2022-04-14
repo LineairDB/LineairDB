@@ -23,20 +23,19 @@ project(
     "Transactional key-value storage with linearizability and linear-scale performance."
   LANGUAGES CXX)
 
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(IS_TOPLEVEL_PROJECT TRUE)
+endif()
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
                       "${PROJECT_SOURCE_DIR}/cmake/modules")
 set(CMAKE_INCLUDE_CURRENT_DIR_IN_INTERFACE ON)
 add_compile_definitions(_LIBCPP_NO_EXPERIMENTAL_DEPRECATION_WARNING_FILESYSTEM)
 
-# Options
-option(BUILD_TESTS "Build testing executables" ON)
-option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
-option(BUILD_SANITIZER "Build with clang's address sanitizer" ON)
-
+# Compiler Options
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Compiler Options
 set(CMAKE_C_FLAGS "--std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -mcx16 -fPIC")
 
@@ -44,7 +43,7 @@ set(CMAKE_CXX_FLAGS_DEBUG
     "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics")
-  if(BUILD_SANITIZER)
+  if(IS_TOPLEVEL_PROJECT)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
   endif()
 endif()
@@ -123,7 +122,7 @@ install(
   EXPORT_LINK_INTERFACE_LIBRARIES)
 
 # Tests
-if(BUILD_TESTS)
+if(IS_TOPLEVEL_PROJECT)
   enable_testing()
   if(NOT TARGET gtest)
     add_subdirectory(third_party/googletest)
@@ -132,7 +131,7 @@ if(BUILD_TESTS)
 endif()
 
 # Benchmarks
-if(BUILD_BENCHMARKS)
+if(IS_TOPLEVEL_PROJECT)
   enable_testing()
   add_subdirectory(bench)
 endif()
