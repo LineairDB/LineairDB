@@ -1,4 +1,4 @@
 var annotated_dup =
 [
-    [ "LineairDB", "namespaceLineairDB.html", "namespaceLineairDB" ]
+    [ "LineairDB", "namespace_lineair_d_b.html", "namespace_lineair_d_b" ]
 ];

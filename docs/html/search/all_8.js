@@ -1,6 +1,8 @@
 var searchData=
 [
-  ['lineairdb',['LineairDB',['../namespaceLineairDB.html',1,'']]],
-  ['lineairdb_2eh',['lineairdb.h',['../lineairdb_8h.html',1,'']]],
-  ['logger',['logger',['../structLineairDB_1_1Config.html#a1ea4e01684a9093cea446ebda4cac678',1,'LineairDB::Config::logger()'],['../structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351',1,'LineairDB::Config::Logger()']]]
+  ['index_5fstructure_24',['index_structure',['../struct_lineair_d_b_1_1_config.html#a8c7337824b009ee735ee5ca5829a4e89',1,'LineairDB::Config']]],
+  ['indexstructure_25',['IndexStructure',['../struct_lineair_d_b_1_1_config.html#a981e6d7c558e5758956bb664e8824a86',1,'LineairDB::Config']]],
+  ['isaborted_26',['IsAborted',['../class_lineair_d_b_1_1_transaction.html#aefdf1c6f41ec035170422a803c9ccde7',1,'LineairDB::Transaction']]],
+  ['iscommitted_27',['IsCommitted',['../class_lineair_d_b_1_1_transaction.html#ac5637b9ddcb467074d6671afd5dcd349',1,'LineairDB::Transaction']]],
+  ['isrunning_28',['IsRunning',['../class_lineair_d_b_1_1_transaction.html#aa87041ff8dcce1b217a18107572c09ff',1,'LineairDB::Transaction']]]
 ];

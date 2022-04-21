@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['config',['Config',['../structLineairDB_1_1Config.html',1,'LineairDB']]]
+  ['config_56',['Config',['../struct_lineair_d_b_1_1_config.html',1,'LineairDB']]]
 ];
