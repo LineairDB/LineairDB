@@ -98,12 +98,21 @@ $(document).ready(function(){initNavTree('class_lineair_d_b_1_1_transaction.html
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
+<tr class="memitem:a1e8c3221fd997bc1222794be55aec41c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="namespace_lineair_d_b.html#a4f1bbaf1231308bbcb015d600f21a881">TxStatus</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#a1e8c3221fd997bc1222794be55aec41c">GetCurrentStatus</a> ()</td></tr>
+<tr class="memdesc:a1e8c3221fd997bc1222794be55aec41c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the current transaction status. For transactions such that <a class="el" href="class_lineair_d_b_1_1_transaction.html#a1e8c3221fd997bc1222794be55aec41c" title="Get the current transaction status. For transactions such that GetCurrentStatus() returns TxStatus::A...">GetCurrentStatus()</a> returns TxStatus::Aborted, it is not guaranteed for subsequent read operations returns the correct values.  <a href="class_lineair_d_b_1_1_transaction.html#a1e8c3221fd997bc1222794be55aec41c">More...</a><br /></td></tr>
+<tr class="separator:a1e8c3221fd997bc1222794be55aec41c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa87041ff8dcce1b217a18107572c09ff"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#aa87041ff8dcce1b217a18107572c09ff">IsRunning</a> ()</td></tr>
+<tr class="separator:aa87041ff8dcce1b217a18107572c09ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac5637b9ddcb467074d6671afd5dcd349"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#ac5637b9ddcb467074d6671afd5dcd349">IsCommitted</a> ()</td></tr>
+<tr class="separator:ac5637b9ddcb467074d6671afd5dcd349"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aefdf1c6f41ec035170422a803c9ccde7"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#aefdf1c6f41ec035170422a803c9ccde7">IsAborted</a> ()</td></tr>
+<tr class="separator:aefdf1c6f41ec035170422a803c9ccde7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af96be52d5b9429bb016daf00fd08cacd"><td class="memItemLeft" align="right" valign="top">const std::pair&lt; const std::byte *const, const size_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#af96be52d5b9429bb016daf00fd08cacd">Read</a> (const std::string_view key)</td></tr>
 <tr class="memdesc:af96be52d5b9429bb016daf00fd08cacd"><td class="mdescLeft">&#160;</td><td class="mdescRight">If the database contains a data item for "key", returns a pair (a pointer of value, the size of value).  <a href="class_lineair_d_b_1_1_transaction.html#af96be52d5b9429bb016daf00fd08cacd">More...</a><br /></td></tr>
 <tr class="separator:af96be52d5b9429bb016daf00fd08cacd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a82d6afa8eb77cb99572d1ab3e2cbe056"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
 <tr class="memitem:a82d6afa8eb77cb99572d1ab3e2cbe056"><td class="memTemplItemLeft" align="right" valign="top">const std::optional&lt; T &gt;&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#a82d6afa8eb77cb99572d1ab3e2cbe056">Read</a> (const std::string_view key)</td></tr>
-<tr class="memdesc:a82d6afa8eb77cb99572d1ab3e2cbe056"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reads an user-defined value with a given key. T must be same as one on writing with <a class="el" href="class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093" title="Writes a value with a given key.">Write()</a>.  <a href="class_lineair_d_b_1_1_transaction.html#a82d6afa8eb77cb99572d1ab3e2cbe056">More...</a><br /></td></tr>
+<tr class="memdesc:a82d6afa8eb77cb99572d1ab3e2cbe056"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reads a value as user-defined type. T must be same as one on writing the value with <a class="el" href="class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093" title="Writes a value with a given key.">Write()</a>.  <a href="class_lineair_d_b_1_1_transaction.html#a82d6afa8eb77cb99572d1ab3e2cbe056">More...</a><br /></td></tr>
 <tr class="separator:a82d6afa8eb77cb99572d1ab3e2cbe056"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a45ecb4ddb3a772f316ba68fded4b6093"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093">Write</a> (const std::string_view key, const std::byte value[], const size_t size)</td></tr>
 <tr class="memdesc:a45ecb4ddb3a772f316ba68fded4b6093"><td class="mdescLeft">&#160;</td><td class="mdescRight">Writes a value with a given key.  <a href="class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093">More...</a><br /></td></tr>
@@ -112,7 +121,15 @@ Public Member Functions</h2></td></tr>
 <tr class="memitem:a8a6875293b2d2fad667a625fe63bfe80"><td class="memTemplItemLeft" align="right" valign="top">void&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#a8a6875293b2d2fad667a625fe63bfe80">Write</a> (const std::string_view key, const T &amp;value)</td></tr>
 <tr class="memdesc:a8a6875293b2d2fad667a625fe63bfe80"><td class="mdescLeft">&#160;</td><td class="mdescRight">Writes an user-defined value with a given key.  <a href="class_lineair_d_b_1_1_transaction.html#a8a6875293b2d2fad667a625fe63bfe80">More...</a><br /></td></tr>
 <tr class="separator:a8a6875293b2d2fad667a625fe63bfe80"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa3f191ec1cc689374ec193d0f9cec34e"><td class="memItemLeft" align="right" valign="top">const std::optional&lt; size_t &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#aa3f191ec1cc689374ec193d0f9cec34e">Scan</a> (const std::string_view begin, const std::string_view end, std::function&lt; bool(std::string_view, const std::pair&lt; const void *, const size_t &gt;)&gt; operation)</td></tr>
+<tr class="memdesc:aa3f191ec1cc689374ec193d0f9cec34e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get all data items that match the range from the "begin" key to the "end" key in the lexical order. The term "get" here means that it is equivalent to the <a class="el" href="class_lineair_d_b_1_1_transaction.html#af96be52d5b9429bb016daf00fd08cacd" title="If the database contains a data item for &quot;key&quot;, returns a pair (a pointer of value,...">Read</a> operation: this operation performs read operations for all the keys.  <a href="class_lineair_d_b_1_1_transaction.html#aa3f191ec1cc689374ec193d0f9cec34e">More...</a><br /></td></tr>
+<tr class="separator:aa3f191ec1cc689374ec193d0f9cec34e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8b813c3ac07cb38f749cdd21f47bbe9b"><td class="memTemplParams" colspan="2">template&lt;typename T &gt; </td></tr>
+<tr class="memitem:a8b813c3ac07cb38f749cdd21f47bbe9b"><td class="memTemplItemLeft" align="right" valign="top">const std::optional&lt; size_t &gt;&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#a8b813c3ac07cb38f749cdd21f47bbe9b">Scan</a> (const std::string_view begin, const std::string_view end, std::function&lt; bool(std::string_view, T)&gt; operation)</td></tr>
+<tr class="memdesc:a8b813c3ac07cb38f749cdd21f47bbe9b"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="class_lineair_d_b_1_1_transaction.html#aa3f191ec1cc689374ec193d0f9cec34e" title="Get all data items that match the range from the &quot;begin&quot; key to the &quot;end&quot; key in the lexical order....">Scan</a> operation with user-defined template type.  <a href="class_lineair_d_b_1_1_transaction.html#a8b813c3ac07cb38f749cdd21f47bbe9b">More...</a><br /></td></tr>
+<tr class="separator:a8b813c3ac07cb38f749cdd21f47bbe9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a85c9aa49f58d72bcbc13d4a1ea9e3a38"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_lineair_d_b_1_1_transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38">Abort</a> ()</td></tr>
+<tr class="memdesc:a85c9aa49f58d72bcbc13d4a1ea9e3a38"><td class="mdescLeft">&#160;</td><td class="mdescRight">Abort this transaction manually.  <a href="class_lineair_d_b_1_1_transaction.html#a85c9aa49f58d72bcbc13d4a1ea9e3a38">More...</a><br /></td></tr>
 <tr class="separator:a85c9aa49f58d72bcbc13d4a1ea9e3a38"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="friends"></a>
@@ -122,7 +139,8 @@ Friends</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>We adopt "the page model" [Vossen95] as the model of transaction processing. For each transaction, the page model provides us four operations: two <em>data operations</em> and two <em>termination operations</em>. </p>
-<p>Data operations: read: read a data item. write: generate a new version of a data item. Termination operations: commit: commit this transaction. abort: abort this transaction.</p>
+<p>Data operations: read: read a data item. <a class="el" href="class_lineair_d_b_1_1_transaction.html#aa3f191ec1cc689374ec193d0f9cec34e" title="Get all data items that match the range from the &quot;begin&quot; key to the &quot;end&quot; key in the lexical order....">Scan</a> consists of multiple read operations.</p>
+<p>write: generate a new version of a data item. Termination operations: commit: commit this transaction. abort: abort this transaction.</p>
 <p>Note that the commit operation is implicitly executed by the worker threads running in <a class="el" href="namespace_lineair_d_b.html">LineairDB</a>, only when the transaction satisfies Strict Serializability and Recoverability. All methods are thread-safe. </p><dl class="section see"><dt>See also</dt><dd>[Vossen95] <a href="https://doi.org/10.1007/BFb0015267">https://doi.org/10.1007/BFb0015267</a> </dd></dl>
 </div><h2 class="groupheader">Member Function Documentation</h2>
 <a id="a85c9aa49f58d72bcbc13d4a1ea9e3a38"></a>
@@ -138,6 +156,103 @@ Friends</h2></td></tr>
           <td></td>
         </tr>
       </table>
+</div><div class="memdoc">
+
+<p>Abort this transaction manually. </p>
+
+</div>
+</div>
+<a id="a1e8c3221fd997bc1222794be55aec41c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1e8c3221fd997bc1222794be55aec41c">&#9670;&nbsp;</a></span>GetCurrentStatus()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="namespace_lineair_d_b.html#a4f1bbaf1231308bbcb015d600f21a881">TxStatus</a> LineairDB::Transaction::GetCurrentStatus </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the current transaction status. For transactions such that <a class="el" href="class_lineair_d_b_1_1_transaction.html#a1e8c3221fd997bc1222794be55aec41c" title="Get the current transaction status. For transactions such that GetCurrentStatus() returns TxStatus::A...">GetCurrentStatus()</a> returns TxStatus::Aborted, it is not guaranteed for subsequent read operations returns the correct values. </p>
+<dl class="section return"><dt>Returns</dt><dd>TxStatus </dd></dl>
+
+</div>
+</div>
+<a id="aefdf1c6f41ec035170422a803c9ccde7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aefdf1c6f41ec035170422a803c9ccde7">&#9670;&nbsp;</a></span>IsAborted()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool LineairDB::Transaction::IsAborted </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="ac5637b9ddcb467074d6671afd5dcd349"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac5637b9ddcb467074d6671afd5dcd349">&#9670;&nbsp;</a></span>IsCommitted()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool LineairDB::Transaction::IsCommitted </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="aa87041ff8dcce1b217a18107572c09ff"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa87041ff8dcce1b217a18107572c09ff">&#9670;&nbsp;</a></span>IsRunning()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool LineairDB::Transaction::IsRunning </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
 </div>
@@ -195,7 +310,7 @@ template&lt;typename T &gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p>Reads an user-defined value with a given key. T must be same as one on writing with <a class="el" href="class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093" title="Writes a value with a given key.">Write()</a>. </p>
+<p>Reads a value as user-defined type. T must be same as one on writing the value with <a class="el" href="class_lineair_d_b_1_1_transaction.html#a45ecb4ddb3a772f316ba68fded4b6093" title="Writes a value with a given key.">Write()</a>. </p>
 <dl class="tparams"><dt>Template Parameters</dt><dd>
   <table class="tparams">
     <tr><td class="paramname">T</td><td>T must be Trivially Copyable and Constructable. This is because <a class="el" href="namespace_lineair_d_b.html">LineairDB</a> is a Key-value storage but not a object storage.</td></tr>
@@ -209,6 +324,112 @@ template&lt;typename T &gt; </div>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>const std::optional&lt;T&gt; </dd></dl>
+
+</div>
+</div>
+<a id="aa3f191ec1cc689374ec193d0f9cec34e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa3f191ec1cc689374ec193d0f9cec34e">&#9670;&nbsp;</a></span>Scan() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">const std::optional&lt;size_t&gt; LineairDB::Transaction::Scan </td>
+          <td>(</td>
+          <td class="paramtype">const std::string_view&#160;</td>
+          <td class="paramname"><em>begin</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string_view&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::function&lt; bool(std::string_view, const std::pair&lt; const void *, const size_t &gt;)&gt;&#160;</td>
+          <td class="paramname"><em>operation</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get all data items that match the range from the "begin" key to the "end" key in the lexical order. The term "get" here means that it is equivalent to the <a class="el" href="class_lineair_d_b_1_1_transaction.html#af96be52d5b9429bb016daf00fd08cacd" title="If the database contains a data item for &quot;key&quot;, returns a pair (a pointer of value,...">Read</a> operation: this operation performs read operations for all the keys. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">begin</td><td>An identifier of the starting point of the range search. This key is included in the range: if there exists a data item with this key, <a class="el" href="namespace_lineair_d_b.html">LineairDB</a> returns the data item. </td></tr>
+    <tr><td class="paramname">end</td><td>An identifier of the ending point of the range search. This key is included in the range: if there exists a data item with this key, <a class="el" href="namespace_lineair_d_b.html">LineairDB</a> returns the data item. </td></tr>
+    <tr><td class="paramname">operation</td><td>A bool function to be executed iteratively on data items matching the input range. The arguments of the function are key (std::string_view) and value (std::pair). Return value (boolean) forces <a class="el" href="namespace_lineair_d_b.html">LineairDB</a> to cancel the scanning operation; when a function returns true at some key, this function will never be invoked with the next key. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>std::optional&lt;size_t&gt; returns the total number of rows that match the inputted range, if succeed. Concurrent transactions may aborts this scan operation and returns std::nullopt_t. </dd></dl>
+
+</div>
+</div>
+<a id="a8b813c3ac07cb38f749cdd21f47bbe9b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a8b813c3ac07cb38f749cdd21f47bbe9b">&#9670;&nbsp;</a></span>Scan() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<div class="memtemplate">
+template&lt;typename T &gt; </div>
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">const std::optional&lt;size_t&gt; LineairDB::Transaction::Scan </td>
+          <td>(</td>
+          <td class="paramtype">const std::string_view&#160;</td>
+          <td class="paramname"><em>begin</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string_view&#160;</td>
+          <td class="paramname"><em>end</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::function&lt; bool(std::string_view, T)&gt;&#160;</td>
+          <td class="paramname"><em>operation</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p><a class="el" href="class_lineair_d_b_1_1_transaction.html#aa3f191ec1cc689374ec193d0f9cec34e" title="Get all data items that match the range from the &quot;begin&quot; key to the &quot;end&quot; key in the lexical order....">Scan</a> operation with user-defined template type. </p>
+<dl class="tparams"><dt>Template Parameters</dt><dd>
+  <table class="tparams">
+    <tr><td class="paramname">T</td><td>T must be Trivially Copyable and Constructable. This is because <a class="el" href="namespace_lineair_d_b.html">LineairDB</a> is a Key-value storage but not a object storage.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">begin</td><td></td></tr>
+    <tr><td class="paramname">end</td><td></td></tr>
+    <tr><td class="paramname">operation</td><td></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>std::optional&lt;size_t&gt; </dd></dl>
 
 </div>
 </div>

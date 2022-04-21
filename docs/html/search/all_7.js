@@ -1,6 +1,4 @@
 var searchData=
 [
-  ['isaborted',['IsAborted',['../classLineairDB_1_1Transaction.html#aefdf1c6f41ec035170422a803c9ccde7',1,'LineairDB::Transaction']]],
-  ['iscommitted',['IsCommitted',['../classLineairDB_1_1Transaction.html#ac5637b9ddcb467074d6671afd5dcd349',1,'LineairDB::Transaction']]],
-  ['isrunning',['IsRunning',['../classLineairDB_1_1Transaction.html#aa87041ff8dcce1b217a18107572c09ff',1,'LineairDB::Transaction']]]
+  ['hashtablewithprecisionlockingindex_23',['HashTableWithPrecisionLockingIndex',['../struct_lineair_d_b_1_1_config.html#a981e6d7c558e5758956bb664e8824a86a99a1be1bb524079d2447e28fda804dbb',1,'LineairDB::Config']]]
 ];

@@ -19,7 +19,7 @@ LineairDB uses the Epoch Framework in the followings:
 1.  Epoch-based group commit of transactions
 2.  RCU-QSBR-like garbage collection of storage
 3.  Epoch-based checkpoint recovery
-4.  Epoch-based range index
+4.  Epoch-based range/point index
 
 The Epoch Framework provides advantages in both correctness and performance.
 

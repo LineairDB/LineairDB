@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['logger',['Logger',['../structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351',1,'LineairDB::Config']]]
+  ['indexstructure_100',['IndexStructure',['../struct_lineair_d_b_1_1_config.html#a981e6d7c558e5758956bb664e8824a86',1,'LineairDB::Config']]]
 ];

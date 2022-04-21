@@ -1,5 +1,6 @@
 var searchData=
 [
-  ['max_5fthread',['max_thread',['../structLineairDB_1_1Config.html#a162aa1d7763b6d0a8998d126b1df8911',1,'LineairDB::Config']]],
-  ['mpmcconcurrenthashset',['MPMCConcurrentHashSet',['../structLineairDB_1_1Config.html#a2eec9d5ef1c81b7bfe64d93bd8815a07a74272c7e62debea0450afbadb30c1753',1,'LineairDB::Config']]]
+  ['lineairdb_29',['LineairDB',['../namespace_lineair_d_b.html',1,'']]],
+  ['lineairdb_2eh_30',['lineairdb.h',['../lineairdb_8h.html',1,'']]],
+  ['logger_31',['Logger',['../struct_lineair_d_b_1_1_config.html#a56c0a3463d08e5fb71efdc9ff2f4e351',1,'LineairDB::Config::Logger()'],['../struct_lineair_d_b_1_1_config.html#a1ea4e01684a9093cea446ebda4cac678',1,'LineairDB::Config::logger()']]]
 ];
