@@ -1,7 +1,8 @@
 var searchData=
 [
-  ['summary',['Summary',['../index.html',1,'']]],
-  ['scan',['Scan',['../classLineairDB_1_1Transaction.html#aa3f191ec1cc689374ec193d0f9cec34e',1,'LineairDB::Transaction::Scan(const std::string_view begin, const std::string_view end, std::function&lt; bool(std::string_view, const std::pair&lt; const void *, const size_t &gt;)&gt; operation)'],['../classLineairDB_1_1Transaction.html#a8b813c3ac07cb38f749cdd21f47bbe9b',1,'LineairDB::Transaction::Scan(const std::string_view begin, const std::string_view end, std::function&lt; bool(std::string_view, T)&gt; operation)']]],
-  ['silo',['Silo',['../structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a23b2e4b7a37257fe11c17e20aabf9d59',1,'LineairDB::Config']]],
-  ['silonwr',['SiloNWR',['../structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a6569b8c69f771790099c86cb46b8bd7e',1,'LineairDB::Config']]]
+  ['read_35',['Read',['../class_lineair_d_b_1_1_transaction.html#af96be52d5b9429bb016daf00fd08cacd',1,'LineairDB::Transaction::Read(const std::string_view key)'],['../class_lineair_d_b_1_1_transaction.html#a82d6afa8eb77cb99572d1ab3e2cbe056',1,'LineairDB::Transaction::Read(const std::string_view key)']]],
+  ['readme_2emd_36',['README.md',['../_r_e_a_d_m_e_8md.html',1,'']]],
+  ['requestcallbacks_37',['RequestCallbacks',['../class_lineair_d_b_1_1_database.html#aad71b1f7a86e96639030d37fed9b7695',1,'LineairDB::Database']]],
+  ['roadmap_2emd_38',['roadmap.md',['../roadmap_8md.html',1,'']]],
+  ['running_39',['Running',['../namespace_lineair_d_b.html#a4f1bbaf1231308bbcb015d600f21a881a7c347a8b6e4d8c5d6f9fa69cd78db272',1,'LineairDB']]]
 ];

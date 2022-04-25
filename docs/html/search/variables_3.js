@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['max_5fthread',['max_thread',['../structLineairDB_1_1Config.html#a162aa1d7763b6d0a8998d126b1df8911',1,'LineairDB::Config']]]
+  ['logger_93',['logger',['../struct_lineair_d_b_1_1_config.html#a1ea4e01684a9093cea446ebda4cac678',1,'LineairDB::Config']]]
 ];

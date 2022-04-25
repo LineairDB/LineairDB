@@ -1,11 +1,7 @@
 var searchData=
 [
-  ['the_20lineairdb_20project_20roadmap',['The LineairDB project roadmap',['../autotoc_md3.html',1,'']]],
-  ['threadlocal',['ThreadLocal',['../structLineairDB_1_1Config.html#a9c47faa6d41e4dacf0e39781ca52c59dae1f4f836c0b0da20f39645bcd8c126ba',1,'LineairDB::Config']]],
-  ['threadlocallogger',['ThreadLocalLogger',['../structLineairDB_1_1Config.html#a56c0a3463d08e5fb71efdc9ff2f4e351a17832b3fe0a788a5b6359c22406b6f6e',1,'LineairDB::Config']]],
-  ['transaction',['Transaction',['../classLineairDB_1_1Transaction.html',1,'LineairDB::Transaction'],['../classLineairDB_1_1Database.html#a49982aa325e19f0956d42fde9132caa2',1,'LineairDB::Database::Transaction()']]],
-  ['transaction_2eh',['transaction.h',['../transaction_8h.html',1,'']]],
-  ['twophaselocking',['TwoPhaseLocking',['../structLineairDB_1_1Config.html#a49cd5b828e65aa7139c9d969882f8137a9dd8998a4ce68b27a350b56703dceb8a',1,'LineairDB::Config']]],
-  ['tx_5fstatus_2eh',['tx_status.h',['../tx__status_8h.html',1,'']]],
-  ['txstatus',['TxStatus',['../namespaceLineairDB.html#a4f1bbaf1231308bbcb015d600f21a881',1,'LineairDB']]]
+  ['summary_40',['Summary',['../index.html',1,'']]],
+  ['scan_41',['Scan',['../class_lineair_d_b_1_1_transaction.html#aa3f191ec1cc689374ec193d0f9cec34e',1,'LineairDB::Transaction::Scan(const std::string_view begin, const std::string_view end, std::function&lt; bool(std::string_view, const std::pair&lt; const void *, const size_t &gt;)&gt; operation)'],['../class_lineair_d_b_1_1_transaction.html#a8b813c3ac07cb38f749cdd21f47bbe9b',1,'LineairDB::Transaction::Scan(const std::string_view begin, const std::string_view end, std::function&lt; bool(std::string_view, T)&gt; operation)']]],
+  ['silo_42',['Silo',['../struct_lineair_d_b_1_1_config.html#a49cd5b828e65aa7139c9d969882f8137a23b2e4b7a37257fe11c17e20aabf9d59',1,'LineairDB::Config']]],
+  ['silonwr_43',['SiloNWR',['../struct_lineair_d_b_1_1_config.html#a49cd5b828e65aa7139c9d969882f8137a6569b8c69f771790099c86cb46b8bd7e',1,'LineairDB::Config']]]
 ];

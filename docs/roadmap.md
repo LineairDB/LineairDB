@@ -18,6 +18,5 @@ It is no worse in terms of cache efficiency, but it is better to forbid that a c
 
 ### Next Release
 
-- Checkpointing
 - Additional concurrency control protocols (MVTO, MVTO+NWR)
 - TPC-C benchmark

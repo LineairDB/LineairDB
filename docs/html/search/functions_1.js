@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['begintransaction',['BeginTransaction',['../classLineairDB_1_1Database.html#afdd2606ae46302941e64f1cb083f5747',1,'LineairDB::Database']]]
+  ['begintransaction_68',['BeginTransaction',['../class_lineair_d_b_1_1_database.html#afdd2606ae46302941e64f1cb083f5747',1,'LineairDB::Database']]]
 ];
