@@ -159,7 +159,7 @@ class Transaction {
    *
    */
   const std::optional<size_t> Scan(
-      const std::string_view begin, const std::string_view end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
@@ -178,7 +178,7 @@ class Transaction {
    */
   template <typename T>
   const std::optional<size_t> Scan(
-      const std::string_view begin, const std::string_view end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view, T)> operation) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");

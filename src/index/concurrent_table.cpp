@@ -71,7 +71,7 @@ void ConcurrentTable::ForEach(
 };
 
 std::optional<size_t> ConcurrentTable::Scan(
-    const std::string_view begin, const std::string_view end,
+    const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view)> operation) {
   return index_->Scan(begin, end, operation);
 };

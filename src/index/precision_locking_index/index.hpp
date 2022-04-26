@@ -60,14 +60,16 @@ class HashTableWithPrecisionLockingIndex {
    * @brief Scan with key and values
    *
    * @param begin Starting point of the range. Matching entry is included.
-   * @param end Ending point of the range. Matching entry isn't included.
+   * @param end Ending point of the range. Matching entry isn't included. If
+   * this parameter is not given (std::nullopt_t is given), this function
+   * continues scanning to the end of index.
    * @param operation This callback function will be invoked for every entry
    * matching the range, The key/value pair will be given as an argument.
    * @return std::optional<size_t> returns std::nullopt if a phantom anomaly has
    * detected.
    */
   std::optional<size_t> Scan(
-      const std::string_view begin, const std::string_view end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view, T&)> operation) {
     return Scan(begin, end, [&](std::string_view key) {
       auto* value = Get(key);
@@ -80,7 +82,7 @@ class HashTableWithPrecisionLockingIndex {
    * range index.
    */
   std::optional<size_t> Scan(const std::string_view begin,
-                             const std::string_view end,
+                             const std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation) {
     return range_index_.Scan(begin, end, operation);
   };

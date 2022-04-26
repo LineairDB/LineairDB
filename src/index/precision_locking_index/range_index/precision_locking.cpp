@@ -31,9 +31,7 @@ namespace LineairDB {
 namespace Index {
 
 PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
-    : epoch_manager_ref_(e),
-      manager_stop_flag_(false),
-      manager_([&]() {
+    : epoch_manager_ref_(e), manager_stop_flag_(false), manager_([&]() {
         while (manager_stop_flag_.load() != true) {
           epoch_manager_ref_.Sync();
           const auto global       = epoch_manager_ref_.GetGlobalEpoch();
@@ -70,7 +68,6 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
                 // committed) insertions and deletions.
                 for (it = beg; it != end; it++) {
                   for (const auto& event : it->second) {
-
                     container_[event.key].is_deleted = event.is_delete_event;
                   }
                 }
@@ -87,12 +84,15 @@ PrecisionLockingIndex::~PrecisionLockingIndex() {
 };
 
 std::optional<size_t> PrecisionLockingIndex::Scan(
-    const std::string_view b, const std::string_view e,
+    const std::string_view b, const std::optional<std::string_view> e,
     std::function<bool(std::string_view)> operation) {
   size_t hit       = 0;
   const auto begin = std::string(b);
-  const auto end   = std::string(e);
-  if (end < begin) return std::nullopt;
+  auto end         = begin;
+  if (e.has_value()) {
+    end = std::string(e.value());
+    if (end < begin) return std::nullopt;
+  }
 
   std::lock_guard<decltype(plock_)> p_guard(plock_);
   std::shared_lock<decltype(ulock_)> u_guard(ulock_);
@@ -100,7 +100,8 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
 
   {
     auto it     = container_.lower_bound(begin);
-    auto it_end = container_.upper_bound(end);
+    auto it_end = container_.end();
+    if (e.has_value()) { it_end = container_.upper_bound(end); }
     for (; it != it_end; it++) {
       if (it->second.is_deleted) continue;
       hit++;
@@ -152,11 +153,14 @@ bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
 }
 
 bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
-    const std::string_view begin, const std::string_view end) {
+    const std::string_view begin, const std::optional<std::string_view> end) {
   for (auto it = insert_or_delete_key_set_.begin();
        it != insert_or_delete_key_set_.end(); it++) {
     for (const auto& event : it->second) {
-      if (begin <= event.key && event.key <= end) return true;
+      const bool is_after_begin = begin <= event.key;
+      const bool is_before_end =
+          end.has_value() ? event.key <= end.value() : true;
+      return is_after_begin && is_before_end;
     }
   }
   return false;

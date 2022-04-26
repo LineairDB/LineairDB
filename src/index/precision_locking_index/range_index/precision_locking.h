@@ -55,7 +55,7 @@ class PrecisionLockingIndex {
   PrecisionLockingIndex(LineairDB::EpochFramework&);
   ~PrecisionLockingIndex();
   std::optional<size_t> Scan(const std::string_view begin,
-                             const std::string_view end,
+                             const std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation);
   bool Insert(const std::string_view key);
   void ForceInsert(const std::string_view key);
@@ -64,12 +64,13 @@ class PrecisionLockingIndex {
  private:
   bool IsInPredicateSet(const std::string_view);
   bool IsOverlapWithInsertOrDelete(const std::string_view,
-                                   const std::string_view);
+                                   const std::optional<std::string_view>);
 
   struct Predicate {
     std::string begin;
-    std::string end;
-    Predicate(std::string_view b, std::string_view e) : begin(b), end(e) {}
+    std::optional<std::string> end;
+    Predicate(std::string_view b, std::optional<std::string_view> e)
+        : begin(b), end(e) {}
   };
 
   struct InsertOrDeleteEvent {
