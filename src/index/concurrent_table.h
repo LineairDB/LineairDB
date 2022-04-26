@@ -42,7 +42,7 @@ class ConcurrentTable {
   bool Put(const std::string_view key, DataItem&& value);
   void ForEach(std::function<bool(std::string_view, DataItem&)>);
   std::optional<size_t> Scan(const std::string_view begin,
-                             const std::string_view end,
+                             const std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation);
   std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,

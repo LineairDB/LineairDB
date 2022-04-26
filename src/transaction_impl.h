@@ -63,7 +63,7 @@ class Transaction::Impl {
              const size_t size);
 
   const std::optional<size_t> Scan(
-      const std::string_view begin, const std::string_view end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);

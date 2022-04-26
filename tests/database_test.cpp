@@ -89,63 +89,26 @@ TEST_F(DatabaseTest, Scan) {
     tx.template Write<decltype(carol)>("carol", carol);
   });
   TestHelper::DoTransactions(
-      db_.get(),
-      {[&](LineairDB::Transaction& tx) {
-         // Scan
-         auto count = tx.Scan<decltype(alice)>("alice", "carol",
-                                               [&](auto key, auto value) {
-                                                 if (key == "alice") {
-                                                   EXPECT_EQ(alice, value);
-                                                 }
-                                                 if (key == "bob") {
-                                                   EXPECT_EQ(bob, value);
-                                                 }
-                                                 if (key == "carol") {
-                                                   EXPECT_EQ(carol, value);
-                                                 }
-                                                 return false;
-                                               });
-         if (count.has_value()) { ASSERT_EQ(count.value(), 3); }
-       },
-       [&](LineairDB::Transaction& tx) {
-         // Cancel
-         auto count = tx.Scan<decltype(alice)>("alice", "carol",
-                                               [&](auto key, auto value) {
-                                                 if (key == "alice") {
-                                                   EXPECT_EQ(alice, value);
-                                                 }
-                                                 return true;
-                                               });
-         if (count.has_value()) { ASSERT_EQ(count.value(), 1); };
-       }});
-}
-
-TEST_F(DatabaseTest, ScanWithPhantomAvoidance) {
-  int alice = 1;
-  int bob   = 2;
-  int carol = 3;
-  int dave  = 4;
-  TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
-    tx.template Write<decltype(alice)>("alice", alice);
-    tx.template Write<decltype(bob)>("bob", bob);
-    tx.template Write<decltype(carol)>("carol", carol);
-  });
-
-  std::optional<size_t> first, second;
-  const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
-       [&](LineairDB::Transaction& tx) {
-         auto scan = [&]() {
-           return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
-         };
-         first = scan();
-         std::this_thread::yield();
-         second = scan();
-       }});
-  if (committed == 2 && first.has_value() && second.has_value()) {
-    ASSERT_EQ(first, second);
-  }
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+                    // Scan
+                    auto count = tx.Scan<decltype(alice)>(
+                        "alice", "carol", [&](auto key, auto value) {
+                          if (key == "alice") { EXPECT_EQ(alice, value); }
+                          if (key == "bob") { EXPECT_EQ(bob, value); }
+                          if (key == "carol") { EXPECT_EQ(carol, value); }
+                          return false;
+                        });
+                    if (count.has_value()) { ASSERT_EQ(count.value(), 3); }
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    // Cancel
+                    auto count = tx.Scan<decltype(alice)>(
+                        "alice", "carol", [&](auto key, auto value) {
+                          if (key == "alice") { EXPECT_EQ(alice, value); }
+                          return true;
+                        });
+                    if (count.has_value()) { ASSERT_EQ(count.value(), 1); };
+                  }});
 }
 
 TEST_F(DatabaseTest, SaveAsString) {

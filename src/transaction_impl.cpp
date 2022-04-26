@@ -125,7 +125,7 @@ void Transaction::Impl::Write(const std::string_view key,
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
-    const std::string_view begin, const std::string_view end,
+    const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
@@ -174,7 +174,7 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
   tx_pimpl_->Write(key, value, size);
 }
 const std::optional<size_t> Transaction::Scan(
-    const std::string_view begin, const std::string_view end,
+    const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
