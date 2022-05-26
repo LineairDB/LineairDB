@@ -88,12 +88,17 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size());
     }
   }
-  auto* index_leaf  = db_pimpl_->GetIndex().GetOrInsert(key);
-  Snapshot snapshot = {key, nullptr, 0, index_leaf};
+  auto* index_leaf              = db_pimpl_->GetIndex().GetOrInsert(key);
+  const bool is_not_initialized = index_leaf->IsInitialized() == false;
+  Snapshot snapshot             = {key, nullptr, 0, index_leaf};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref               = read_set_.emplace_back(std::move(snapshot));
-  return {ref.data_item_copy.value(), ref.data_item_copy.size()};
+  if (is_not_initialized) {
+    return {nullptr, 0};
+  } else {
+    return {ref.data_item_copy.value(), ref.data_item_copy.size()};
+  }
 }
 
 void Transaction::Impl::Write(const std::string_view key,
