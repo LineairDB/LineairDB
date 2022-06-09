@@ -88,16 +88,15 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size());
     }
   }
-  auto* index_leaf              = db_pimpl_->GetIndex().GetOrInsert(key);
-  const bool is_not_initialized = index_leaf->IsInitialized() == false;
-  Snapshot snapshot             = {key, nullptr, 0, index_leaf};
+  auto* index_leaf  = db_pimpl_->GetIndex().GetOrInsert(key);
+  Snapshot snapshot = {key, nullptr, 0, index_leaf};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref               = read_set_.emplace_back(std::move(snapshot));
-  if (is_not_initialized) {
-    return {nullptr, 0};
-  } else {
+  if (ref.data_item_copy.IsInitialized()) {
     return {ref.data_item_copy.value(), ref.data_item_copy.size()};
+  } else {
+    return {nullptr, 0};
   }
 }
 
@@ -190,8 +189,7 @@ bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
 Transaction::Transaction(void* db_pimpl) noexcept
     : tx_pimpl_(
-          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {
-}
+          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))){}
 Transaction::~Transaction() noexcept = default;
 
 }  // namespace LineairDB
