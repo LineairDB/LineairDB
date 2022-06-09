@@ -168,9 +168,10 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
 
     /** Buffer Update **/
     for (auto& snapshot : tx_ref_.write_set_ref_) {
-      auto* item = snapshot.index_cache;
-      item->Reset(snapshot.data_item_copy.value(),
-                  snapshot.data_item_copy.size());
+      auto* item  = snapshot.index_cache;
+      auto& local = snapshot.data_item_copy;
+
+      *snapshot.index_cache = snapshot.data_item_copy;
     }
 
     return true;
