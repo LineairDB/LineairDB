@@ -61,15 +61,15 @@ struct DataItem {
   }
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
-    initialized = true;
-    buffer.Reset(rhs.buffer);
+    initialized = rhs.initialized;
+    if (initialized) { buffer.Reset(rhs.buffer); }
     return *this;
   }
 
   void Reset(const std::byte* v, const size_t s, TransactionId tid = 0) {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
-    initialized = true;
+    initialized = (v != nullptr && s != 0);
   }
 
   void CopyLiveVersionToStableVersion() {
