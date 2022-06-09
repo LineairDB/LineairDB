@@ -55,7 +55,7 @@ struct DataItem {
   }
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
-        initialized(true),
+        initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
   }
