@@ -16,6 +16,7 @@
 
 #include "lineairdb/database.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <experimental/filesystem>
@@ -48,6 +49,28 @@ TEST_F(DatabaseTest, InstantiateWithConfig) {
   LineairDB::Config conf;
   conf.checkpoint_period = 1;
   ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
+}
+
+TEST_F(DatabaseTest, IsbufferSizeConfigurable) {
+  db_.reset(nullptr);
+  LineairDB::Config conf;
+  conf.checkpoint_period = 1;
+  std::array<std::byte, 1024> alice;
+
+  {                                 // expect to fail
+    conf.internal_buffer_size = 1;  // byte
+    ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
+    EXPECT_ANY_THROW(
+        TestHelper::writeBufferAsAlice<decltype(alice)>(db_.get(), alice));
+  }
+
+  {                                    // expect to succeess
+    conf.internal_buffer_size = 1024;  // byte
+    db_.reset(nullptr);
+    ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
+    EXPECT_NO_THROW(
+        TestHelper::writeBufferAsAlice<decltype(alice)>(db_.get(), alice));
+  }
 }
 
 TEST_F(DatabaseTest, ExecuteTransaction) {

@@ -104,6 +104,9 @@ void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {
   if (IsAborted()) return;
 
+  // TODO: if `size` is larger than Config.internal_buffer_size,
+  // then we have to abort this transaction or throw exception
+
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key) {
@@ -189,7 +192,8 @@ bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
 Transaction::Transaction(void* db_pimpl) noexcept
     : tx_pimpl_(
-          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))){}
+          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {
+}
 Transaction::~Transaction() noexcept = default;
 
 }  // namespace LineairDB
