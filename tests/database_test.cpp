@@ -16,6 +16,7 @@
 
 #include "lineairdb/database.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <experimental/filesystem>
