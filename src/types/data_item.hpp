@@ -53,6 +53,9 @@ struct DataItem {
       : transaction_id(tid), initialized(true), pivot_object(NWRPivotObject()) {
     Reset(v, s);
   }
+  DataItem(int buf_size)
+      : transaction_id(0), initialized(false), pivot_object(NWRPivotObject()),
+        buffer(buf_size), checkpoint_buffer(buf_size) {}
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
         initialized(rhs.initialized),
