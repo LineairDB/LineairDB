@@ -32,11 +32,11 @@ ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
   switch (config.index_structure) {
     case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
       index_ = std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
-          epoch_manager_ref_);
+          epoch_manager_ref_, config.internal_buffer_size);
       break;
     default:
       index_ = std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
-          epoch_manager_ref_);
+          epoch_manager_ref_, config.internal_buffer_size);
       break;
   }
 

@@ -29,10 +29,17 @@ namespace LineairDB {
 
 struct DataBuffer {
   // TODO enable to change this parameter at the compile time
-  constexpr static size_t ValueBufferSize = 512;
+  size_t ValueBufferSize;
 
-  std::byte value[ValueBufferSize];
-  size_t size = 0;
+  std::byte* value;
+  size_t size;
+
+  DataBuffer() : ValueBufferSize(512), size(0) {
+    value = new std::byte[512];
+  }
+  DataBuffer(int buf_size) : ValueBufferSize(buf_size), size(0) {
+    value = new std::byte[buf_size];
+  }
 
   void Reset(const std::byte* v, const size_t s) {
     if (ValueBufferSize < s) {
