@@ -55,7 +55,8 @@ class Logger {
   struct LogRecord {
     struct KeyValuePair {
       std::string key;
-      std::array<std::byte, 256> value;
+      // WANTFIX: dynamically change array size
+      std::array<std::byte, 2048> value;
       size_t size;
       TransactionId tid;
       MSGPACK_DEFINE(key, value, size, tid);

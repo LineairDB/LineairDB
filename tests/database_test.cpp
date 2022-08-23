@@ -55,13 +55,15 @@ TEST_F(DatabaseTest, IsbufferSizeConfigurable) {
   db_.reset(nullptr);
   LineairDB::Config conf;
   conf.checkpoint_period = 1;
+  conf.enable_checkpointing = false;
   std::array<std::byte, 1024> alice;
 
   {                                 // expect to fail
     conf.internal_buffer_size = 1;  // byte
     ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
-    EXPECT_ANY_THROW(
-        TestHelper::writeBufferAsAlice<decltype(alice)>(db_.get(), alice));
+    EXPECT_DEATH({
+        TestHelper::writeBufferAsAlice<decltype(alice)>(db_.get(), alice);}
+        , "DEATH");
   }
 
   {                                    // expect to succeess

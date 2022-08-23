@@ -55,12 +55,10 @@ void writeBufferAsAlice(LineairDB::Database* db, T desired) {
   std::condition_variable cond;
   std::mutex mtx;
 
-  db->ExecuteTransaction(
-      [&](auto& tx) {
-        tx.Write("alice", reinterpret_cast<std::byte*>(&desired),
+  auto& tx = db->BeginTransaction();
+  tx.Write("alice", reinterpret_cast<std::byte*>(&desired),
                  sizeof(desired));
-      },
-      [&](const auto) { transaction_terminated.store(true); });
+  db->EndTransaction(tx, [&](auto) {transaction_terminated.store(true);});
 
   std::unique_lock<std::mutex> lk(mtx);
   cond.wait(lk, [&] { return transaction_terminated.load(); });
