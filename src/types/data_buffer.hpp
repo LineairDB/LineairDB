@@ -47,8 +47,9 @@ struct DataBuffer {
     if (DefaultBufferSize < s) {
       SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
                    DefaultBufferSize);
-      throw std::runtime_error("The size of the write value is greater than DefaultBufferSize");
+      // throw std::runtime_error("The size of the write value is greater than DefaultBufferSize");
       // TODO: use realloc and prevent exception
+      exit(EXIT_FAILURE);
     }
     size = s;
     std::memcpy(value, v, s);
