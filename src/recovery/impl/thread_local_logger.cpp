@@ -59,18 +59,10 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     record.epoch = epoch;
 
     for (auto& snapshot : ws_ref) {
-      /*
-      assert(snapshot.data_item_copy.buffer.size < 256 &&
-             "WANTFIX: LineairDB's log manager can hold only 256-bytes for a "
-             "buffer of a single write operation.");
-      */
       Logger::LogRecord::KeyValuePair kvp;
-      kvp.key = snapshot.key;
-      std::memcpy(reinterpret_cast<void*>(&kvp.value),
-                  snapshot.data_item_copy.buffer.value,
-                  snapshot.data_item_copy.buffer.size);
-      kvp.size = snapshot.data_item_copy.buffer.size;
-      kvp.tid  = snapshot.data_item_copy.transaction_id.load();
+      kvp.key    = snapshot.key;
+      kvp.buffer = snapshot.data_item_copy.buffer.toString();
+      kvp.tid    = snapshot.data_item_copy.transaction_id.load();
 
       record.key_value_pairs.emplace_back(std::move(kvp));
     }

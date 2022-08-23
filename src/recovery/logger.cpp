@@ -38,11 +38,12 @@ namespace Recovery {
 
 Logger::Logger(const Config& config)
     : DurableEpochNumberFileName(config.work_dir + "/durable_epoch.json"),
-      DurableEpochNumberWorkingFileName(config.work_dir + "/durable_epoch.working.json"),
+      DurableEpochNumberWorkingFileName(config.work_dir +
+                                        "/durable_epoch.working.json"),
       WorkingDir(config.work_dir),
       durable_epoch_(0),
-      durable_epoch_working_file_(DurableEpochNumberWorkingFileName, std::ofstream::trunc) {
-
+      durable_epoch_working_file_(DurableEpochNumberWorkingFileName,
+                                  std::ofstream::trunc) {
   std::experimental::filesystem::create_directory(config.work_dir);
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
@@ -84,7 +85,8 @@ EpochNumber Logger::FlushDurableEpoch() {
   durable_epoch_working_file_ << durable_epoch_;
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(DurableEpochNumberWorkingFileName.c_str(), DurableEpochNumberFileName.c_str())) {
+  if (rename(DurableEpochNumberWorkingFileName.c_str(),
+             DurableEpochNumberFileName.c_str())) {
     SPDLOG_ERROR(
         "Durability Error: fail to flush the durable epoch number {0:d}. "
         "errno: {1}",
@@ -133,9 +135,9 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   SPDLOG_DEBUG("Replay the logs in epoch 0-{0}", durable_epoch);
   SPDLOG_DEBUG("Check WorkingDirectory {0}", WorkingDir);
 
-  auto logfiles                      = glob(WorkingDir + "/thread*");
+  auto logfiles                         = glob(WorkingDir + "/thread*");
   const std::string checkpoint_filename = WorkingDir + "/checkpoint.log";
-  bool checkpoint_file_exists        = false;
+  bool checkpoint_file_exists           = false;
   {
     std::ifstream ifs(checkpoint_filename);
     checkpoint_file_exists = ifs.is_open();
@@ -190,8 +192,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
               if (item.key == kvp.key) {
                 not_found = false;
                 if (item.data_item_copy.transaction_id.load() < kvp.tid) {
-                  item.data_item_copy.Reset(
-                      reinterpret_cast<std::byte*>(&kvp.value), kvp.size);
+                  item.data_item_copy.buffer.Reset(kvp.buffer);
                   item.data_item_copy.transaction_id = kvp.tid;
                   SPDLOG_DEBUG("    update-> key {0}, version {1} in epoch {2}",
                                kvp.key, kvp.tid.tid, kvp.tid.epoch);
@@ -201,8 +202,9 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
             if (not_found) {
               SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
                            kvp.key, kvp.tid.tid, kvp.tid.epoch);
-              Snapshot snapshot = {kvp.key, &kvp.value[0], kvp.size, nullptr,
-                                   kvp.tid};
+              Snapshot snapshot = {
+                  kvp.key, reinterpret_cast<std::byte*>(kvp.buffer.data()),
+                  kvp.buffer.size(), nullptr, kvp.tid};
               recovery_set.emplace_back(std::move(snapshot));
             }
           }
