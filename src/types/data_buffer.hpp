@@ -28,24 +28,27 @@
 namespace LineairDB {
 
 struct DataBuffer {
-  // TODO enable to change this parameter at the compile time
-  size_t ValueBufferSize;
+
+  inline static size_t DefaultBufferSize = 512;
 
   std::byte* value;
   size_t size;
 
-  DataBuffer() : ValueBufferSize(512), size(0) {
-    value = new std::byte[512];
+  // thread unsafe
+  static void SetDefaultBufferSize(size_t buf_size) {
+    DefaultBufferSize = buf_size;
   }
-  DataBuffer(int buf_size) : ValueBufferSize(buf_size), size(0) {
-    value = new std::byte[buf_size];
+
+  DataBuffer() : size(0) {
+    value = new std::byte[DefaultBufferSize];
   }
 
   void Reset(const std::byte* v, const size_t s) {
-    if (ValueBufferSize < s) {
+    if (DefaultBufferSize < s) {
       SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
-                   ValueBufferSize);
-      exit(EXIT_FAILURE);
+                   DefaultBufferSize);
+      throw std::runtime_error("The size of the write value is greater than DefaultBufferSize");
+      // TODO: use realloc and prevent exception
     }
     size = s;
     std::memcpy(value, v, s);
