@@ -22,33 +22,32 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 
 #include "util/logger.hpp"
 
 namespace LineairDB {
 
 struct DataBuffer {
-
   inline static size_t DefaultBufferSize = 512;
 
   std::byte* value;
   size_t size;
 
-  // thread unsafe
+  // WARNING: thread unsafe
   static void SetDefaultBufferSize(size_t buf_size) {
     DefaultBufferSize = buf_size;
   }
 
-  DataBuffer() : size(0) {
-    value = new std::byte[DefaultBufferSize];
-  }
+  DataBuffer() : size(0) { value = new std::byte[DefaultBufferSize]; }
 
   void Reset(const std::byte* v, const size_t s) {
     if (DefaultBufferSize < s) {
       SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
                    DefaultBufferSize);
-      // throw std::runtime_error("The size of the write value is greater than DefaultBufferSize");
-      // TODO: use realloc and prevent exception
+      std::cerr << "ERROR in DataBuffer: The size of the write value is "
+                   "greater than DefaultBufferSize";
+      // TODO: use realloc to prevent failure
       exit(EXIT_FAILURE);
     }
     size = s;
