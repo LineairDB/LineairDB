@@ -53,20 +53,10 @@ struct DataItem {
       : transaction_id(tid), initialized(true), pivot_object(NWRPivotObject()) {
     Reset(v, s);
   }
-  DataItem(size_t buf_size)
-      : transaction_id(0), initialized(false), pivot_object(NWRPivotObject()),
-        buffer(buf_size), checkpoint_buffer(buf_size) {}
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
         initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
-    buffer.Reset(rhs.buffer);
-  }
-  DataItem(const DataItem& rhs, size_t buf_size)
-      : transaction_id(rhs.transaction_id.load()),
-        initialized(rhs.initialized),
-        pivot_object(NWRPivotObject()),
-        buffer(buf_size), checkpoint_buffer(buf_size) {
     buffer.Reset(rhs.buffer);
   }
   DataItem& operator=(const DataItem& rhs) {

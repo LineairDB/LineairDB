@@ -32,7 +32,7 @@ namespace Index {
 template <typename T>
 class HashTableWithPrecisionLockingIndex {
  public:
-  HashTableWithPrecisionLockingIndex(EpochFramework& e, size_t c_buf_size) : range_index_(e), internal_buf_size(c_buf_size) {}
+  HashTableWithPrecisionLockingIndex(EpochFramework& e) : range_index_(e) {}
 
   T* Get(const std::string_view key) { return point_index_.Get(key); }
 
@@ -43,14 +43,14 @@ class HashTableWithPrecisionLockingIndex {
   bool Put(const std::string_view key, const T& rhs) {
     bool r_success = range_index_.Insert(key);
     if (!r_success) return false;
-    auto* value    = new T(rhs, internal_buf_size);
+    auto* value    = new T(rhs);
     bool p_success = point_index_.Put(key, value);
     if (!p_success) delete value;
     return true;
   }
 
   void ForcePutBlankEntry(const std::string_view key) {
-    auto* new_entry = new T(internal_buf_size);
+    auto* new_entry = new T();
     if (!point_index_.Put(key, new_entry))
       delete new_entry;  // already inserted
     range_index_.ForceInsert(key);
@@ -94,7 +94,6 @@ class HashTableWithPrecisionLockingIndex {
  private:
   MPMCConcurrentSetImpl<T> point_index_;
   PrecisionLockingIndex range_index_;
-  size_t internal_buf_size;
 };
 
 }  // namespace Index
