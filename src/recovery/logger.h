@@ -23,8 +23,8 @@
 #include <msgpack.hpp>
 
 #include "logger_base.h"
+#include "types/data_buffer.hpp"
 #include "types/definitions.h"
-#include "types/snapshot.hpp"
 
 namespace LineairDB {
 namespace Recovery {
@@ -55,10 +55,9 @@ class Logger {
   struct LogRecord {
     struct KeyValuePair {
       std::string key;
-      std::array<std::byte, 256> value;
-      size_t size;
+      std::string buffer;
       TransactionId tid;
-      MSGPACK_DEFINE(key, value, size, tid);
+      MSGPACK_DEFINE(key, buffer, tid);
     };
 
     EpochNumber epoch;

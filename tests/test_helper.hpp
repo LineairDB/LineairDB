@@ -49,6 +49,13 @@ void RetryTransactionUntilCommit(LineairDB::Database* db,
   db->Fence();
 }
 
+template <typename T>
+void writeBufferAsAlice(LineairDB::Database* db, T desired) {
+  auto& tx = db->BeginTransaction();
+  tx.Write("alice", reinterpret_cast<std::byte*>(&desired), sizeof(desired));
+  db->EndTransaction(tx, [&](auto) {});
+}
+
 bool DoTransactions(LineairDB::Database* db,
                     const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);
