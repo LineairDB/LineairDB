@@ -40,7 +40,7 @@ struct DataBuffer {
   }
 
   DataBuffer() : size(0) { value = new std::byte[DefaultBufferSize]; }
-  ~DataBuffer() { if(value != NULL) delete value; }
+  ~DataBuffer() { if(value != nullptr) delete[] value; }
 
   void Reset(const std::byte* v, const size_t s) {
     if (DefaultBufferSize < s) {
