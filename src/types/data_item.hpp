@@ -36,6 +36,7 @@ namespace LineairDB {
 
 struct DataItem {
   std::atomic<TransactionId> transaction_id;
+  bool initialized;
   DataBuffer buffer;
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
@@ -44,26 +45,31 @@ struct DataItem {
   std::byte* value() { return &buffer.value[0]; }
   const std::byte* value() const { return &buffer.value[0]; }
   size_t size() const { return buffer.size; }
+  bool IsInitialized() const { return initialized; }
 
-  DataItem() : transaction_id(0), pivot_object(NWRPivotObject()) {}
+  DataItem()
+      : transaction_id(0), initialized(false), pivot_object(NWRPivotObject()) {}
   DataItem(const std::byte* v, size_t s, TransactionId tid = 0)
-      : transaction_id(tid), pivot_object(NWRPivotObject()) {
+      : transaction_id(tid), initialized(true), pivot_object(NWRPivotObject()) {
     Reset(v, s);
   }
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
+        initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
   }
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
-    buffer.Reset(rhs.buffer);
+    initialized = rhs.initialized;
+    if (initialized) { buffer.Reset(rhs.buffer); }
     return *this;
   }
 
   void Reset(const std::byte* v, const size_t s, TransactionId tid = 0) {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
+    initialized = (v != nullptr && s != 0);
   }
 
   void CopyLiveVersionToStableVersion() {
