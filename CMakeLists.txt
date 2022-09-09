@@ -23,6 +23,11 @@ project(
     "Transactional key-value storage with linearizability and linear-scale performance."
   LANGUAGES CXX)
 
+# Build Options
+option(BUILD_TESTS "Build testing executables" ON)
+option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
+option(BUILD_SANITIZER "Build with clang's address sanitizer" ON)
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(IS_TOPLEVEL_PROJECT TRUE)
 endif()
@@ -43,7 +48,7 @@ set(CMAKE_CXX_FLAGS_DEBUG
     "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics")
-  if(IS_TOPLEVEL_PROJECT)
+  if(IS_TOPLEVEL_PROJECT AND BUILD_SANITIZER)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
   endif()
 endif()
@@ -122,7 +127,7 @@ install(
   EXPORT_LINK_INTERFACE_LIBRARIES)
 
 # Tests
-if(IS_TOPLEVEL_PROJECT)
+if(IS_TOPLEVEL_PROJECT AND BUILD_TESTS)
   enable_testing()
   if(NOT TARGET gtest)
     add_subdirectory(third_party/googletest)
@@ -131,7 +136,7 @@ if(IS_TOPLEVEL_PROJECT)
 endif()
 
 # Benchmarks
-if(IS_TOPLEVEL_PROJECT)
+if(IS_TOPLEVEL_PROJECT AND BUILD_BENCHMARKS)
   enable_testing()
   add_subdirectory(bench)
 endif()
