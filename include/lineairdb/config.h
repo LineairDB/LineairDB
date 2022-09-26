@@ -151,7 +151,7 @@ struct Config {
 
   /**
    * @brief
-   *
+   * The size of the memory space allocated by LineairDB for each data item.
    *
    * Default: 512
    */
