@@ -22,29 +22,47 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 
 #include "util/logger.hpp"
 
 namespace LineairDB {
 
 struct DataBuffer {
-  // TODO enable to change this parameter at the compile time
-  constexpr static size_t ValueBufferSize = 512;
+  inline static size_t DefaultBufferSize = 512;
 
-  std::byte value[ValueBufferSize];
-  size_t size = 0;
+  std::byte* value;
+  size_t size;
+
+  // WARNING: thread unsafe
+  static void SetDefaultBufferSize(size_t buf_size) {
+    DefaultBufferSize = buf_size;
+  }
+
+  DataBuffer() : size(0) { value = new std::byte[DefaultBufferSize]; }
+  ~DataBuffer() { if(value != nullptr) delete[] value; }
 
   void Reset(const std::byte* v, const size_t s) {
-    if (ValueBufferSize < s) {
+    if (DefaultBufferSize < s) {
       SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
-                   ValueBufferSize);
+                   DefaultBufferSize);
+      std::cerr << "ERROR in DataBuffer: The size of the write value is "
+                   "greater than DefaultBufferSize";
+      // TODO: use realloc to prevent failure
       exit(EXIT_FAILURE);
     }
     size = s;
     std::memcpy(value, v, s);
   }
   void Reset(const DataBuffer& rhs) { Reset(rhs.value, rhs.size); }
+  void Reset(const std::string& rhs) {
+    Reset(reinterpret_cast<const std::byte*>(rhs.data()), rhs.size());
+  }
   bool IsEmpty() const { return size == 0; }
+
+  std::string toString() const {
+    return std::string(reinterpret_cast<char*>(value), size);
+  }
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_BUFFER_HPP */

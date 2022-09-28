@@ -110,7 +110,7 @@ class CPRManager {
               record.epoch = checkpoint_epoch_.load() + 1;
 
               table_ref_.ForEach(
-                  [&](std::string_view key, DataItem& data_item) {
+                  [&](std::string_view key, LineairDB::DataItem& data_item) {
                     data_item.ExclusiveLock();
 
                     Logger::LogRecord::KeyValuePair kvp;
@@ -118,14 +118,9 @@ class CPRManager {
                     if (data_item.checkpoint_buffer.IsEmpty()) {
                       // this data item holds version which has written before
                       // the point of consistency.
-                      std::memcpy(reinterpret_cast<void*>(&kvp.value),
-                                  data_item.value(), data_item.size());
-                      kvp.size = data_item.size();
+                      kvp.buffer = data_item.buffer.toString();
                     } else {
-                      std::memcpy(reinterpret_cast<void*>(&kvp.value),
-                                  data_item.checkpoint_buffer.value,
-                                  data_item.checkpoint_buffer.size);
-                      kvp.size = data_item.checkpoint_buffer.size;
+                      kvp.buffer = data_item.checkpoint_buffer.toString();
                       data_item.checkpoint_buffer.Reset(nullptr, 0);
                     }
                     kvp.tid.epoch = record.epoch;

@@ -78,6 +78,35 @@ TEST_F(DurabilityTest, Recovery) {
   }
 }
 
+TEST_F(DurabilityTest, RecoveryLargeObject) {
+  auto default_config                 = db_->GetConfig();
+  default_config.internal_buffer_size = 4096;
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(default_config);
+
+  std::string initial_value(4096, 'a');
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        tx.Write("alice", reinterpret_cast<std::byte*>(initial_value.data()),
+                 initial_value.size());
+      }});
+  db_->Fence();
+
+  for (size_t i = 0; i < 3; i++) {
+    db_.reset(nullptr);
+    db_ = std::make_unique<LineairDB::Database>(default_config);
+
+    TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                 auto alice = tx.Read("alice");
+                                 ASSERT_TRUE(alice.first != nullptr);
+                                 std::string current_value(
+                                     reinterpret_cast<const char*>(alice.first),
+                                     alice.second);
+                                 ASSERT_EQ(initial_value, current_value);
+                               }});
+  }
+}
+
 TEST_F(DurabilityTest, RecoveryInContendedWorkload) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
@@ -153,7 +182,7 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
     tx.Write<int>("alice", value);
   });
 
-  size_t filesize                              = 0;
+  size_t filesize = 0;
   ASSERT_EQ(filesize, getLogDirectorySize(config));
   bool filesize_is_monotonically_increasing = true;
 
@@ -191,7 +220,7 @@ TEST_F(DurabilityTest,
     tx.Write<int>("alice", value);
   });
 
-  size_t filesize                              = 0;
+  size_t filesize = 0;
   ASSERT_EQ(filesize, getLogDirectorySize(config));
   bool filesize_is_monotonically_increasing = true;
 
