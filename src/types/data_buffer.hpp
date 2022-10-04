@@ -23,35 +23,32 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <new>
 
 #include "util/logger.hpp"
 
 namespace LineairDB {
 
 struct DataBuffer {
-  inline static size_t DefaultBufferSize = 512;
+  constexpr static size_t DefaultBufferSize = 512;
 
   std::byte* value;
   size_t size;
 
-  // WARNING: thread unsafe
-  static void SetDefaultBufferSize(size_t buf_size) {
-    DefaultBufferSize = buf_size;
+  DataBuffer() : size(DefaultBufferSize) {
+    value = new std::byte[DefaultBufferSize];
+  }
+  ~DataBuffer() {
+    if (value != nullptr) delete[] value;
   }
 
-  DataBuffer() : size(0) { value = new std::byte[DefaultBufferSize]; }
-  ~DataBuffer() { if(value != nullptr) delete[] value; }
-
   void Reset(const std::byte* v, const size_t s) {
-    if (DefaultBufferSize < s) {
-      SPDLOG_ERROR("write buffer overflow. expected: {0}, capacity: {1}", s,
-                   DefaultBufferSize);
-      std::cerr << "ERROR in DataBuffer: The size of the write value is "
-                   "greater than DefaultBufferSize";
-      // TODO: use realloc to prevent failure
-      exit(EXIT_FAILURE);
+    if (size < s) {
+      size  = s;
+      value = static_cast<decltype(value)>(
+          std::realloc(reinterpret_cast<void*>(value), s));
+      if (value == nullptr) { throw std::bad_alloc(); }
     }
-    size = s;
     std::memcpy(value, v, s);
   }
   void Reset(const DataBuffer& rhs) { Reset(rhs.value, rhs.size); }

@@ -50,41 +50,6 @@ TEST_F(DatabaseTest, InstantiateWithConfig) {
   conf.checkpoint_period = 1;
   ASSERT_NO_THROW(db_ = std::make_unique<LineairDB::Database>(conf));
 }
-
-TEST_F(DatabaseTest, DeathTest_IsbufferSizeConfigurable) {
-  db_.reset(nullptr);
-
-  LineairDB::Config conf;
-  conf.checkpoint_period    = 1;
-  conf.max_thread           = 1;
-  conf.enable_checkpointing = false;
-
-  std::array<std::byte, 1024> alice;
-
-  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
-
-  {                                 // expect to fail
-    conf.internal_buffer_size = 1;  // byte
-    EXPECT_DEATH(
-        {
-          LineairDB::Database db(conf);
-          TestHelper::writeBufferAsAlice<decltype(alice)>(&db, alice);
-        },
-        ".*ERROR in DataBuffer.*");
-  }
-
-  {                                    // expect to succeess
-    conf.internal_buffer_size = 1024;  // byte
-    EXPECT_EXIT(
-        {
-          LineairDB::Database db(conf);
-          TestHelper::writeBufferAsAlice<decltype(alice)>(&db, alice);
-          exit(EXIT_SUCCESS);
-        },
-        ::testing::ExitedWithCode(EXIT_SUCCESS), ".*");
-  }
-}
-
 TEST_F(DatabaseTest, ExecuteTransaction) {
   int value_of_alice = 1;
   TestHelper::DoTransactions(
@@ -112,6 +77,25 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
                                 ASSERT_EQ(value_of_alice, alice.value());
                                 ASSERT_FALSE(tx.Read<int>("bob").has_value());
                               }});
+}
+
+TEST_F(DatabaseTest, LargeSizeBuffer) {
+  constexpr size_t Size = 2048;
+  LineairDB::Config conf;
+  conf.checkpoint_period    = 1;
+  conf.max_thread           = 1;
+  conf.enable_checkpointing = false;
+
+  std::array<std::byte, Size> alice;
+
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+
+  TestHelper::DoTransactions(
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) { tx.Write("alice", &alice[0], Size); },
+       [&](LineairDB::Transaction& tx) {
+         ASSERT_TRUE(tx.Read<decltype(alice)>("alice").has_value());
+       }});
 }
 
 TEST_F(DatabaseTest, Scan) {
