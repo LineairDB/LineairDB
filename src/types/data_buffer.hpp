@@ -30,24 +30,24 @@
 namespace LineairDB {
 
 struct DataBuffer {
-  constexpr static size_t DefaultBufferSize = 512;
-
   std::byte* value;
   size_t size;
 
-  DataBuffer() : size(DefaultBufferSize) {
-    value = new std::byte[DefaultBufferSize];
-  }
+  DataBuffer() : size(0) { value = nullptr; }
   ~DataBuffer() {
     if (value != nullptr) delete[] value;
   }
 
   void Reset(const std::byte* v, const size_t s) {
     if (size < s) {
-      size  = s;
-      value = static_cast<decltype(value)>(
-          std::realloc(reinterpret_cast<void*>(value), s));
-      if (value == nullptr) { throw std::bad_alloc(); }
+      size = s;
+      if (value == nullptr) {
+        value = new std::byte[s];
+      } else {
+        value = static_cast<decltype(value)>(
+            std::realloc(reinterpret_cast<void*>(value), s));
+        if (value == nullptr) { throw std::bad_alloc(); }
+      }
     }
     std::memcpy(value, v, s);
   }
