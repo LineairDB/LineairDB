@@ -39,8 +39,12 @@ struct DataBuffer {
   }
 
   void Reset(const std::byte* v, const size_t s) {
+    if (v == nullptr){
+      delete[] value;
+      value = nullptr;
+      size = 0;
+    }
     if (size < s) {
-      size = s;
       if (value == nullptr) {
         value = new std::byte[s];
       } else {
@@ -49,6 +53,7 @@ struct DataBuffer {
         if (value == nullptr) { throw std::bad_alloc(); }
       }
     }
+    size = s;
     std::memcpy(value, v, s);
   }
   void Reset(const DataBuffer& rhs) { Reset(rhs.value, rhs.size); }
