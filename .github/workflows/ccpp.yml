@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-10.15]
         compiler: [g++-7, g++-9, clang++]
         build: [Debug, Release]
 
@@ -22,14 +22,14 @@ jobs:
       - uses: actions/checkout@v2
       # install dependencies
       - name: install dependencies (Mac)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-10.15'
         run: brew install boost
       - name: install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt update && sudo apt install -yq libboost-dev g++-7 libnuma-dev
       - name: checkout submodules
         shell: bash
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
+        if: matrix.os != 'macos-10.15' || matrix.compiler != 'g++-7'
         run: |
           auth_header="$(git config --local --get http.https://github.com/.extraheader)"
           git submodule sync --recursive
@@ -39,7 +39,7 @@ jobs:
         env:
           CXX: ${{ matrix.compiler }}
           BUILDTYPE: ${{ matrix.build }}
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
+        if: matrix.os != 'macos-10.15' || matrix.compiler != 'g++-7'
         run: |
           mkdir -p build; cd $_
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
@@ -47,14 +47,14 @@ jobs:
           sudo make install
 
       - name: Set core dump
-        if: matrix.os != 'macos-latest'
+        if: matrix.os != 'macos-10.15'
         run: |
           sudo mkdir -p /cores
           ulimit -c unlimited
           echo '/cores/core.%h.%e.%t' | sudo tee -a /proc/sys/kernel/core_pattern
 
       - name: ${{ matrix.build }} test
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
+        if: matrix.os != 'macos-10.15' || matrix.compiler != 'g++-7'
         run: |
           cd build
           ctest -V
@@ -63,7 +63,7 @@ jobs:
         env:
           CXX: ${{ matrix.compiler }}
           BUILDTYPE: ${{ matrix.build }}
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
+        if: matrix.os != 'macos-10.15' || matrix.compiler != 'g++-7'
         run: |
           mkdir -p example/build; cd $_
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
