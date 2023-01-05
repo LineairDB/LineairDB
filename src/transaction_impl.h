@@ -77,7 +77,7 @@ class Transaction::Impl {
   void PostProcessing(TxStatus);
 
  private:
-  bool IsAborted() { return current_status_ == TxStatus::Aborted; };
+  bool IsAborted() { return current_status_ == TxStatus::Aborted; }
 
  private:
   TxStatus current_status_;

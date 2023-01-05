@@ -58,8 +58,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
  public:
   SiloNWRTyped(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)),
-        nwr_validation_result_(NWRValidationResult::NOT_YET_VALIDATED){};
-  ~SiloNWRTyped() final override{};
+        nwr_validation_result_(NWRValidationResult::NOT_YET_VALIDATED){}
+  ~SiloNWRTyped() final override{}
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {
@@ -83,10 +83,10 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         return snapshot;
       }
     }
-  };
+  }
   void Write(const std::string_view, const std::byte* const, const size_t,
-             DataItem*) final override{};
-  void Abort() final override{};
+             DataItem*) final override{}
+  void Abort() final override{}
   bool Precommit(bool need_to_checkpoint) final override {
     /** Sorting write set to prevent deadlock **/
     std::sort(tx_ref_.write_set_ref_.begin(), tx_ref_.write_set_ref_.end(),
@@ -172,7 +172,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
 
     return true;
-  };
+  }
 
   void PostProcessing(TxStatus status) final override {
     if (status == TxStatus::Committed) {

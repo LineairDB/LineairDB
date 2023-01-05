@@ -52,7 +52,7 @@ class MPMCConcurrentSetImpl {
     std::string key;
     const T* value;
     uint64_t key_8b_prefix;
-    TableNode() : value(nullptr) { assert(key.empty()); };
+    TableNode() : value(nullptr) { assert(key.empty()); }
     TableNode(std::string_view k, const T* const v)
         : key(k), value(v), key_8b_prefix(string_to_uint64_t(k)) {}
   };

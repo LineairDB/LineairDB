@@ -115,7 +115,7 @@ struct DataItem {
 
   decltype(readers_writers_lock)& GetRWLockRef() {
     return readers_writers_lock;
-  };
+  }
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_ITEM_HPP */
