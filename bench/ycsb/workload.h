@@ -18,6 +18,8 @@
 #define LINEAIRDB_YCSB_WORKLOAD_H
 
 #include <iostream>
+#include <atomic>
+#include <string_view>
 
 namespace YCSB {
 
@@ -33,10 +35,13 @@ struct Workload {
   const Distribution distribution;
   size_t recordcount;
   double zipfian_theta;
-  size_t reps_per_txn;  // follows is not apper in original YCSB paper
+
+  // following members are not apper in original YCSB paper
+  size_t reps_per_txn;
   size_t payload_size;
   size_t client_thread_size;
   size_t measurement_duration;
+
 
   Workload(size_t r, size_t u, size_t i, size_t s, size_t m, Distribution d)
       : read_proportion(r),
@@ -55,6 +60,8 @@ struct Workload {
       return Workload(95, 5, 0, 0, 0, Distribution::Zipfian);
     } else if (w == "c") {
       return Workload(100, 0, 0, 0, 0, Distribution::Zipfian);
+    } else if (w == "d") {
+      return Workload(95, 0, 5, 0, 0, Distribution::Latest);
     } else if (w == "e") {
       return Workload(0, 0, 5, 95, 0, Distribution::Uniform);
     } else if (w == "f") {

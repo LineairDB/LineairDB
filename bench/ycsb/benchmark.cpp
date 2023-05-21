@@ -137,8 +137,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     } else if (workload.distribution == Distribution::Zipfian) {
       keys.emplace_back(std::to_string(rand->Next()));
     } else if (workload.distribution == Distribution::Latest) {
-      SPDLOG_ERROR("Distribution::Latest does not impl yet");
-      exit(1);
+      keys.emplace_back(std::to_string(RandomGenerator::LatestNext(rand)));
     }
   }
 

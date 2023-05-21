@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdint>
 #include <random>
+#include <atomic>
 
 class RandomGenerator {
  public:
@@ -58,6 +59,19 @@ class RandomGenerator {
     return ret;
   }
 
+  static std::atomic<uint64_t> latest;
+  static void SetLatest(uint64_t l) {
+    latest.store(l, std::memory_order_relaxed);
+  }
+
+  // Reference Implementation: https://github.com/brianfrankcooper/YCSB/blob/master/core/src/main/java/site/ycsb/generator/SkewedLatestGenerator.java
+  static uint64_t LatestNext(RandomGenerator* rand) {
+    const auto lt = latest.load(std::memory_order_relaxed);
+    const auto next = lt - rand->Next();
+    SetLatest(next);
+    return next;
+  }
+
  private:
   double zeta(uint64_t n) {
     double sum = 0;
@@ -76,5 +90,7 @@ class RandomGenerator {
   double alpha_;
   double eta_;
 };
+
+std::atomic<uint64_t> RandomGenerator::latest = std::atomic<uint64_t>(0);
 
 #endif
