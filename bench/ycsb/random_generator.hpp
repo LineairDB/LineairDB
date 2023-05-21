@@ -17,23 +17,27 @@
 #ifndef LINEAIRDB_RANDOM_GENERATOR_HPP_
 #define LINEAIRDB_RANDOM_GENERATOR_HPP_
 
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <random>
-#include <atomic>
 
 class RandomGenerator {
  public:
   RandomGenerator() : max_(0xdeadbeef) {}
 
   void Init(uint64_t items, double theta) {
-    engine_  = std::mt19937(seeder_());
+    engine_ = std::mt19937(seeder_());
     uniform_ = std::uniform_int_distribution<>(0, items);
-    max_     = items - 1;
-    theta_   = theta;
-    zetan_   = zeta(items);
-    alpha_   = 1.0 / (1.0 - theta_);
-    eta_     = (1 - std::pow(2.0 / items, 1 - theta_)) / (1 - zeta(2) / zetan_);
+    max_ = items - 1;
+    theta_ = theta;
+    alpha_ = 1.0 / (1.0 - theta_);
+    countforzeta_ = items - 1;
+    zeta2theta_ = zeta(2);
+    eta_ = (1 - std::pow(2.0 / max_, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+
+    Next();
+    latest.store(max_);
   }
 
   uint64_t Random() { return engine_(); }
@@ -47,37 +51,60 @@ class RandomGenerator {
   }
   bool IsIntialized() { return max_ != 0xdeadbeef; }
 
-  uint64_t Next() {
-    double u  = UniformRandom() / static_cast<double>(max_);
-    double uz = u * zetan_;
-    if (uz < 1.0) { return 0; }
+  uint64_t Next(uint64_t max) {
+    assert(max >= countforzeta_);
 
-    if (uz < 1.0 + std::pow(0.5, theta_)) { return 1; }
+    zetan_ = zeta(countforzeta_, max_, zetan_);
+    eta_ = (1 - std::pow(2.0 / max_, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+
+    double u = UniformRandom() / static_cast<double>(max);
+    double uz = u * zetan_;
+
+    if (uz < 1.0) {
+      return 0;
+    }
+
+    if (uz < 1.0 + std::pow(0.5, theta_)) {
+      return 1;
+    }
 
     uint64_t ret =
-        static_cast<uint64_t>(max_ * std::pow(eta_ * u - eta_ + 1, alpha_));
+        static_cast<uint64_t>(max * std::pow(eta_ * u - eta_ + 1, alpha_));
+
     return ret;
   }
 
-  static std::atomic<uint64_t> latest;
-  static void SetLatest(uint64_t l) {
-    latest.store(l, std::memory_order_relaxed);
+  uint64_t Next(bool is_insert_occurs = false) { 
+    uint64_t max = is_insert_occurs ? latest.load(std::memory_order_relaxed) : max_;
+    return Next(max);
   }
 
-  // Reference Implementation: https://github.com/brianfrankcooper/YCSB/blob/master/core/src/main/java/site/ycsb/generator/SkewedLatestGenerator.java
+  /* Latest Distribution */
+  // Reference Implementation:
+  // https://github.com/brianfrankcooper/YCSB/blob/master/core/src/main/java/site/ycsb/generator/SkewedLatestGenerator.java
+  static std::atomic<uint64_t> latest;
+  static uint64_t XAdd() {
+    //SPDLOG_ERROR("insert {}", latest.load());
+    return latest.fetch_add(1);
+  }
   static uint64_t LatestNext(RandomGenerator* rand) {
-    const auto lt = latest.load(std::memory_order_relaxed);
-    const auto next = lt - rand->Next();
-    SetLatest(next);
+    const auto lt = latest.load();
+    const auto next = lt - rand->Next(lt);
+    //SPDLOG_ERROR("max: {}, next: {}", lt, next);
     return next;
   }
 
  private:
-  double zeta(uint64_t n) {
-    double sum = 0;
-    for (uint64_t i = 0; i < n; i++) { sum += 1 / std::pow(i + 1, theta_); }
+  double zeta(uint64_t st, uint64_t n, uint64_t initialsum) {
+    double sum = initialsum;
+    countforzeta_ = n;
+    for (uint64_t i = st; i < n; i++) {
+      sum += 1 / std::pow(i + 1, theta_);
+    }
     return sum;
   }
+
+  double zeta(uint64_t n) { return zeta(0, n, 0); }
 
  private:
   std::random_device seeder_;
@@ -85,8 +112,10 @@ class RandomGenerator {
   std::uniform_int_distribution<> uniform_;
 
   uint64_t max_;
+  uint64_t countforzeta_;
   double theta_;
   double zetan_;
+  double zeta2theta_;
   double alpha_;
   double eta_;
 };

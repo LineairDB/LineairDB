@@ -35,6 +35,7 @@ struct Workload {
   const Distribution distribution;
   size_t recordcount;
   double zipfian_theta;
+  bool has_insert;
 
   // following members are not apper in original YCSB paper
   size_t reps_per_txn;
@@ -51,6 +52,7 @@ struct Workload {
         rmw_proportion(m),
         distribution(d) {
     assert((r + u + i + s + m) == 100);
+    has_insert = 0 < insert_proportion;
   }
 
   static Workload GeneratePredefinedWorkload(std::string_view w) {

@@ -107,6 +107,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       operation;
 
   bool is_scan = false;
+  bool is_insert = false;
   {  // choose operation what I do
     size_t what_i_do  = rand->UniformRandom(99);
     size_t proportion = 0;
@@ -117,6 +118,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       operation = YCSB::Interface::Update;
     } else if (what_i_do < (proportion += workload.insert_proportion)) {
       operation = YCSB::Interface::Insert;
+      is_insert = true;
     } else if (what_i_do < (proportion += workload.scan_proportion)) {
       operation = YCSB::Interface::Scan;
       is_scan   = true;
@@ -132,12 +134,16 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 
   // choose target key
   for (size_t i = 0; i < workload.reps_per_txn; i++) {
-    if (workload.distribution == Distribution::Uniform) {
-      keys.emplace_back(std::to_string(rand->UniformRandom()));
-    } else if (workload.distribution == Distribution::Zipfian) {
-      keys.emplace_back(std::to_string(rand->Next()));
-    } else if (workload.distribution == Distribution::Latest) {
-      keys.emplace_back(std::to_string(RandomGenerator::LatestNext(rand)));
+    if (is_insert) {
+      keys.emplace_back(std::to_string(RandomGenerator::XAdd()));
+    } else {
+      if (workload.distribution == Distribution::Uniform) {
+        keys.emplace_back(std::to_string(rand->UniformRandom()));
+      } else if (workload.distribution == Distribution::Zipfian) {
+        keys.emplace_back(std::to_string(rand->Next(workload.has_insert)));
+      } else if (workload.distribution == Distribution::Latest) {
+        keys.emplace_back(std::to_string(RandomGenerator::LatestNext(rand)));
+      }
     }
   }
 
