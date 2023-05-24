@@ -46,7 +46,7 @@ void Scan(LineairDB::Transaction& tx, std::string_view begin,
   size_t hit = 0;
   tx.Scan(begin, end, [&](auto, auto) {
     hit++;
-    if (10 <= hit) return true;
+    if (100 <= hit) return true;
     return false;
   });
 }

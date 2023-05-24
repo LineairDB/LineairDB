@@ -29,6 +29,7 @@ class RandomGenerator {
   void Init(uint64_t items, double theta) {
     engine_ = std::mt19937(seeder_());
     uniform_ = std::uniform_int_distribution<>(0, items);
+    uniform_real_ = std::uniform_real_distribution<>(0.0, 1.0);
     max_ = items - 1;
     theta_ = theta;
     alpha_ = 1.0 / (1.0 - theta_);
@@ -43,6 +44,7 @@ class RandomGenerator {
   uint64_t Random() { return engine_(); }
   uint64_t BoundedRandom() { return engine_() % max_; }
   uint64_t UniformRandom() { return uniform_(engine_); }
+  double   UniformReal() { return uniform_real_(engine_); }
   uint64_t UniformRandom(uint64_t lower_bound, uint64_t upper_bound) {
     return std::uniform_int_distribution<>(lower_bound, upper_bound)(engine_);
   }
@@ -52,12 +54,18 @@ class RandomGenerator {
   bool IsIntialized() { return max_ != 0xdeadbeef; }
 
   uint64_t Next(uint64_t max) {
+    if (max != countforzeta_){ // recompute
+      if (max > countforzeta_){
+        zetan_ = zeta(countforzeta_, max, zetan_);
+        eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+      } else {
+        zetan_ = zeta(0, max, 0);
+        eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+      }
+    }
     assert(max >= countforzeta_);
 
-    zetan_ = zeta(countforzeta_, max_, zetan_);
-    eta_ = (1 - std::pow(2.0 / max_, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
-
-    double u = UniformRandom() / static_cast<double>(max);
+    double u = UniformReal();
     double uz = u * zetan_;
 
     if (uz < 1.0) {
@@ -110,6 +118,7 @@ class RandomGenerator {
   std::random_device seeder_;
   std::mt19937 engine_;
   std::uniform_int_distribution<> uniform_;
+  std::uniform_real_distribution<> uniform_real_;
 
   uint64_t max_;
   uint64_t countforzeta_;
