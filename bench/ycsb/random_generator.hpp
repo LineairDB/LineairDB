@@ -38,7 +38,8 @@ class RandomGenerator {
     eta_ = (1 - std::pow(2.0 / max_, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
 
     Next();
-    latest.store(max_);
+    uint64_t expected = 0;
+    latest.compare_exchange_strong(expected, items);
   }
 
   uint64_t Random() { return engine_(); }
@@ -94,12 +95,6 @@ class RandomGenerator {
   static uint64_t XAdd() {
     //SPDLOG_ERROR("insert {}", latest.load());
     return latest.fetch_add(1);
-  }
-  static uint64_t LatestNext(RandomGenerator* rand) {
-    const auto lt = latest.load();
-    const auto next = lt - rand->Next(lt);
-    //SPDLOG_ERROR("max: {}, next: {}", lt, next);
-    return next;
   }
 
  private:

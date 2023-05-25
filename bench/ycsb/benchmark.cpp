@@ -149,7 +149,10 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       } else if (workload.distribution == Distribution::Zipfian) {
         keys.emplace_back(std::to_string(rand->Next(workload.has_insert)));
       } else if (workload.distribution == Distribution::Latest) {
-        keys.emplace_back(std::to_string(RandomGenerator::LatestNext(rand)));
+        keys.emplace_back(std::to_string(rand->Next(workload.has_insert)));
+      } else {
+        SPDLOG_ERROR("not found");
+        exit(1);
       }
     }
   }
