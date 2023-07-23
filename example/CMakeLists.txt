@@ -25,7 +25,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics -fsanitize=address")
 endif()
 
-
 find_package(lineairdb REQUIRED)
 if (NOT lineairdb_FOUND)
     message(FATAL_ERROR
@@ -34,12 +33,4 @@ endif()
 
 add_executable(${PROJECT_NAME} example.cpp)
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-  target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb pthread)
-else()
-  if(APPLE) # Use libc++
-    target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb c++ stdc++fs atomic pthread)
-  else() # Use libstdc++
-    target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb stdc++ stdc++fs atomic pthread numa)
-  endif()
-endif()
+target_link_libraries(${PROJECT_NAME} lineairdb::lineairdb) 
