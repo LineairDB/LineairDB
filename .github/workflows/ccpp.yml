@@ -11,8 +11,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, macos-10.15]
-        compiler: [g++-9, clang++]
+        os: [ubuntu-latest, macos-latest]
+        compiler: [g++, clang++]
         build: [Debug, Release]
 
     runs-on: ${{ matrix.os }}
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v2
       # install dependencies
       - name: install dependencies (Mac)
-        if: matrix.os == 'macos-10.15'
+        if: matrix.os == 'macos-latest'
         run: brew install boost
       - name: install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -45,7 +45,7 @@ jobs:
           sudo make install
 
       - name: Set core dump
-        if: matrix.os != 'macos-10.15'
+        if: matrix.os != 'macos-latest'
         run: |
           sudo mkdir -p /cores
           ulimit -c unlimited
