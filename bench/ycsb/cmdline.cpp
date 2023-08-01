@@ -128,6 +128,9 @@ int main(int argc, char** argv) {
       "protocol", rapidjson::Value(protocol.c_str(), allocator), allocator);
   result_json.AddMember("threads", static_cast<uint64_t>(config.max_thread),
                         allocator);
+  result_json.AddMember("clients", static_cast<uint64_t>(workload.client_thread_size),
+                        allocator);
+  result_json.AddMember("handler", use_handler, allocator);
 
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
