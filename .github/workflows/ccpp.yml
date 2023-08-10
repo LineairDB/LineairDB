@@ -21,12 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       # install dependencies
-      - name: install dependencies (Mac)
-        if: matrix.os == 'macos-latest'
-        run: brew install boost
       - name: install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt update && sudo apt install -yq libboost-dev libnuma-dev
+        run: sudo apt update && sudo apt install -yq libnuma-dev
       - name: checkout submodules
         shell: bash
         run: |
