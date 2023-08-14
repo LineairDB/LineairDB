@@ -62,6 +62,8 @@ int main(int argc, char** argv) {
        cxxopts::value<std::string>()->default_value("SiloNWR"))  //
       ("l,log", "Enable logging",
        cxxopts::value<bool>()->default_value("false"))  //
+      ("P,checkpoint", "Enable checkpointing",
+       cxxopts::value<bool>()->default_value("false"))  //
       ("s,ws", "Size of working set for each transaction",
        cxxopts::value<size_t>()->default_value("4"))  //
       ("e,epoch", "Size of epoch duration",
@@ -128,6 +130,9 @@ int main(int argc, char** argv) {
       "protocol", rapidjson::Value(protocol.c_str(), allocator), allocator);
   result_json.AddMember("threads", static_cast<uint64_t>(config.max_thread),
                         allocator);
+  result_json.AddMember("clients", static_cast<uint64_t>(workload.client_thread_size),
+                        allocator);
+  result_json.AddMember("handler", use_handler, allocator);
 
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
