@@ -69,9 +69,16 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_library(${PROJECT_NAME} ${SOURCES})
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-find_package(Boost REQUIRED)
+find_package(Boost QUIET)
+if(Boost_FOUND)
+  include_directories(PRIVATE
+    ${Boost_INCLUDE_DIRS}
+  )
+else()
+  add_compile_definitions(MSGPACK_NO_BOOST=ON)
+endif()
 
-find_package(jemalloc)
+find_package(jemalloc QUIET)
 if(JEMALLOC_FOUND)
   if(NOT APPLE) # WANTFIX: it seems that googletest's TYPED_TEST, that are built
                 # with static linking of jemalloc, always result in SIGSEGV on
@@ -103,7 +110,6 @@ target_include_directories(
 target_include_directories(
   ${PROJECT_NAME} SYSTEM
   PUBLIC
-    ${Boost_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/rapidjson/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/concurrentqueue>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/spdlog/include>
