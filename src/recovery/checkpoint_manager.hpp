@@ -63,11 +63,16 @@ class CPRManager {
           const auto checkpoint_period = config_ref_.checkpoint_period;
           for (;;) {
             {  // REST Phase: sleep
+              auto start = std::chrono::high_resolution_clock::now();
               if (current_phase_.load() == Phase::REST) {
-                std::this_thread::sleep_for(
-                    std::chrono::seconds(checkpoint_period));
+                for (;;){
+                  std::this_thread::sleep_for(
+                    std::chrono::seconds(1));
+                  if (stop_.load()) return;
+                  auto now = std::chrono::high_resolution_clock::now();
+                  if (checkpoint_period <= std::chrono::duration_cast<std::chrono::seconds>(now - start).count()) break;
+                }
               }
-              if (stop_.load()) return;
             }
 
             {  // PREPARE to checkpointing: determine the snapshot epoch (SE)
