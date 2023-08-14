@@ -70,7 +70,7 @@ class CPRManager {
                     std::chrono::seconds(1));
                   if (stop_.load()) return;
                   auto now = std::chrono::high_resolution_clock::now();
-                  if (checkpoint_period <= std::chrono::duration_cast<std::chrono::seconds>(now - start).count()) break;
+                  if (checkpoint_period <= static_cast<size_t>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count())) break;
                 }
               }
             }
