@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "C++ fast transactional key-value storage."
+message: "If you use this software, please cite it as below."
+authors:
+- name: "LineairDB contributors"
+title: "LineairDB"
+version: 1.0.0
+date-released: 2020-4-28
+url: "https://github.com/lineairdb/lineairdb"
+repository-code: "https://github.com/lineairdb/lineairdb"
+license: Apache-2.0
