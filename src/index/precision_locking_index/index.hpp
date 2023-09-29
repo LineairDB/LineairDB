@@ -32,7 +32,8 @@ namespace Index {
 template <typename T>
 class HashTableWithPrecisionLockingIndex {
  public:
-  HashTableWithPrecisionLockingIndex(EpochFramework& e) : range_index_(e) {}
+  HashTableWithPrecisionLockingIndex(Config c, EpochFramework& e)
+      : point_index_(c.rehash_threshold), range_index_(e) {}
 
   T* Get(const std::string_view key) { return point_index_.Get(key); }
 

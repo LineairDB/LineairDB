@@ -28,6 +28,11 @@ option(BUILD_TESTS "Build testing executables" ON)
 option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
 option(BUILD_SANITIZER "Build with clang's address sanitizer" ON)
 
+# Build Parameters
+if (DEFINED PREFETCH_LOCALITY)
+  add_compile_definitions(PREFETCH_LOCALITY=${PREFETCH_LOCALITY})
+endif()
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(IS_TOPLEVEL_PROJECT TRUE)
 endif()
