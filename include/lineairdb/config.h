@@ -150,7 +150,7 @@ struct Config {
    *
    * Default: 75 (percent)
    */
-  size_t rehash_threshold = 75;
+  double rehash_threshold = 0.75;
 
   /**
    * @brief
