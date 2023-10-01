@@ -30,6 +30,10 @@
 #include "types/definitions.h"
 #include "util/epoch_framework.hpp"
 
+#ifndef PREFETCH_LOCALITY
+#define PREFETCH_LOCALITY 3
+#endif
+
 namespace LineairDB {
 namespace Index {
 
@@ -60,7 +64,6 @@ class MPMCConcurrentSetImpl {
   //             std::hardware_destructive_interference_size);
 
   static constexpr size_t InitialTableSize = 1024;
-  static constexpr double RehashThreshold  = 0.75;
   static constexpr uintptr_t RedirectedPtr = 0x4B1D;
   inline static bool IsRedirectedPtr(void* ptr) {
     return reinterpret_cast<uintptr_t>(ptr) == RedirectedPtr;
@@ -78,10 +81,12 @@ class MPMCConcurrentSetImpl {
   using TableType = std::vector<std::atomic<TableNode*>>;
 
  public:
-  MPMCConcurrentSetImpl()
-      : table_(new TableType(InitialTableSize)), populated_count_(0) {
-    epoch_framework_.Start();
-  }
+  explicit MPMCConcurrentSetImpl(double r = 0.75)
+    : rehash_threshold_(r),
+      table_(new TableType(InitialTableSize)),
+      populated_count_(0) {
+        epoch_framework_.Start();
+      }
   ~MPMCConcurrentSetImpl();
   T* Get(const std::string_view);
   bool Put(const std::string_view, const T* const);
@@ -95,6 +100,7 @@ class MPMCConcurrentSetImpl {
   bool Rehash();
 
  private:
+  const double rehash_threshold_;
   std::atomic<TableType*> table_;
   std::atomic<size_t> populated_count_;
   std::mutex table_lock_;
@@ -114,7 +120,7 @@ template <typename T>
 T* MPMCConcurrentSetImpl<T>::Get(const std::string_view key) {
   epoch_framework_.MakeMeOnline();
   auto* table = table_.load(std::memory_order::memory_order_relaxed);
-  __builtin_prefetch(table, 0, 3);
+  __builtin_prefetch(table, 0, PREFETCH_LOCALITY);
   size_t hash    = Hash(key, table);
   auto* bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
   T* return_value_p = nullptr;
@@ -126,7 +132,7 @@ T* MPMCConcurrentSetImpl<T>::Get(const std::string_view key) {
       table    = table_.load();
       hash     = Hash(key, table);
       bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
-      __builtin_prefetch(bucket_p, 0, 3);
+      __builtin_prefetch(bucket_p, 0, PREFETCH_LOCALITY);
       continue;
     }
 
@@ -180,7 +186,7 @@ bool MPMCConcurrentSetImpl<T>::Put(const std::string_view key,
         const double current_fill_rate =
             (current_stored / static_cast<double>(table->size()));
         epoch_framework_.MakeMeOffline();
-        if (RehashThreshold < current_fill_rate) { Rehash(); }
+        if (rehash_threshold_ < current_fill_rate) { Rehash(); }
         return true;
       } else {
         continue;
@@ -207,7 +213,7 @@ bool MPMCConcurrentSetImpl<T>::Rehash() {
   std::lock_guard<std::mutex> lock(table_lock_);
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   if ((populated_count_.load() / static_cast<double>(table->size())) <
-      RehashThreshold) {
+      rehash_threshold_) {
     // someone else has been rehashed the table.
     return false;
   }

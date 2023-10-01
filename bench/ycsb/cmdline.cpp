@@ -64,6 +64,10 @@ int main(int argc, char** argv) {
        cxxopts::value<bool>()->default_value("false"))  //
       ("P,checkpoint", "Enable checkpointing",
        cxxopts::value<bool>()->default_value("false"))  //
+      ("i,checkpoint_interval", "Checkpoint interval",
+       cxxopts::value<size_t>()->default_value("30"))  //
+      ("r,rehash_threshold", "Rehash threshold of the hash index (percent)",
+       cxxopts::value<double>()->default_value("0.75"))  //
       ("s,ws", "Size of working set for each transaction",
        cxxopts::value<size_t>()->default_value("4"))  //
       ("e,epoch", "Size of epoch duration",
@@ -100,6 +104,8 @@ int main(int argc, char** argv) {
   config.enable_logging               = result["log"].as<bool>();
   config.max_thread                   = result["thread"].as<size_t>();
   config.epoch_duration_ms            = result["epoch"].as<size_t>();
+  config.checkpoint_period            = result["checkpoint_interval"].as<size_t>();
+  config.rehash_threshold             = result["rehash_threshold"].as<double>();
   LineairDB::Database db(config);
 
   const auto use_handler = result["handler"].as<bool>();
