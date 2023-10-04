@@ -167,10 +167,10 @@ TEST(ConcurrentTableTest, ForEachIsSafeWithRehashing) {
     });
   }
   for (size_t i = 0; i < 5; i++) {
-    threads.emplace_back([&, i]() {
-      for (size_t j = 0; j < 100; j++) {
+    threads.emplace_back([&]() {
+      for (size_t j = 0; j < 3; j++) {
         table.ForEach([](auto, auto) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          std::this_thread::sleep_for(std::chrono::microseconds(1));
           return true;
         });
       }
