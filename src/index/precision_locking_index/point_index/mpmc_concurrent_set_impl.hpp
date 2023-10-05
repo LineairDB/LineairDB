@@ -306,13 +306,17 @@ void MPMCConcurrentSetImpl<T>::Clear() {
 template <typename T>
 void MPMCConcurrentSetImpl<T>::ForEach(
     std::function<bool(std::string_view, T&)> f) {
+  std::lock_guard<std::mutex> lock(table_lock_);
+  epoch_framework_.MakeMeOnline();
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   for (auto& bucket_atm : *table) {
     auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
     if (node == nullptr) continue;
+    assert(!IsRedirectedPtr(node));
     auto is_success = f(node->key, *const_cast<T*>(node->value));
     if (!is_success) break;
   }
+  epoch_framework_.MakeMeOffline();
 }
 
 }  // namespace Index
