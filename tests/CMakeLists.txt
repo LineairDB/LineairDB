@@ -18,7 +18,6 @@ macro(register_test testfile testfilepath)
   add_executable(${testfile} ${CMAKE_CURRENT_LIST_DIR}/${testfilepath})
   target_link_libraries(${testfile} ${PROJECT_NAME} gtest_main)
   target_include_directories(${testfile} PRIVATE
-    ${Boost_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/concurrentqueue>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>

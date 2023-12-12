@@ -43,11 +43,11 @@ class Database::Impl {
   Impl(const Config& c = Config())
       : config_(c),
         thread_pool_(c.max_thread),
-        logger_(c),
-        callback_manager_(c),
+        logger_(config_),
+        callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        index_(epoch_framework_, c),
-        checkpoint_manager_(c, index_, epoch_framework_) {
+        index_(epoch_framework_, config_),
+        checkpoint_manager_(config_, index_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");

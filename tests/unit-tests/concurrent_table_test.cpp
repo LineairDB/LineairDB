@@ -146,3 +146,37 @@ TEST(ConcurrentTableTest, TremendousGetAndPut) {
   }
   for (auto& thread : threads) { thread.join(); }
 }
+
+TEST(ConcurrentTableTest, ForEachIsSafeWithRehashing) {
+  // Test scenario: #Rehash and #ForEach are concurrently executed.
+  std::vector<std::thread> threads;
+  std::vector<LineairDB::DataItem*> items;
+  LineairDB::EpochFramework epoch(1);
+  LineairDB::Config config;
+  config.rehash_threshold = 0.3;
+  epoch.Start();
+  LineairDB::Index::ConcurrentTable table(epoch);
+
+  constexpr size_t working_set_size = 8192;
+  for (size_t i = 0; i < 5; i++) {
+    threads.emplace_back([&, i]() {
+      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size;
+           j++) {
+        table.Put(std::to_string(j), {});
+      }
+    });
+  }
+  for (size_t i = 0; i < 5; i++) {
+    threads.emplace_back([&]() {
+      for (size_t j = 0; j < 3; j++) {
+        table.ForEach([](auto, auto) {
+          std::this_thread::sleep_for(std::chrono::microseconds(1));
+          return true;
+        });
+      }
+    });
+  }
+  for (auto& thread : threads) {
+    thread.join();
+  }
+}

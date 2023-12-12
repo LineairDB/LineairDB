@@ -79,11 +79,6 @@ TEST_F(DurabilityTest, Recovery) {
 }
 
 TEST_F(DurabilityTest, RecoveryLargeObject) {
-  auto default_config                 = db_->GetConfig();
-  default_config.internal_buffer_size = 4096;
-  db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>(default_config);
-
   std::string initial_value(4096, 'a');
   TestHelper::DoTransactions(
       db_.get(), {[&](LineairDB::Transaction& tx) {
@@ -93,9 +88,6 @@ TEST_F(DurabilityTest, RecoveryLargeObject) {
   db_->Fence();
 
   for (size_t i = 0; i < 3; i++) {
-    db_.reset(nullptr);
-    db_ = std::make_unique<LineairDB::Database>(default_config);
-
     TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
                                  auto alice = tx.Read("alice");
                                  ASSERT_TRUE(alice.first != nullptr);

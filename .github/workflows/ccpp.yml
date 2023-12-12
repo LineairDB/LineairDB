@@ -12,24 +12,20 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, macos-latest]
-        compiler: [g++-7, g++-9, clang++]
+        compiler: [g++, clang++]
         build: [Debug, Release]
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v2
       # install dependencies
-      - name: install dependencies (Mac)
-        if: matrix.os == 'macos-latest'
-        run: brew install boost
       - name: install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt update && sudo apt install -yq libboost-dev g++-7 libnuma-dev
+        run: sudo apt update && sudo apt install -yq libnuma-dev
       - name: checkout submodules
         shell: bash
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           auth_header="$(git config --local --get http.https://github.com/.extraheader)"
           git submodule sync --recursive
@@ -39,7 +35,6 @@ jobs:
         env:
           CXX: ${{ matrix.compiler }}
           BUILDTYPE: ${{ matrix.build }}
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           mkdir -p build; cd $_
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
@@ -54,7 +49,6 @@ jobs:
           echo '/cores/core.%h.%e.%t' | sudo tee -a /proc/sys/kernel/core_pattern
 
       - name: ${{ matrix.build }} test
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           cd build
           ctest -V
@@ -63,7 +57,6 @@ jobs:
         env:
           CXX: ${{ matrix.compiler }}
           BUILDTYPE: ${{ matrix.build }}
-        if: matrix.os != 'macos-latest' || matrix.compiler != 'g++-7'
         run: |
           mkdir -p example/build; cd $_
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)

@@ -28,6 +28,11 @@ option(BUILD_TESTS "Build testing executables" ON)
 option(BUILD_BENCHMARKS "Build benchmarking executables" ON)
 option(BUILD_SANITIZER "Build with clang's address sanitizer" ON)
 
+# Build Parameters
+if (DEFINED PREFETCH_LOCALITY)
+  add_compile_definitions(PREFETCH_LOCALITY=${PREFETCH_LOCALITY})
+endif()
+
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(IS_TOPLEVEL_PROJECT TRUE)
 endif()
@@ -42,7 +47,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_C_FLAGS "--std=c99")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -mcx16 -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -fPIC")
+if (NOT APPLE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcx16")
+endif()
+if(NOT IS_TOPLEVEL_PROJECT)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftls-model=local-dynamic")
+endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG
     "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
@@ -66,9 +77,16 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_library(${PROJECT_NAME} ${SOURCES})
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
-find_package(Boost REQUIRED)
+find_package(Boost QUIET)
+if(Boost_FOUND)
+  include_directories(PRIVATE
+    ${Boost_INCLUDE_DIRS}
+  )
+else()
+  add_compile_definitions(MSGPACK_NO_BOOST=ON)
+endif()
 
-find_package(jemalloc)
+find_package(jemalloc QUIET)
 if(JEMALLOC_FOUND)
   if(NOT APPLE) # WANTFIX: it seems that googletest's TYPED_TEST, that are built
                 # with static linking of jemalloc, always result in SIGSEGV on
@@ -100,9 +118,7 @@ target_include_directories(
 target_include_directories(
   ${PROJECT_NAME} SYSTEM
   PUBLIC
-    ${Boost_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/rapidjson/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/libcuckoo>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/concurrentqueue>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/spdlog/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/msgpack/include>)
