@@ -37,7 +37,7 @@ struct TransactionReferences {
 class ConcurrencyControlBase {
  public:
   ConcurrencyControlBase(TransactionReferences&& tx) : tx_ref_(tx) {}
-  virtual ~ConcurrencyControlBase(){};
+  virtual ~ConcurrencyControlBase(){}
   virtual const DataItem Read(std::string_view, DataItem*) = 0;
   virtual void Write(const std::string_view key, const std::byte* const value,
                      const size_t size, DataItem*)         = 0;

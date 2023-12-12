@@ -76,7 +76,7 @@ class HashTableWithPrecisionLockingIndex {
       auto* value = Get(key);
       return operation(key, *value);
     });
-  };
+  }
 
   /**
    * @brief Scan without values; that is, an interface to collect only keys from
@@ -86,11 +86,11 @@ class HashTableWithPrecisionLockingIndex {
                              const std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation) {
     return range_index_.Scan(begin, end, operation);
-  };
+  }
 
   void ForEach(std::function<bool(std::string_view, T&)> f) {
     point_index_.ForEach(f);
-  };
+  }
 
  private:
   MPMCConcurrentSetImpl<T> point_index_;

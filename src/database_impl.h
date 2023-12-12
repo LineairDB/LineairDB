@@ -57,6 +57,7 @@ class Database::Impl {
           "the same time.");
       exit(1);
     }
+    DataBuffer::SetDefaultBufferSize(config_.internal_buffer_size);
     if (config_.enable_recovery) { Recovery(); }
     epoch_framework_.Start();
   }

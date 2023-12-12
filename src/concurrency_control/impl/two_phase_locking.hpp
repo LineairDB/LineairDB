@@ -44,7 +44,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
   TwoPhaseLockingImpl(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)) {}
 
-  ~TwoPhaseLockingImpl() final override{};
+  ~TwoPhaseLockingImpl() final override{}
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {
@@ -68,7 +68,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     DataItem snapshot_item = *index_leaf;
 
     return snapshot_item;
-  };
+  }
   void Write(const std::string_view key, const std::byte* const value,
              const size_t size, DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
@@ -108,7 +108,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     undo_set_.emplace_back(std::make_pair(index_leaf, copy_for_undo));
 
     index_leaf->Reset(value, size);
-  };
+  }
 
   void Abort() final override {
     if (tx_ref_.current_status_ref_ == TxStatus::Aborted) {
@@ -120,7 +120,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
       Undo();
       PostProcessing(TxStatus::Aborted);
     }
-  };
+  }
   bool Precommit(bool need_to_checkpoint) final override {
     if (need_to_checkpoint) {
       for (auto& snapshot : tx_ref_.write_set_ref_) {
@@ -129,7 +129,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     }
 
     return true;
-  };
+  }
 
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 

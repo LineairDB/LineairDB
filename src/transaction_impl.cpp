@@ -192,8 +192,7 @@ bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
 Transaction::Transaction(void* db_pimpl) noexcept
     : tx_pimpl_(
-          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {
-}
+          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))){}
 Transaction::~Transaction() noexcept = default;
 
 }  // namespace LineairDB
