@@ -46,7 +46,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
     std::vector<std::future<void>> futures;
     const size_t thread_size            = std::thread::hardware_concurrency();
     const size_t per_worker_insert_size = db_size / thread_size;
-    std::byte buffer[buffer_size];
+    std::vector<std::byte> buffer(buffer_size);
 
     for (size_t i = 0; i < thread_size; i++) {
       futures.push_back(std::async(std::launch::async, [&, i]() {
@@ -56,7 +56,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
                 const size_t from = i * per_worker_insert_size;
                 const size_t to   = (i + 1) * per_worker_insert_size - 1;
                 for (size_t j = from; j < to; j++) {
-                  tx.Write(std::to_string(j), buffer, buffer_size);
+                  tx.Write(std::to_string(j), buffer.data(), buffer.size());
                 }
               },
               []([[maybe_unused]] LineairDB::TxStatus result) {
