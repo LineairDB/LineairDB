@@ -21,7 +21,7 @@
 
 #include <atomic>
 #include <chrono>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -35,7 +35,7 @@ class DurabilityTest : public ::testing::Test {
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
-    std::experimental::filesystem::remove_all("lineairdb_logs");
+    std::filesystem::remove_all("lineairdb_logs");
     config_.max_thread           = 4;
     config_.enable_logging       = true;
     config_.enable_recovery      = true;
@@ -153,7 +153,7 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
 }
 
 size_t getLogDirectorySize(const LineairDB::Config& conf) {
-  namespace fs = std::experimental::filesystem;
+  namespace fs = std::filesystem;
   size_t size  = 0;
   for (const auto& entry : fs::directory_iterator(conf.work_dir)) {
     if (entry.path().filename().generic_string().find("working") !=

@@ -21,7 +21,7 @@
 
 #include <atomic>
 #include <chrono>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -34,7 +34,7 @@ class HandlerTransactionTest : public ::testing::Test {
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
-    std::experimental::filesystem::remove_all("lineairdb_logs");
+    std::filesystem::remove_all("lineairdb_logs");
     config_.checkpoint_period = 1;
     config_.max_thread        = 4;
     db_                       = std::make_unique<LineairDB::Database>(config_);

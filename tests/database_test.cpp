@@ -19,7 +19,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -34,7 +34,7 @@ class DatabaseTest : public ::testing::Test {
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
-    std::experimental::filesystem::remove_all(config_.work_dir);
+    std::filesystem::remove_all(config_.work_dir);
     config_.max_thread        = 4;
     config_.checkpoint_period = 1;
     config_.epoch_duration_ms = 100;

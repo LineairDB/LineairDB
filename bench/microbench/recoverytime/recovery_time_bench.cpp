@@ -21,7 +21,7 @@
 
 #include <cassert>
 #include <cxxopts.hpp>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <fstream>
 #include <future>
 #include <iostream>
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
   const size_t buffer_size = result["buffersize"].as<size_t>();
   const size_t updates     = result["updates"].as<size_t>();
 
-  std::experimental::filesystem::remove_all("lineairdb_logs");
+  std::filesystem::remove_all("lineairdb_logs");
 
   /** run benchmark **/
   uint64_t elapsed_ms = benchmark(db_size, buffer_size, updates);
