@@ -16,6 +16,10 @@ It is no worse in terms of cache efficiency, but it is better to forbid that a c
 
 #### Support CLI.
 
+#### Read-only Multiversion (ROMV)
+
+If a user gives a hint, like a read-only flag, to a transaction, it can be executed without coordination, such as locking or validation, while preserving its correctness. 
+
 ### Next Release
 
 - Additional concurrency control protocols (MVTO, MVTO+NWR)
