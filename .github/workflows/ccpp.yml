@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       # install dependencies
       - name: install dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -63,7 +63,7 @@ jobs:
           make
           ./lineairdb-example
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: core
