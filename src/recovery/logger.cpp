@@ -44,7 +44,7 @@ Logger::Logger(const Config& config)
       durable_epoch_(0),
       durable_epoch_working_file_(DurableEpochNumberWorkingFileName,
                                   std::ofstream::trunc) {
-  std::experimental::filesystem::create_directory(config.work_dir);
+  std::filesystem::create_directory(config.work_dir);
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
     case Config::Logger::ThreadLocalLogger:

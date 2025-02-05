@@ -48,7 +48,7 @@ class ConcurrencyControlTest
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
   virtual void TearDown() {
-    std::experimental::filesystem::remove_all("lineairdb_logs");
+    std::filesystem::remove_all("lineairdb_logs");
   }
 };
 

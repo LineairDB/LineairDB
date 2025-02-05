@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  std::experimental::filesystem::remove_all("lineairdb_logs");
+  std::filesystem::remove_all("lineairdb_logs");
 
   /** Initialize LineairDB **/
   LineairDB::Config config;
