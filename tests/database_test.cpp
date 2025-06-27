@@ -248,7 +248,7 @@ TEST_F(DatabaseTest, SecondaryIndexBasic) {
   ASSERT_TRUE(age_opt.has_value());
   ASSERT_EQ(user_value, age_opt.value());
 
-  auto pk_opt = users_table->Get<std::string>(secondary_key);
+  auto pk_opt = users_table->Get<std::string>("email", secondary_key);
   ASSERT_TRUE(pk_opt.has_value());
   ASSERT_EQ(primary_key, pk_opt.value());
 }
