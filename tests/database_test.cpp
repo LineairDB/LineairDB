@@ -230,11 +230,11 @@ TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
 
   auto& tx = db_->BeginTransaction();
   int age = 42;
-  // プライマリキー登録
+  // Primary key registration
   // Write(table, primary_key, value)
   tx.Write<int>("users", "user#1", age);
 
-  // セカンダリキー登録
+  // Secondary key registration
   // Write(table, index_name, secondary_key, primary_key)
   tx.Write<std::string>("users", "email", "alice@example.com", "user#1");
   db_->EndTransaction(tx, [](auto s) {
@@ -242,7 +242,7 @@ TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
   });
 
   auto& rtx = db_->BeginTransaction();
-  // セカンダリキー検索
+  // Secondary key search
   // Read(table, index_name, secondary_key)
   auto pk   = rtx.Read<std::string>("users", "email", "alice@example.com");
   auto val  = rtx.Read<int>("users", pk.value());
