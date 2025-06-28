@@ -210,47 +210,43 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
 }
 
 // [Secondary Index TDD] ------------------------------------------------------
-// 1. テーブル作成 API のテスト
-//構造
-//database -> Table -> ConcurrentTables(primary, secondaries)
 TEST_F(DatabaseTest, CreateTable) {
-  // テーブル名 "users" の生成が例外なく行えること
-  ASSERT_NO_THROW({
-    auto* users_table = db_->CreateTable("users");
-    ASSERT_NE(users_table, nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  bool success = db_->CreateTable("users");
+  ASSERT_TRUE(success);
+}
+
+TEST_F(DatabaseTest, CreateSecondaryIndex) {
+  db_ = std::make_unique<LineairDB::Database>();
+  bool success = db_->CreateTable("users");
+  bool index_success = db_->CreateSecondaryIndex("users", "name");
+  ASSERT_TRUE(index_success && success);
+}
+
+TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
+  db_ = std::make_unique<LineairDB::Database>();
+  db_->CreateTable("users");
+  db_->CreateSecondaryIndex("users", "email");
+
+  auto& tx = db_->BeginTransaction();
+  int age = 42;
+  // プライマリキー登録
+  // Write(table, primary_key, value)
+  tx.Write<int>("users", "user#1", age);
+
+  // セカンダリキー登録
+  // Write(table, index_name, secondary_key, primary_key)
+  tx.Write<std::string>("users", "email", "alice@example.com", "user#1");
+  db_->EndTransaction(tx, [](auto s) {
+    ASSERT_EQ(LineairDB::TxStatus::Committed, s);
   });
+
+  auto& rtx = db_->BeginTransaction();
+  // セカンダリキー検索
+  // Read(table, index_name, secondary_key)
+  auto pk   = rtx.Read<std::string>("users", "email", "alice@example.com");
+  auto val  = rtx.Read<int>("users", pk.value());
+  ASSERT_EQ(age, val.value());
+  db_->EndTransaction(rtx, [](auto){});
 }
-
-// 2. セカンダリインデックスを用いた基本操作のテスト
-//    - プライマリキーでデータ登録
-//    - セカンダリキーでプライマリキーを登録
-//    - プライマリキー取得 → DataItem* が返る
-//    - セカンダリキー取得 → 対応するプライマリキーが返る
-TEST_F(DatabaseTest, SecondaryIndexBasic) {
-  // 前準備: テーブルとインデックスの生成
-  auto* users_table = db_->CreateTable("users");
-  ASSERT_NE(users_table, nullptr);
-  ASSERT_TRUE(users_table->CreateSecondaryIndex("email"));
-
-  // データ登録
-  const std::string primary_key   = "user#1";
-  const std::string secondary_key = "alice@example.com";
-  int user_value                  = 42;
-
-  // プライマリ登録
-  ASSERT_TRUE(users_table->Put<int>(primary_key, user_value));
-
-  // セカンダリ登録 (index "email" に secondary -> primary を保持)
-  ASSERT_TRUE(users_table->Put("email", secondary_key, primary_key));
-
-  // --- 検索 ---
-  auto age_opt = users_table->Get<int>(primary_key);
-  ASSERT_TRUE(age_opt.has_value());
-  ASSERT_EQ(user_value, age_opt.value());
-
-  auto pk_opt = users_table->Get<std::string>("email", secondary_key);
-  ASSERT_TRUE(pk_opt.has_value());
-  ASSERT_EQ(primary_key, pk_opt.value());
-}
-
 // ------------
