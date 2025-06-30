@@ -208,3 +208,45 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
          ASSERT_EQ(0, tx.Read("bob").second);
        }});
 }
+
+// [Secondary Index TDD] ------------------------------------------------------
+TEST_F(DatabaseTest, CreateTable) {
+  db_ = std::make_unique<LineairDB::Database>();
+  bool success = db_->CreateTable("users");
+  ASSERT_TRUE(success);
+}
+
+TEST_F(DatabaseTest, CreateSecondaryIndex) {
+  db_ = std::make_unique<LineairDB::Database>();
+  bool success = db_->CreateTable("users");
+  bool index_success = db_->CreateSecondaryIndex("users", "name");
+  ASSERT_TRUE(index_success && success);
+}
+
+TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
+  db_ = std::make_unique<LineairDB::Database>();
+  db_->CreateTable("users");
+  db_->CreateSecondaryIndex("users", "email");
+
+  auto& tx = db_->BeginTransaction();
+  int age = 42;
+  // Primary key registration
+  // Write(table, primary_key, value)
+  tx.Write<int>("users", "user#1", age);
+
+  // Secondary key registration
+  // Write(table, index_name, secondary_key, primary_key)
+  tx.Write<std::string>("users", "email", "alice@example.com", "user#1");
+  db_->EndTransaction(tx, [](auto s) {
+    ASSERT_EQ(LineairDB::TxStatus::Committed, s);
+  });
+
+  auto& rtx = db_->BeginTransaction();
+  // Secondary key search
+  // Read(table, index_name, secondary_key)
+  auto pk   = rtx.Read<std::string>("users", "email", "alice@example.com");
+  auto val  = rtx.Read<int>("users", pk.value());
+  ASSERT_EQ(age, val.value());
+  db_->EndTransaction(rtx, [](auto){});
+}
+// ------------
