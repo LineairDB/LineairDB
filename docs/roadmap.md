@@ -24,3 +24,5 @@ If a user gives a hint, like a read-only flag, to a transaction, it can be execu
 
 - Additional concurrency control protocols (MVTO, MVTO+NWR)
 - TPC-C benchmark
+- Secondary Index
+- Multiple Table
