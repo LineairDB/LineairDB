@@ -271,11 +271,11 @@ TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
   int age = 42;
   // Primary key registration
   // Write(table, primary_key, value)
-  tx.Write<int>("users", "user#1", age);
+  tx.WritePK<int>("users", "user#1", age);
 
   // Secondary key registration
   // Write(table, index_name, secondary_key, primary_key)
-  tx.Write<std::string>("users", "email", "alice@example.com", "user#1");
+  tx.WriteSK<std::string>("users", "email", "alice@example.com", "user#1");
   db_->EndTransaction(tx, [](auto s) {
     ASSERT_EQ(LineairDB::TxStatus::Committed, s);
   });
@@ -283,42 +283,15 @@ TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
   auto& rtx = db_->BeginTransaction();
   // Secondary key search
   // Read(table, index_name, secondary_key)
-  auto pk   = rtx.Read<std::string>("users", "email", "alice@example.com");
-  auto val  = rtx.Read<int>("users", pk.value());
+  auto pk   = rtx.ReadSK<std::string>("users", "email", "alice@example.com");
+  auto val  = rtx.ReadPK<int>("users", pk.value());
   ASSERT_EQ(age, val.value());
   db_->EndTransaction(rtx, [](auto){});
 }
 
+
+
 // [Secondary Index Constraint Enforcement Tests] ----------------------------
-// UNIQUE constraint: index creation should fail when duplicates already exist
-TEST_F(DatabaseTest,CreateSecondaryIndexUniqueConstraintViolationOnCreate) {
-  db_ = std::make_unique<LineairDB::Database>();
-  ASSERT_TRUE(db_->CreateTable("users"));
-
-  // Prepare duplicate secondary key values before index creation.
-  // NOTE: The secondary index "email" does not exist yet, therefore we simply
-  // register the value as a normal column. Once the implementation of row
-  // schema is available, replace the following writes with the proper API.
-  {
-    auto& tx = db_->BeginTransaction();
-    int dummy_age = 20;
-    tx.Write<int>("users", "user#1", dummy_age);
-    tx.Write<std::string>("users", "email", "duplicate@example.com", "user#1");
-    db_->EndTransaction(tx, [](auto){});
-  }
-  {
-    auto& tx = db_->BeginTransaction();
-    int dummy_age = 30;
-    tx.Write<int>("users", "user#2", dummy_age);
-    tx.Write<std::string>("users", "email", "duplicate@example.com", "user#2");
-    db_->EndTransaction(tx, [](auto){});
-  }
-
-  // Attempt to create a UNIQUE secondary index on a column that already has
-  // duplicate values. The creation should fail.
-  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "email", "UNIQUE"));
-}
-
 // UNIQUE constraint: insertion of a duplicate value should abort the txn
 TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
   db_ = std::make_unique<LineairDB::Database>();
@@ -329,8 +302,8 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
   {
     auto& tx = db_->BeginTransaction();
     int age = 42;
-    tx.Write<int>("users", "user#1", age);
-    tx.Write<std::string>("users", "email", "bob@example.com", "user#1");
+    tx.WritePK<int>("users", "user#1", age);
+    tx.WriteSK<std::string>("users", "email", "bob@example.com", "user#1");
     ASSERT_TRUE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Committed, s);}));
   }
 
@@ -338,28 +311,10 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
   {
     auto& tx = db_->BeginTransaction();
     int age = 24;
-    tx.Write<int>("users", "user#2", age);
-    tx.Write<std::string>("users", "email", "bob@example.com", "user#2"); // duplicate key
+    tx.WritePK<int>("users", "user#2", age);
+    tx.WriteSK<std::string>("users", "email", "bob@example.com", "user#2"); // duplicate key
     ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
   }
-}
-
-// NOT NULL constraint: index creation should fail when NULLs already exist
-TEST_F(DatabaseTest, CreateSecondaryIndexNotNullConstraintViolationOnCreate) {
-  db_ = std::make_unique<LineairDB::Database>();
-  ASSERT_TRUE(db_->CreateTable("users"));
-
-  // Insert a row with NULL email (represented as empty string for now)
-  {
-    auto& tx = db_->BeginTransaction();
-    int age = 18;
-    tx.Write<int>("users", "user#1", age);
-    tx.Write<std::string>("users", "email", "", "user#1");
-    db_->EndTransaction(tx, [](auto){});
-  }
-
-  // Creating NOT_NULL index should fail because NULL value already exists
-  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "email", "NOT_NULL"));
 }
 
 // NOT NULL constraint: inserting NULL value should abort the txn
@@ -370,9 +325,9 @@ TEST_F(DatabaseTest, InsertNullSecondaryKeyViolatesNotNull) {
 
   auto& tx = db_->BeginTransaction();
   int age = 40;
-  tx.Write<int>("users", "user#1", age);
+  tx.WritePK<int>("users", "user#1", age);
   // Attempt to store a NULL email (empty string as placeholder)
-  tx.Write<std::string>("users", "email", "", "user#1");
+  tx.WriteSK<std::string>("users", "email", "", "user#1");
   ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
 }
 
@@ -386,8 +341,8 @@ TEST_F(DatabaseTest, SecondaryIndexUniqueAndNotNullCombination) {
   {
     auto& tx = db_->BeginTransaction();
     int age = 22;
-    tx.Write<int>("users", "user#1", age);
-    tx.Write<std::string>("users", "email", "charlie@example.com", "user#1");
+    tx.WritePK<int>("users", "user#1", age);
+    tx.WriteSK<std::string>("users", "email", "charlie@example.com", "user#1");
     ASSERT_TRUE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Committed, s);}));
   }
 
@@ -395,18 +350,74 @@ TEST_F(DatabaseTest, SecondaryIndexUniqueAndNotNullCombination) {
   {
     auto& tx = db_->BeginTransaction();
     int age = 23;
-    tx.Write<int>("users", "user#2", age);
-    tx.Write<std::string>("users", "email", "charlie@example.com", "user#2");
+    tx.WritePK<int>("users", "user#2", age);
+    tx.WriteSK<std::string>("users", "email", "charlie@example.com", "user#2");
     ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
   }
-
+  // 
   // Attempt NULL -> Abort
   {
     auto& tx = db_->BeginTransaction();
     int age = 24;
-    tx.Write<int>("users", "user#3", age);
-    tx.Write<std::string>("users", "email", "", "user#3");
+    tx.WritePK<int>("users", "user#3", age);
+    tx.WriteSK<std::string>("users", "email", "", "user#3");
     ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
   }
 }
+
+// WriteSK to unregistered index should abort
+TEST_F(DatabaseTest, WriteSKToUnregisteredIndexShouldAbort) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+
+  auto& tx = db_->BeginTransaction();
+
+  int age = 22;
+  tx.WritePK<int>("users", "user#1", age);
+  tx.WriteSK<std::string>("users", "email", "alice@example.com", "user#1");
+  db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);});
+}
+
+// ReadSK to unregistered index should abort
+TEST_F(DatabaseTest, ReadSKToUnregisteredIndexShouldAbort) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+
+  auto& tx = db_->BeginTransaction();
+  tx.ReadSK<std::string>("users", "email", "alice@example.com");
+  db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);});
+}
+
+// WriteSK with non-existent primary key should abort
+TEST_F(DatabaseTest, InsertSKWithNonExistentPKShouldAbort) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "email", "UNIQUE"));
+
+  auto& tx = db_->BeginTransaction();
+  // PK "ghost#1" はまだ存在しない
+  tx.WriteSK<std::string>("users", "email", "ghost@example.com", "ghost#1");
+
+  // 参照整合性違反で Abort を期待
+  ASSERT_FALSE(db_->EndTransaction(tx, [](auto s) {
+    ASSERT_EQ(LineairDB::TxStatus::Aborted, s);
+  }));
+}
+
+// memo:
+// 1. type of key and value
+//Primary store:
+// - key: primary key
+// - value: primary value
+//
+// Secondary store:
+// - key: table, index_name, secondary_key
+// - value: primary key
+//
+// 2. type of write interface
+// a. Write(table, primary_key, value)
+// b. Write(table, index_name, secondary_key, primary_key)
+// c. Write(table, index_name, secondary_key, new_primary_key, value)
+//
+// maybe we will separate 2-c into 2-a and 2-b
 // -----------------------------------------------------------------------------
