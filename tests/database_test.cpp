@@ -214,13 +214,52 @@ TEST_F(DatabaseTest, CreateTable) {
   db_ = std::make_unique<LineairDB::Database>();
   bool success = db_->CreateTable("users");
   ASSERT_TRUE(success);
+  bool duplicated = db_->CreateTable("users");
+  ASSERT_FALSE(duplicated);
 }
 
+//CreateSecondaryIndex("table_name", "index_name", "UNIQUE", "NOT_NULL")
 TEST_F(DatabaseTest, CreateSecondaryIndex) {
   db_ = std::make_unique<LineairDB::Database>();
   bool success = db_->CreateTable("users");
-  bool index_success = db_->CreateSecondaryIndex("users", "name");
-  ASSERT_TRUE(index_success && success);
+  bool index_success = db_->CreateSecondaryIndex("users", "name", "UNIQUE", "NOT_NULL");
+  ASSERT_TRUE(index_success);
+}
+
+//without constraint
+TEST_F(DatabaseTest, CreateSecondaryIndexWithoutConstraints) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "nickname"));
+}
+
+// UNIQUE only
+TEST_F(DatabaseTest, CreateSecondaryIndexUniqueOnly) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "email", "UNIQUE"));
+  
+}
+
+// NOT_NULL only
+TEST_F(DatabaseTest, CreateSecondaryIndexNotNullOnly) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "phone", "NOT_NULL"));
+}
+
+// constraint order
+TEST_F(DatabaseTest, CreateSecondaryIndexConstraintOrderIndifference) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "address", "NOT_NULL", "UNIQUE"));
+}
+
+// invalid constraint keyword
+TEST_F(DatabaseTest, CreateSecondaryIndexInvalidConstraintKeyword) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "invalid", "FOO"));
 }
 
 TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
@@ -249,4 +288,125 @@ TEST_F(DatabaseTest, InsertWithSecondaryIndex) {
   ASSERT_EQ(age, val.value());
   db_->EndTransaction(rtx, [](auto){});
 }
-// ------------
+
+// [Secondary Index Constraint Enforcement Tests] ----------------------------
+// UNIQUE constraint: index creation should fail when duplicates already exist
+TEST_F(DatabaseTest,CreateSecondaryIndexUniqueConstraintViolationOnCreate) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+
+  // Prepare duplicate secondary key values before index creation.
+  // NOTE: The secondary index "email" does not exist yet, therefore we simply
+  // register the value as a normal column. Once the implementation of row
+  // schema is available, replace the following writes with the proper API.
+  {
+    auto& tx = db_->BeginTransaction();
+    int dummy_age = 20;
+    tx.Write<int>("users", "user#1", dummy_age);
+    tx.Write<std::string>("users", "email", "duplicate@example.com", "user#1");
+    db_->EndTransaction(tx, [](auto){});
+  }
+  {
+    auto& tx = db_->BeginTransaction();
+    int dummy_age = 30;
+    tx.Write<int>("users", "user#2", dummy_age);
+    tx.Write<std::string>("users", "email", "duplicate@example.com", "user#2");
+    db_->EndTransaction(tx, [](auto){});
+  }
+
+  // Attempt to create a UNIQUE secondary index on a column that already has
+  // duplicate values. The creation should fail.
+  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "email", "UNIQUE"));
+}
+
+// UNIQUE constraint: insertion of a duplicate value should abort the txn
+TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "email", "UNIQUE"));
+
+  // 1st row – this should commit.
+  {
+    auto& tx = db_->BeginTransaction();
+    int age = 42;
+    tx.Write<int>("users", "user#1", age);
+    tx.Write<std::string>("users", "email", "bob@example.com", "user#1");
+    ASSERT_TRUE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Committed, s);}));
+  }
+
+  // 2nd row with the same email – should abort.
+  {
+    auto& tx = db_->BeginTransaction();
+    int age = 24;
+    tx.Write<int>("users", "user#2", age);
+    tx.Write<std::string>("users", "email", "bob@example.com", "user#2"); // duplicate key
+    ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
+  }
+}
+
+// NOT NULL constraint: index creation should fail when NULLs already exist
+TEST_F(DatabaseTest, CreateSecondaryIndexNotNullConstraintViolationOnCreate) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+
+  // Insert a row with NULL email (represented as empty string for now)
+  {
+    auto& tx = db_->BeginTransaction();
+    int age = 18;
+    tx.Write<int>("users", "user#1", age);
+    tx.Write<std::string>("users", "email", "", "user#1");
+    db_->EndTransaction(tx, [](auto){});
+  }
+
+  // Creating NOT_NULL index should fail because NULL value already exists
+  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "email", "NOT_NULL"));
+}
+
+// NOT NULL constraint: inserting NULL value should abort the txn
+TEST_F(DatabaseTest, InsertNullSecondaryKeyViolatesNotNull) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "email", "NOT_NULL"));
+
+  auto& tx = db_->BeginTransaction();
+  int age = 40;
+  tx.Write<int>("users", "user#1", age);
+  // Attempt to store a NULL email (empty string as placeholder)
+  tx.Write<std::string>("users", "email", "", "user#1");
+  ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
+}
+
+// Combined UNIQUE & NOT_NULL constraint
+TEST_F(DatabaseTest, SecondaryIndexUniqueAndNotNullCombination) {
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "email", "UNIQUE", "NOT_NULL"));
+
+  // Valid insert
+  {
+    auto& tx = db_->BeginTransaction();
+    int age = 22;
+    tx.Write<int>("users", "user#1", age);
+    tx.Write<std::string>("users", "email", "charlie@example.com", "user#1");
+    ASSERT_TRUE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Committed, s);}));
+  }
+
+  // Attempt duplicate -> Abort
+  {
+    auto& tx = db_->BeginTransaction();
+    int age = 23;
+    tx.Write<int>("users", "user#2", age);
+    tx.Write<std::string>("users", "email", "charlie@example.com", "user#2");
+    ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
+  }
+
+  // Attempt NULL -> Abort
+  {
+    auto& tx = db_->BeginTransaction();
+    int age = 24;
+    tx.Write<int>("users", "user#3", age);
+    tx.Write<std::string>("users", "email", "", "user#3");
+    ASSERT_FALSE(db_->EndTransaction(tx, [](auto s){ASSERT_EQ(LineairDB::TxStatus::Aborted, s);}));
+  }
+}
+// -----------------------------------------------------------------------------
