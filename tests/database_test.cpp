@@ -208,3 +208,5 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
          ASSERT_EQ(0, tx.Read("bob").second);
        }});
 }
+
+
