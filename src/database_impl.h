@@ -20,6 +20,7 @@
 #include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
+#include <lineairdb/table.h>
 
 #include <functional>
 
@@ -258,6 +259,7 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
+  std::unordered_map<std::string, Table> tables_;
   Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
 };
