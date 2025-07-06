@@ -2,21 +2,22 @@
 
 #include <unordered_map>
 
-#include "index/concurrent_table.h"
-#include "epoch_framework.h"
 #include "config.h"
+#include "index/concurrent_table.h"
+#include "lineairdb/secondary_index_option.h"
+#include "util/epoch_framework.hpp"
 
-namespace LineairDB
-{
-    class Table
-    {
-    public:
-        Table(EpochFramework &epoch_framework, const Config &config);
+namespace LineairDB {
+class Table {
+ public:
+  Table(EpochFramework &epoch_framework, const Config &config);
+  bool CreateSecondaryIndex(const std::string index_name,
+                            const SecondaryIndexOption::Constraint constraint [[maybe_unused]]);
 
-    private:
-        EpochFramework& epoch_framework_;
-        Config config_;
-        Index::ConcurrentTable primary_index_;
-        std::unordered_map<std::string, Index::ConcurrentTable> secondary_indices_;
+ private:
+  EpochFramework &epoch_framework_;
+  Config config_;
+  Index::ConcurrentTable primary_index_;
+  std::unordered_map<std::string, Index::ConcurrentTable> secondary_indices_;
 };
 }  // namespace LineairDB

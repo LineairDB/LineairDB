@@ -61,4 +61,10 @@ void Database::WaitForCheckpoint() const noexcept {
   db_pimpl_->WaitForCheckpoint();
 }
 void Database::RequestCallbacks() { db_pimpl_->RequestCallbacks(); }
+bool Database::CreateTable(const std::string table_name) {
+  return db_pimpl_->CreateTable(table_name);
+}
+bool Database::CreateSecondaryIndex(const std::string table_name, const std::string index_name, const SecondaryIndexOption::Constraint constraint) {
+  return db_pimpl_->CreateSecondaryIndex(table_name, index_name, constraint);
+}
 }  // namespace LineairDB
