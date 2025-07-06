@@ -26,64 +26,55 @@
 #include <thread>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "test_helper.hpp"
+#include "gtest/gtest.h"
 
 class HandlerTransactionTest : public ::testing::Test {
- protected:
+protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::filesystem::remove_all("lineairdb_logs");
     config_.checkpoint_period = 1;
-    config_.max_thread        = 4;
-    db_                       = std::make_unique<LineairDB::Database>(config_);
+    config_.max_thread = 4;
+    db_ = std::make_unique<LineairDB::Database>(config_);
   }
 };
 
 TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   int value_of_alice = 1;
-  auto* db           = db_.get();
+  auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
-    tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-             sizeof(int));
-    db->EndTransaction(tx, [](auto status) {
-      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
-    });
+    tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice), sizeof(int));
+    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
   }
   db->Fence();
   {
-    auto& tx   = db->BeginTransaction();
+    auto& tx = db->BeginTransaction();
     auto alice = tx.Read("alice");
     ASSERT_NE(alice.first, nullptr);
     ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
 
-    db->EndTransaction(tx, [](auto status) {
-      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
-    });
+    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
   }
 }
 
 TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
   int value_of_alice = 1;
-  auto* db           = db_.get();
+  auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
     tx.Write<int>("alice", value_of_alice);
-    db->EndTransaction(tx, [](auto status) {
-      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
-    });
+    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
   }
   db->Fence();
   {
-    auto& tx   = db->BeginTransaction();
+    auto& tx = db->BeginTransaction();
     auto alice = tx.Read<int>("alice");
     ASSERT_TRUE(alice.has_value());
     ASSERT_EQ(value_of_alice, alice.value());
-    db->EndTransaction(tx, [](auto status) {
-      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
-    });
+    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
   }
 }
 
@@ -92,8 +83,6 @@ TEST_F(HandlerTransactionTest, UserAbort) {
   {
     auto& tx = db->BeginTransaction();
     tx.Abort();
-    db->EndTransaction(tx, [&](auto status) {
-      ASSERT_EQ(LineairDB::TxStatus::Aborted, status);
-    });
+    db->EndTransaction(tx, [&](auto status) { ASSERT_EQ(LineairDB::TxStatus::Aborted, status); });
   }
 }

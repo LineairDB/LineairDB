@@ -21,9 +21,8 @@
 namespace LineairDB {
 namespace Lock {
 
-template <class Derived>
-class LockBase {
- public:
+template <class Derived> class LockBase {
+public:
   enum class LockType { Exclusive, Shared };
   void Lock(LockType type = LockType::Exclusive) {
     if (IsReadersWritersLockingAlgorithm()) {
@@ -41,15 +40,13 @@ class LockBase {
   }
   void UnLock() { return static_cast<Derived*>(this)->UnLock(); }
 
-  static bool IsStarvationFreeAlgorithm() {
-    return Derived::IsStarvationFreeAlgorithm();
-  }
+  static bool IsStarvationFreeAlgorithm() { return Derived::IsStarvationFreeAlgorithm(); }
 
   static bool IsReadersWritersLockingAlgorithm() {
     return Derived::IsReadersWritersLockingAlgorithm();
   }
 };
-}  // namespace Lock
-}  // namespace LineairDB
+} // namespace Lock
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_LOCK_H */

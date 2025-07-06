@@ -26,21 +26,21 @@
 #include <thread>
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "test_helper.hpp"
 #include "util/logger.hpp"
+#include "gtest/gtest.h"
 
 class DurabilityTest : public ::testing::Test {
- protected:
+protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::filesystem::remove_all("lineairdb_logs");
-    config_.max_thread           = 4;
-    config_.enable_logging       = true;
-    config_.enable_recovery      = true;
+    config_.max_thread = 4;
+    config_.enable_logging = true;
+    config_.enable_recovery = true;
     config_.enable_checkpointing = true;
-    config_.checkpoint_period    = 1;
+    config_.checkpoint_period = 1;
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
 };
@@ -51,13 +51,9 @@ TEST_F(DurabilityTest, Recovery) {
   ASSERT_TRUE(config.enable_logging);
 
   int initial_value = 1;
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                                           tx.Write<int>("alice",
-                                                         initial_value);
-                                         },
-                                         [&](LineairDB::Transaction& tx) {
-                                           tx.Write<int>("bob", initial_value);
-                                         }});
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) { tx.Write<int>("alice", initial_value); },
+                  [&](LineairDB::Transaction& tx) { tx.Write<int>("bob", initial_value); }});
   db_->Fence();
 
   // Expect that recovery procedure has idempotence
@@ -80,11 +76,10 @@ TEST_F(DurabilityTest, Recovery) {
 
 TEST_F(DurabilityTest, RecoveryLargeObject) {
   std::string initial_value(4096, 'a');
-  TestHelper::DoTransactions(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-        tx.Write("alice", reinterpret_cast<std::byte*>(initial_value.data()),
-                 initial_value.size());
-      }});
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.Write("alice", reinterpret_cast<std::byte*>(initial_value.data()),
+                                        initial_value.size());
+                             }});
   db_->Fence();
 
   for (size_t i = 0; i < 3; i++) {
@@ -92,8 +87,7 @@ TEST_F(DurabilityTest, RecoveryLargeObject) {
                                  auto alice = tx.Read("alice");
                                  ASSERT_TRUE(alice.first != nullptr);
                                  std::string current_value(
-                                     reinterpret_cast<const char*>(alice.first),
-                                     alice.second);
+                                     reinterpret_cast<const char*>(alice.first), alice.second);
                                  ASSERT_EQ(initial_value, current_value);
                                }});
   }
@@ -110,8 +104,7 @@ TEST_F(DurabilityTest, RecoveryInContendedWorkload) {
   });
 
   ASSERT_NO_THROW({
-    TestHelper::DoTransactionsOnMultiThreads(db_.get(),
-                                             {Update, Update, Update});
+    TestHelper::DoTransactionsOnMultiThreads(db_.get(), {Update, Update, Update});
   });
   db_->Fence();
 
@@ -136,8 +129,7 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
   });
 
   ASSERT_NO_THROW({
-    TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(),
-                                                    {Update, Update, Update});
+    TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update, Update, Update});
   });
   db_->Fence();
 
@@ -154,17 +146,16 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
 
 size_t getLogDirectorySize(const LineairDB::Config& conf) {
   namespace fs = std::filesystem;
-  size_t size  = 0;
+  size_t size = 0;
   for (const auto& entry : fs::directory_iterator(conf.work_dir)) {
-    if (entry.path().filename().generic_string().find("working") !=
-        std::string::npos)
+    if (entry.path().filename().generic_string().find("working") != std::string::npos)
       continue;
     size += fs::file_size(entry.path());
   }
   return size;
 }
 
-TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
+TEST_F(DurabilityTest, LogFileSizeIsBounded) { // a.k.a., checkpointing
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
   ASSERT_TRUE(config.enable_checkpointing);
@@ -188,21 +179,19 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
       filesize_is_monotonically_increasing = false;
       break;
     }
-    ASSERT_NO_THROW({
-      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
-    });
+    ASSERT_NO_THROW({ TestHelper::DoTransactions(db_.get(), {Update, Update, Update}); });
 
     auto now = std::chrono::high_resolution_clock::now();
     assert(begin < now);
-    size_t elapsed =
-        std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
-    if (config.checkpoint_period * 10 < elapsed) break;
+    size_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
+    if (config.checkpoint_period * 10 < elapsed)
+      break;
   }
   ASSERT_FALSE(filesize_is_monotonically_increasing);
 }
 
 TEST_F(DurabilityTest,
-       LogFileSizeIsBoundedOnHandlerInterface) {  // a.k.a., checkpointing
+       LogFileSizeIsBoundedOnHandlerInterface) { // a.k.a., checkpointing
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
   ASSERT_TRUE(config.enable_checkpointing);
@@ -221,12 +210,13 @@ TEST_F(DurabilityTest,
   std::atomic<bool> stop(false);
   std::thread worker_thread([&]() {
     for (;;) {
-      auto& tx                    = db_->BeginTransaction();
+      auto& tx = db_->BeginTransaction();
       [[maybe_unused]] auto alice = tx.Read<int>("alice");
-      int value                   = 0xBEEF;
+      int value = 0xBEEF;
       tx.Write<int>("alice", value);
       db_->EndTransaction(tx, [](auto) {});
-      if (stop.load()) return;
+      if (stop.load())
+        return;
       std::this_thread::yield();
     }
   });
@@ -242,16 +232,16 @@ TEST_F(DurabilityTest,
 
     auto now = std::chrono::high_resolution_clock::now();
     assert(begin < now);
-    size_t elapsed =
-        std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
-    if (config.checkpoint_period * 10 < elapsed) break;
+    size_t elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
+    if (config.checkpoint_period * 10 < elapsed)
+      break;
   }
   stop.store(true);
   worker_thread.join();
   ASSERT_FALSE(filesize_is_monotonically_increasing);
 }
 
-TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
+TEST_F(DurabilityTest, CPRConsistency) { // a.k.a., checkpointing
   /**
    * CPR Consistency:
    * > Definition 1 (CPR Consistency). A database state is CPR consistent if and
@@ -264,8 +254,8 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
    */
 
   LineairDB::Config config = db_->GetConfig();
-  config.enable_logging    = false;
-  config.checkpoint_period = 5;  // 5sec
+  config.enable_logging = false;
+  config.checkpoint_period = 5; // 5sec
   ASSERT_TRUE(config.enable_checkpointing);
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -287,8 +277,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
                              }});
 
   TestHelper::DoTransactions(db_.get(), {Update});
-  std::this_thread::sleep_for(
-      std::chrono::seconds(config.checkpoint_period * 2));
+  std::this_thread::sleep_for(std::chrono::seconds(config.checkpoint_period * 2));
 
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -299,10 +288,10 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
 }
 
 TEST_F(DurabilityTest,
-       CPRConsistencyOnHandlerInterface) {  // a.k.a., checkpointing
+       CPRConsistencyOnHandlerInterface) { // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
-  config.enable_logging    = false;
-  config.checkpoint_period = 5;  // 5sec
+  config.enable_logging = false;
+  config.checkpoint_period = 5; // 5sec
   ASSERT_TRUE(config.enable_checkpointing);
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -318,21 +307,18 @@ TEST_F(DurabilityTest,
 
   // We assume that DB has been destructed within 5 seconds and there are no
   // consisntent snapshot
-  TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-        auto alice = tx.Read<int>("alice");
-        ASSERT_FALSE(alice.has_value());
-      }});
+  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                                    auto alice = tx.Read<int>("alice");
+                                                    ASSERT_FALSE(alice.has_value());
+                                                  }});
 
   TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
-  std::this_thread::sleep_for(
-      std::chrono::seconds(config.checkpoint_period * 2));
+  std::this_thread::sleep_for(std::chrono::seconds(config.checkpoint_period * 2));
 
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
-  TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-        auto alice = tx.Read<int>("alice");
-        ASSERT_TRUE(alice.has_value());
-      }});
+  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                                    auto alice = tx.Read<int>("alice");
+                                                    ASSERT_TRUE(alice.has_value());
+                                                  }});
 }

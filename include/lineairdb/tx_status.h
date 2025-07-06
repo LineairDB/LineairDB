@@ -24,6 +24,6 @@ namespace LineairDB {
  */
 enum TxStatus { Running, Committed, Aborted };
 
-}  // namespace LineairDB
+} // namespace LineairDB
 
 #endif

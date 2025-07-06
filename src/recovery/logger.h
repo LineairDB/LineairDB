@@ -30,7 +30,7 @@ namespace LineairDB {
 namespace Recovery {
 
 class Logger {
- public:
+public:
   constexpr static EpochNumber NumberIsNotUpdated = 0;
   const std::string DurableEpochNumberFileName;
   const std::string DurableEpochNumberWorkingFileName;
@@ -41,8 +41,7 @@ class Logger {
 
   // Methods that pass (delegate) to LoggerBase
   void RememberMe(const EpochNumber);
-  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
-               bool entrusting = false);
+  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch, bool entrusting = false);
   void FlushLogs(const EpochNumber stable_epoch);
   void TruncateLogs(const EpochNumber checkpoint_completed_epoch);
 
@@ -68,13 +67,13 @@ class Logger {
   };
   typedef std::vector<LogRecord> LogRecords;
 
- private:
+private:
   std::unique_ptr<LoggerBase> logger_;
   EpochNumber durable_epoch_;
   std::ofstream durable_epoch_working_file_;
   std::string work_dir_;
 };
 
-}  // namespace Recovery
-}  // namespace LineairDB
+} // namespace Recovery
+} // namespace LineairDB
 #endif /* LINEAIRDB_RECOVERY_THREAD_LOCAL_LOGGER_H */

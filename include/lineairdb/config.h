@@ -161,6 +161,6 @@ struct Config {
    */
   std::string work_dir = "./lineairdb_logs";
 };
-}  // namespace LineairDB
+} // namespace LineairDB
 
 #endif

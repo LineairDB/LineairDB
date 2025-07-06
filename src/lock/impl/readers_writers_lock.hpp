@@ -33,7 +33,7 @@ namespace Lock {
 template <bool EnableBackoff = false, bool EnableCohort = false>
 class alignas(64) ReadersWritersLockImpl
     : LockBase<ReadersWritersLockImpl<EnableBackoff, EnableCohort>> {
- public:
+public:
   enum class LockType { Exclusive, Shared, Upgrade };
   ReadersWritersLockImpl() : lock_bit_(UnLocked) {}
   void Lock(LockType type = LockType::Exclusive) {
@@ -41,7 +41,8 @@ class alignas(64) ReadersWritersLockImpl
       Util::RetryWithExponentialBackoff([&]() { return TryLock(type); });
     } else {
       for (;;) {
-        if (TryLock(type)) break;
+        if (TryLock(type))
+          break;
         std::this_thread::yield();
       }
     }
@@ -58,7 +59,8 @@ class alignas(64) ReadersWritersLockImpl
       return lock_bit_.compare_exchange_weak(current, desired);
     } else if (type == LockType::Exclusive) {
       /** Acquire Writer (exclusive) Lock **/
-      if (lock_bit_.load() != UnLocked) return false;
+      if (lock_bit_.load() != UnLocked)
+        return false;
 
       auto unlocked = UnLocked;
       return lock_bit_.compare_exchange_weak(unlocked, ExclusivelyLocked);
@@ -97,7 +99,8 @@ class alignas(64) ReadersWritersLockImpl
         current = lock_bit_.load();
         assert(IsThereAnyReader(current));
         auto desired = SubReader(current);
-        if (lock_bit_.compare_exchange_weak(current, desired)) break;
+        if (lock_bit_.compare_exchange_weak(current, desired))
+          break;
       }
     }
   }
@@ -105,40 +108,32 @@ class alignas(64) ReadersWritersLockImpl
   constexpr static bool IsStarvationFreeAlgorithm() { return false; }
   constexpr static bool IsReadersWritersLockingAlgorithm() { return true; }
 
- private:
+private:
   std::atomic<uint64_t> lock_bit_;
   static_assert(decltype(lock_bit_)::is_always_lock_free);
 
   constexpr static uint64_t ExclusivelyLocked = 1llu;
-  constexpr static uint64_t UnLocked          = 0llu;
-  constexpr static uint64_t Reader            = 1llu << 1;
-  constexpr static uint64_t ReadersFull       = ~1llu;
+  constexpr static uint64_t UnLocked = 0llu;
+  constexpr static uint64_t Reader = 1llu << 1;
+  constexpr static uint64_t ReadersFull = ~1llu;
 
   inline static bool IsUnlocked(const uint64_t n) { return n == UnLocked; }
-  inline static bool IsExclusivelyLocked(const uint64_t n) {
-    return n == ExclusivelyLocked;
-  }
-  inline static bool IsThereAnyReader(const uint64_t n) {
-    return (Reader * 1) <= n;
-  }
-  inline static bool IsThereRoomForNewReaders(const uint64_t n) {
-    return n < ReadersFull;
-  }
+  inline static bool IsExclusivelyLocked(const uint64_t n) { return n == ExclusivelyLocked; }
+  inline static bool IsThereAnyReader(const uint64_t n) { return (Reader * 1) <= n; }
+  inline static bool IsThereRoomForNewReaders(const uint64_t n) { return n < ReadersFull; }
   inline static uint64_t AddReader(const uint64_t n) { return n + Reader; }
   inline static uint64_t SubReader(const uint64_t n) { return n - Reader; }
-  inline static uint64_t GetNumberOfReaders(const uint64_t n) {
-    return n >> ExclusivelyLocked;
-  }
+  inline static uint64_t GetNumberOfReaders(const uint64_t n) { return n >> ExclusivelyLocked; }
 };
-using ReadersWritersLock     = ReadersWritersLockImpl<false, false>;
-using ReadersWritersLockBO   = ReadersWritersLockImpl<true, false>;
-using ReadersWritersLockCO   = ReadersWritersLockImpl<false, true>;
+using ReadersWritersLock = ReadersWritersLockImpl<false, false>;
+using ReadersWritersLockBO = ReadersWritersLockImpl<true, false>;
+using ReadersWritersLockCO = ReadersWritersLockImpl<false, true>;
 using ReadersWritersLockBOCO = ReadersWritersLockImpl<true, true>;
 using ReadersWritersLockCOBO = ReadersWritersLockBOCO;
 // static_assert(sizeof(ReadersWritersLock) ==
 //             std::hardware_destructive_interference_size);
 
-}  // namespace Lock
-}  // namespace LineairDB
+} // namespace Lock
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_READERS_WRITERS_LOCK_HPP */

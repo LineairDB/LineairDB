@@ -34,11 +34,10 @@ namespace LineairDB {
 
 namespace ConcurrencyControl {
 
-template <bool EnableNWR = true>
-class SiloNWRTyped final : public ConcurrencyControlBase {
+template <bool EnableNWR = true> class SiloNWRTyped final : public ConcurrencyControlBase {
   using NWRObjectType = std::atomic<NWRPivotObject>;
 
- private:
+private:
   struct ValidationItem {
     const DataItem* item_p_cache;
     TransactionId transaction_id;
@@ -55,23 +54,22 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
   NWRPivotObject my_pivot_object_;
   std::vector<PivotObjectSnapshot> pivot_object_snapshots_;
 
- public:
+public:
   SiloNWRTyped(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)),
         nwr_validation_result_(NWRValidationResult::NOT_YET_VALIDATED){};
   ~SiloNWRTyped() final override{};
 
-  const DataItem Read(const std::string_view,
-                      DataItem* index_leaf) final override {
+  const DataItem Read(const std::string_view, DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
 
     DataItem snapshot;
     for (;;) {
       auto tx_id = index_leaf->transaction_id.load();
 
-      if (tx_id.tid & 1u) {  // locked
-                             // WANTFIX user-space adaptive mutex locking may
-                             // improve the performance
+      if (tx_id.tid & 1u) { // locked
+                            // WANTFIX user-space adaptive mutex locking may
+                            // improve the performance
         std::this_thread::yield();
         continue;
       }
@@ -89,8 +87,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
   void Abort() final override{};
   bool Precommit(bool need_to_checkpoint) final override {
     /** Sorting write set to prevent deadlock **/
-    std::sort(tx_ref_.write_set_ref_.begin(), tx_ref_.write_set_ref_.end(),
-              Snapshot::Compare);
+    std::sort(tx_ref_.write_set_ref_.begin(), tx_ref_.write_set_ref_.end(), Snapshot::Compare);
 
     if constexpr (EnableNWR) {
       if (!IsReadOnly() && IsOmittable()) {
@@ -125,8 +122,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         }
         auto desired = current;
         desired.tid |= 1llu;
-        bool lock_acquired =
-            item->transaction_id.compare_exchange_weak(current, desired);
+        bool lock_acquired = item->transaction_id.compare_exchange_weak(current, desired);
         if (lock_acquired) {
           snapshot.data_item_copy.transaction_id.store(desired);
           // If this item is in readset, add 1 (lockflag) into snapshot for
@@ -148,7 +144,9 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
 
     /** Update Metadata for NWR **/
-    if constexpr (EnableNWR) { UpdatePivotObjects(); }
+    if constexpr (EnableNWR) {
+      UpdatePivotObjects();
+    }
 
     // CompilerFence();
     tx_ref_.epoch_framework_ref_.MakeMeOffline();
@@ -177,15 +175,16 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
   void PostProcessing(TxStatus status) final override {
     if (status == TxStatus::Committed) {
       if constexpr (EnableNWR) {
-        if (nwr_validation_result_ == NWRValidationResult::ACYCLIC) { return; }
+        if (nwr_validation_result_ == NWRValidationResult::ACYCLIC) {
+          return;
+        }
       }
 
-      const EpochNumber current_epoch =
-          tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
+      const EpochNumber current_epoch = tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
 
       /** Unlock **/
       for (auto& snapshot : tx_ref_.write_set_ref_) {
-        auto* item       = snapshot.index_cache;
+        auto* item = snapshot.index_cache;
         auto current_tid = snapshot.data_item_copy.transaction_id.load();
         EpochNumber written_in_epoch = current_tid.epoch;
 
@@ -201,12 +200,14 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
   }
 
- private:
+private:
   bool AntiDependencyValidation() {
     for (auto& validation_item : validation_set_) {
       auto* item = validation_item.item_p_cache;
       auto tx_id = item->transaction_id.load();
-      if (tx_id != validation_item.transaction_id) { return false; }
+      if (tx_id != validation_item.transaction_id) {
+        return false;
+      }
     }
     return true;
   }
@@ -223,23 +224,23 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // the correctness, Silo generate the another version order which includes
     // x_pv < x_j by using exclusive locking.
 
-    {  // snapshot the pivot version objects from write_set
+    { // snapshot the pivot version objects from write_set
       for (auto& snapshot : tx_ref_.write_set_ref_) {
         auto* value_ptr = snapshot.index_cache;
         assert(value_ptr != nullptr);
 
-        const auto pivot_object               = value_ptr->pivot_object.load();
+        const auto pivot_object = value_ptr->pivot_object.load();
         const PivotObjectSnapshot pv_snapshot = {value_ptr, pivot_object,
                                                  PivotObjectSnapshot::WRITESET};
         pivot_object_snapshots_.emplace_back(pv_snapshot);
       }
     }
-    {  // snapshot the pivot version objects
-       // from read_set
+    { // snapshot the pivot version objects
+      // from read_set
       for (auto& snapshot : tx_ref_.read_set_ref_) {
         auto* value_ptr = snapshot.index_cache;
         assert(value_ptr != nullptr);
-        const auto pivot_object               = value_ptr->pivot_object.load();
+        const auto pivot_object = value_ptr->pivot_object.load();
         const PivotObjectSnapshot pv_snapshot = {value_ptr, pivot_object,
                                                  PivotObjectSnapshot::READSET};
         pivot_object_snapshots_.emplace_back(pv_snapshot);
@@ -252,10 +253,10 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // transactions, we use epoch: transactions in the same epoch are
     // committed at the same time, and thus they are in concurrent, and thus
     // any version order for these transactions are valid for linearizability.
-    const EpochNumber current_epoch =
-        tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
+    const EpochNumber current_epoch = tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
     for (auto& pivot_object : pivot_object_snapshots_) {
-      if (pivot_object.set_type == PivotObjectSnapshot::READSET) continue;
+      if (pivot_object.set_type == PivotObjectSnapshot::READSET)
+        continue;
       const EpochNumber epoch = pivot_object.pv_snapshot.versions.epoch;
       if (epoch != current_epoch) {
         nwr_validation_result_ = NWRValidationResult::LINEARIZABILITY;
@@ -269,12 +270,12 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // this end efficiently, we squash the version numbers of read/write set
     // into PivotObject.
     my_pivot_object_.versions.epoch = current_epoch;
-    {  // make t_j's squashed read/write set
+    { // make t_j's squashed read/write set
 
       // MergedRS
       for (auto& snapshot : tx_ref_.read_set_ref_) {
         const auto value_ptr = snapshot.index_cache;
-        auto tid             = snapshot.data_item_copy.transaction_id.load();
+        auto tid = snapshot.data_item_copy.transaction_id.load();
         assert(value_ptr != nullptr);
 
         // Store the version number x_k read by t_j.
@@ -292,9 +293,10 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
 
       // MergedWS
       for (auto& pivot_object : pivot_object_snapshots_) {
-        if (pivot_object.set_type != PivotObjectSnapshot::WRITESET) continue;
+        if (pivot_object.set_type != PivotObjectSnapshot::WRITESET)
+          continue;
         const auto* value_ptr = pivot_object.item_p_cache;
-        uint32_t tk           = pivot_object.pv_snapshot.versions.target_id;
+        uint32_t tk = pivot_object.pv_snapshot.versions.target_id;
         assert(pivot_object.pv_snapshot.versions.epoch == current_epoch);
 
         my_pivot_object_.msets.wset.PutHigherside(value_ptr, tk);
@@ -308,7 +310,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // if there exists t_k such that t_k in successors_j and t_k -> ...,
     // -> t_j, there exists dependency cycle in MVSG.
     for (auto& pivot_object : pivot_object_snapshots_) {
-      if (pivot_object.set_type != PivotObjectSnapshot::WRITESET) continue;
+      if (pivot_object.set_type != PivotObjectSnapshot::WRITESET)
+        continue;
       auto& tj = my_pivot_object_;
       auto& tk = pivot_object.pv_snapshot;
 
@@ -334,28 +337,29 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // procedures. This updating need to execute CAS-loop.
     bool all_cas_succeed = true;
     for (auto& snapshot : pivot_object_snapshots_) {
-      auto* data_item_p  = snapshot.item_p_cache;
-      auto& atomic_ref   = data_item_p->pivot_object;
+      auto* data_item_p = snapshot.item_p_cache;
+      auto& atomic_ref = data_item_p->pivot_object;
       auto& old_snapshot = snapshot.pv_snapshot;
-      auto new_snapshot  = old_snapshot;
+      auto new_snapshot = old_snapshot;
 
-      new_snapshot.msets.rset =
-          new_snapshot.msets.rset.Merge(my_pivot_object_.msets.rset);
-      new_snapshot.msets.wset =
-          new_snapshot.msets.wset.Merge(my_pivot_object_.msets.wset);
+      new_snapshot.msets.rset = new_snapshot.msets.rset.Merge(my_pivot_object_.msets.rset);
+      new_snapshot.msets.wset = new_snapshot.msets.wset.Merge(my_pivot_object_.msets.wset);
 
-      if (new_snapshot.msets == old_snapshot.msets) continue;
+      if (new_snapshot.msets == old_snapshot.msets)
+        continue;
 
-      all_cas_succeed =
-          atomic_ref.compare_exchange_weak(old_snapshot, new_snapshot);
-      if (!all_cas_succeed) break;
+      all_cas_succeed = atomic_ref.compare_exchange_weak(old_snapshot, new_snapshot);
+      if (!all_cas_succeed)
+        break;
     }
 
     // Unfortunately some CAS operations have failed.
     // but Anti-dependency validation may still pass this transaction and thus
     // we retry all procedure: generate version order, taking snapshots, do
     // validations for NWR, and finally trying to CAS.
-    if (!all_cas_succeed) { return IsOmittable(); }
+    if (!all_cas_succeed) {
+      return IsOmittable();
+    }
 
     // Fortunately we can safely omit this transaction.
     nwr_validation_result_ = NWRValidationResult::ACYCLIC;
@@ -412,15 +416,14 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     assert(nwr_validation_result_ != NWRValidationResult::ACYCLIC);
 
     // Re-build my pivot object
-    const EpochNumber current_epoch =
-        tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
+    const EpochNumber current_epoch = tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
     my_pivot_object_.versions.epoch = current_epoch;
-    {  // make t_j's squashed read/write set
+    { // make t_j's squashed read/write set
 
       // MergedRS
       for (auto& snapshot : tx_ref_.read_set_ref_) {
         const auto* value_ptr = snapshot.index_cache;
-        auto tid              = snapshot.data_item_copy.transaction_id.load();
+        auto tid = snapshot.data_item_copy.transaction_id.load();
         assert(value_ptr != nullptr);
         if (tid.epoch == current_epoch) {
           my_pivot_object_.msets.rset.PutLowerside(value_ptr, tid.tid);
@@ -434,13 +437,13 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         const auto* value_ptr = snapshot.index_cache;
         assert(value_ptr != nullptr);
         auto tid = snapshot.data_item_copy.transaction_id.load();
-        assert(tid.tid & 1llu);  // is locked
+        assert(tid.tid & 1llu); // is locked
 
         auto new_version = tid.tid;
         if (tid.epoch == current_epoch) {
-          new_version += 1;  // unlocked version
+          new_version += 1; // unlocked version
         } else {
-          new_version = 2;  // the first unlocked version in this epoch
+          new_version = 2; // the first unlocked version in this epoch
         }
 
         my_pivot_object_.msets.wset.PutHigherside(value_ptr, new_version);
@@ -450,7 +453,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // Updating mRS and mWS
     for (auto& snapshot : pivot_object_snapshots_) {
       auto* data_item_p = snapshot.item_p_cache;
-      auto& atomic_ref  = data_item_p->pivot_object;
+      auto& atomic_ref = data_item_p->pivot_object;
       auto old_snapshot = atomic_ref.load();
 
       // If this transaction performs the first-blind write into the data item
@@ -459,8 +462,10 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
           snapshot.set_type == PivotObjectSnapshot::WRITESET) {
         Snapshot* ws_entry_for_this_snapshot = nullptr;
         for (auto& ws_entry : tx_ref_.write_set_ref_) {
-          if (ws_entry.index_cache != snapshot.item_p_cache) continue;
-          if (ws_entry.is_read_modify_write) break;
+          if (ws_entry.index_cache != snapshot.item_p_cache)
+            continue;
+          if (ws_entry.is_read_modify_write)
+            break;
 
           ws_entry_for_this_snapshot = &ws_entry;
         }
@@ -469,8 +474,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
           auto new_snapshot = my_pivot_object_;
           assert(new_snapshot.versions.epoch == current_epoch);
           new_snapshot.versions.target_id =
-              ws_entry_for_this_snapshot->data_item_copy.transaction_id.load()
-                  .tid;
+              ws_entry_for_this_snapshot->data_item_copy.transaction_id.load().tid;
           data_item_p->pivot_object.store(new_snapshot);
           continue;
         }
@@ -478,25 +482,22 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
 
       bool cas_success = false;
       while (!cas_success) {
-        old_snapshot      = data_item_p->pivot_object.load();
+        old_snapshot = data_item_p->pivot_object.load();
         auto new_snapshot = old_snapshot;
-        auto new_rset =
-            new_snapshot.msets.rset.Merge(my_pivot_object_.msets.rset);
-        auto new_wset =
-            new_snapshot.msets.wset.Merge(my_pivot_object_.msets.wset);
+        auto new_rset = new_snapshot.msets.rset.Merge(my_pivot_object_.msets.rset);
+        auto new_wset = new_snapshot.msets.wset.Merge(my_pivot_object_.msets.wset);
         new_snapshot.msets.rset = new_rset;
         new_snapshot.msets.wset = new_wset;
 
-        cas_success =
-            atomic_ref.compare_exchange_weak(old_snapshot, new_snapshot);
+        cas_success = atomic_ref.compare_exchange_weak(old_snapshot, new_snapshot);
       }
     }
   }
 };
 
 using SiloNWR = SiloNWRTyped<true>;
-using Silo    = SiloNWRTyped<false>;
+using Silo = SiloNWRTyped<false>;
 
-}  // namespace ConcurrencyControl
-}  // namespace LineairDB
+} // namespace ConcurrencyControl
+} // namespace LineairDB
 #endif /* LINEAIRDB_SILO_NWR_H */

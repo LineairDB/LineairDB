@@ -28,9 +28,8 @@ namespace LineairDB {
 namespace Lock {
 
 template <bool EnableBackoff = false, bool EnableCohort = false>
-class alignas(64) TTASLockImpl
-    : LockBase<TTASLockImpl<EnableBackoff, EnableCohort>> {
- public:
+class alignas(64) TTASLockImpl : LockBase<TTASLockImpl<EnableBackoff, EnableCohort>> {
+public:
   enum class LockType { Exclusive };
   TTASLockImpl() : lock_bit_(UnLocked) {}
   void Lock(LockType = LockType::Exclusive) {
@@ -38,14 +37,15 @@ class alignas(64) TTASLockImpl
       if constexpr (EnableBackoff) {
         size_t sleep_ns = 100;
         std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_ns));
-        sleep_ns *= 2;  // Exponential Backoff
+        sleep_ns *= 2; // Exponential Backoff
       } else {
         std::this_thread::yield();
       }
     }
   }
   bool TryLock(LockType = LockType::Exclusive) {
-    if (lock_bit_.load() == Locked) return false;
+    if (lock_bit_.load() == Locked)
+      return false;
 
     auto unlocked = UnLocked;
     return lock_bit_.compare_exchange_weak(unlocked, Locked);
@@ -59,21 +59,21 @@ class alignas(64) TTASLockImpl
   constexpr static bool IsStarvationFreeAlgorithm() { return false; }
   constexpr static bool IsReadersWritersLockingAlgorithm() { return false; }
 
- private:
+private:
   std::atomic<uint64_t> lock_bit_;
   static_assert(decltype(lock_bit_)::is_always_lock_free);
-  constexpr static uint64_t Locked   = 1llu;
+  constexpr static uint64_t Locked = 1llu;
   constexpr static uint64_t UnLocked = 0llu;
 };
-using TTASLock     = TTASLockImpl<false, false>;
-using TTASLockBO   = TTASLockImpl<true, false>;
-using TTASLockCO   = TTASLockImpl<false, true>;
+using TTASLock = TTASLockImpl<false, false>;
+using TTASLockBO = TTASLockImpl<true, false>;
+using TTASLockCO = TTASLockImpl<false, true>;
 using TTASLockBOCO = TTASLockImpl<true, true>;
 using TTASLockCOBO = TTASLockBOCO;
 // static_assert(sizeof(TTASLock) ==
 //             std::hardware_destructive_interference_size);
 
-}  // namespace Lock
-}  // namespace LineairDB
+} // namespace Lock
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_TTAS_LOCK_HPP */

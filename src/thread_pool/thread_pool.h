@@ -22,7 +22,7 @@
 #include <thread>
 #include <vector>
 
-#include "concurrentqueue.h"  // moodycamel::concurrentqueue
+#include "concurrentqueue.h" // moodycamel::concurrentqueue
 
 namespace LineairDB {
 
@@ -31,7 +31,7 @@ namespace LineairDB {
  * MPMC (Multiple producer / multiple consumer) thread pool.
  */
 class ThreadPool {
- public:
+public:
   ThreadPool(size_t pool_size = std::thread::hardware_concurrency());
   ~ThreadPool();
   bool Enqueue(std::function<void()>&&);
@@ -43,19 +43,18 @@ class ThreadPool {
   bool IsEmpty();
   size_t GetPoolSize() const;
 
- private:
+private:
   size_t GetIdxByThreadId();
   void Dequeue();
 
- private:
+private:
   bool stop_;
   bool shutdown_;
   std::vector<moodycamel::ConcurrentQueue<std::function<void()>>> work_queues_;
-  std::vector<moodycamel::ConcurrentQueue<std::function<void()>>>
-      no_steal_queues_;
+  std::vector<moodycamel::ConcurrentQueue<std::function<void()>>> no_steal_queues_;
   std::vector<std::thread> worker_threads_;
   std::vector<std::thread::id> thread_ids_;
   std::mutex thread_ids_lock_;
 };
-}  // namespace LineairDB
+} // namespace LineairDB
 #endif

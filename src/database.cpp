@@ -28,28 +28,21 @@ namespace LineairDB {
 Database::Database() noexcept : db_pimpl_(std::make_unique<Impl>()) {
   LineairDB::Util::SetUpSPDLog();
 }
-Database::Database(const Config& c) noexcept
-    : db_pimpl_(std::make_unique<Impl>(c)) {
+Database::Database(const Config& c) noexcept : db_pimpl_(std::make_unique<Impl>(c)) {
   LineairDB::Util::SetUpSPDLog();
 }
 
 Database::~Database() noexcept = default;
 
-const Config Database::GetConfig() const noexcept {
-  return db_pimpl_->GetConfig();
+const Config Database::GetConfig() const noexcept { return db_pimpl_->GetConfig(); }
+
+void Database::ExecuteTransaction(std::function<void(Transaction&)> transaction_procedure,
+                                  std::function<void(TxStatus)> callback,
+                                  std::optional<CallbackType> precommit_clbk) {
+  db_pimpl_->ExecuteTransaction(transaction_procedure, callback, precommit_clbk);
 }
 
-void Database::ExecuteTransaction(
-    std::function<void(Transaction&)> transaction_procedure,
-    std::function<void(TxStatus)> callback,
-    std::optional<CallbackType> precommit_clbk) {
-  db_pimpl_->ExecuteTransaction(transaction_procedure, callback,
-                                precommit_clbk);
-}
-
-Transaction& Database::BeginTransaction() {
-  return db_pimpl_->BeginTransaction();
-}
+Transaction& Database::BeginTransaction() { return db_pimpl_->BeginTransaction(); }
 
 bool Database::EndTransaction(Transaction& tx, CallbackType clbk) {
   return db_pimpl_->EndTransaction(std::forward<decltype(tx)>(tx),
@@ -57,8 +50,6 @@ bool Database::EndTransaction(Transaction& tx, CallbackType clbk) {
 }
 
 void Database::Fence() const noexcept { db_pimpl_->Fence(); }
-void Database::WaitForCheckpoint() const noexcept {
-  db_pimpl_->WaitForCheckpoint();
-}
+void Database::WaitForCheckpoint() const noexcept { db_pimpl_->WaitForCheckpoint(); }
 void Database::RequestCallbacks() { db_pimpl_->RequestCallbacks(); }
-}  // namespace LineairDB
+} // namespace LineairDB

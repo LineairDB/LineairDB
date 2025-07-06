@@ -42,44 +42,41 @@ namespace LineairDB {
 namespace Recovery {
 
 class CPRManager {
- public:
+public:
   enum class Phase { REST, IN_PROGRESS, WAIT_FLUSH };
   const std::string CheckpointFileName;
   const std::string CheckpointWorkingFileName;
 
-  CPRManager(const LineairDB::Config& c_ref,
-             LineairDB::Index::ConcurrentTable& t_ref, EpochFramework& e_ref)
+  CPRManager(const LineairDB::Config& c_ref, LineairDB::Index::ConcurrentTable& t_ref,
+             EpochFramework& e_ref)
       : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
-        CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
-        config_ref_(c_ref),
-        table_ref_(t_ref),
-        epoch_manager_ref_(e_ref),
-        current_phase_(Phase::REST),
-        checkpoint_epoch_(0),
-        checkpoint_completed_epoch_(0),
-        stop_(false),
-        manager_thread_([&]() {
-          if (!config_ref_.enable_checkpointing) return;
+        CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"), config_ref_(c_ref),
+        table_ref_(t_ref), epoch_manager_ref_(e_ref), current_phase_(Phase::REST),
+        checkpoint_epoch_(0), checkpoint_completed_epoch_(0), stop_(false), manager_thread_([&]() {
+          if (!config_ref_.enable_checkpointing)
+            return;
           const auto checkpoint_period = config_ref_.checkpoint_period;
           for (;;) {
-            {  // REST Phase: sleep
+            { // REST Phase: sleep
               auto start = std::chrono::high_resolution_clock::now();
               if (current_phase_.load() == Phase::REST) {
-                for (;;){
-                  std::this_thread::sleep_for(
-                    std::chrono::seconds(1));
-                  if (stop_.load()) return;
+                for (;;) {
+                  std::this_thread::sleep_for(std::chrono::seconds(1));
+                  if (stop_.load())
+                    return;
                   auto now = std::chrono::high_resolution_clock::now();
-                  if (checkpoint_period <= static_cast<size_t>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count())) break;
+                  if (checkpoint_period <=
+                      static_cast<size_t>(
+                          std::chrono::duration_cast<std::chrono::seconds>(now - start).count()))
+                    break;
                 }
               }
             }
 
-            {  // PREPARE to checkpointing: determine the snapshot epoch (SE)
+            { // PREPARE to checkpointing: determine the snapshot epoch (SE)
               epoch_manager_ref_.MakeMeOnline();
               const auto current_epoch = epoch_manager_ref_.GetGlobalEpoch();
-              SPDLOG_DEBUG("PREPARE to checkpointing. current {}",
-                           current_epoch);
+              SPDLOG_DEBUG("PREPARE to checkpointing. current {}", current_epoch);
               // NOTE:
               // epoch framework allows that there are two types of running
               // transactions such that txns in the epoch
@@ -103,7 +100,7 @@ class CPRManager {
               epoch_manager_ref_.Sync();
             }
 
-            {  //  WAIT_FLUSH: save consistent snapshot
+            { //  WAIT_FLUSH: save consistent snapshot
               // Note that Phase::WAIT_FLUSH is the same with IN_PROGRESS, in
               // practice.
               current_phase_.store(Phase::WAIT_FLUSH);
@@ -114,51 +111,46 @@ class CPRManager {
               Recovery::Logger::LogRecord record;
               record.epoch = checkpoint_epoch_.load() + 1;
 
-              table_ref_.ForEach(
-                  [&](std::string_view key, LineairDB::DataItem& data_item) {
-                    data_item.ExclusiveLock();
+              table_ref_.ForEach([&](std::string_view key, LineairDB::DataItem& data_item) {
+                data_item.ExclusiveLock();
 
-                    Logger::LogRecord::KeyValuePair kvp;
-                    kvp.key = key;
-                    if (data_item.checkpoint_buffer.IsEmpty()) {
-                      // this data item holds version which has written before
-                      // the point of consistency.
-                      kvp.buffer = data_item.buffer.toString();
-                    } else {
-                      kvp.buffer = data_item.checkpoint_buffer.toString();
-                      data_item.checkpoint_buffer.Reset(nullptr, 0);
-                    }
-                    kvp.tid.epoch = record.epoch;
-                    kvp.tid.tid   = 0;
-                    record.key_value_pairs.emplace_back(std::move(kvp));
+                Logger::LogRecord::KeyValuePair kvp;
+                kvp.key = key;
+                if (data_item.checkpoint_buffer.IsEmpty()) {
+                  // this data item holds version which has written before
+                  // the point of consistency.
+                  kvp.buffer = data_item.buffer.toString();
+                } else {
+                  kvp.buffer = data_item.checkpoint_buffer.toString();
+                  data_item.checkpoint_buffer.Reset(nullptr, 0);
+                }
+                kvp.tid.epoch = record.epoch;
+                kvp.tid.tid = 0;
+                record.key_value_pairs.emplace_back(std::move(kvp));
 
-                    data_item.ExclusiveUnlock();
-                    return true;
-                  });
+                data_item.ExclusiveUnlock();
+                return true;
+              });
               records.emplace_back(std::move(record));
 
-              std::ofstream new_file(
-                  CheckpointWorkingFileName,
-                  std::ios_base::out | std::ios_base::binary);
+              std::ofstream new_file(CheckpointWorkingFileName,
+                                     std::ios_base::out | std::ios_base::binary);
               msgpack::pack(new_file, records);
               new_file.flush();
               SPDLOG_DEBUG("RENAME checkpoint workingfile from {0} to {1}",
                            CheckpointWorkingFileName, CheckpointFileName);
 
               // NOTE POSIX ensures that rename syscall provides atomicity
-              if (rename(CheckpointWorkingFileName.c_str(),
-                         CheckpointFileName.c_str())) {
-                SPDLOG_ERROR(
-                    "Durability Error: fail to rename checkpoint of the "
-                    "epoch "
-                    "{0:d}. "
-                    "errno: {1}",
-                    record.epoch, errno);
+              if (rename(CheckpointWorkingFileName.c_str(), CheckpointFileName.c_str())) {
+                SPDLOG_ERROR("Durability Error: fail to rename checkpoint of the "
+                             "epoch "
+                             "{0:d}. "
+                             "errno: {1}",
+                             record.epoch, errno);
                 exit(1);
               }
             }
-            SPDLOG_DEBUG("FLUSH consistent snapshot of epoch {}",
-                         checkpoint_epoch_.load());
+            SPDLOG_DEBUG("FLUSH consistent snapshot of epoch {}", checkpoint_epoch_.load());
             checkpoint_completed_epoch_.store(checkpoint_epoch_.load());
             current_phase_.store(Phase::REST);
           }
@@ -169,23 +161,23 @@ class CPRManager {
     manager_thread_.join();
   }
 
-  EpochNumber GetCheckpointCompletedEpoch() {
-    return checkpoint_completed_epoch_.load();
-  }
+  EpochNumber GetCheckpointCompletedEpoch() { return checkpoint_completed_epoch_.load(); }
 
   bool IsNeedToCheckpointing(EpochNumber my_epoch) {
     const auto global_phase = current_phase_.load();
-    if (global_phase == Phase::REST) { return false; }
+    if (global_phase == Phase::REST) {
+      return false;
+    }
     return checkpoint_epoch_.load() <= my_epoch;
   }
 
- private:
+private:
   const LineairDB::Config& config_ref_;
   LineairDB::Index::ConcurrentTable& table_ref_;
   LineairDB::EpochFramework& epoch_manager_ref_;
   Logger::LogRecords log_records;
   std::atomic<Phase> current_phase_;
-  std::atomic<EpochNumber> checkpoint_epoch_;  // 'v' in the CPR paper
+  std::atomic<EpochNumber> checkpoint_epoch_; // 'v' in the CPR paper
   std::atomic<EpochNumber> checkpoint_completed_epoch_;
   // BloomFilter bloom_filter_for_recent_updates_;
   std::atomic<bool> stop_;
@@ -193,7 +185,7 @@ class CPRManager {
   MSGPACK_DEFINE(log_records);
 };
 
-}  // namespace Recovery
-}  // namespace LineairDB
+} // namespace Recovery
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_CHECKPOINT_MANAGER_HPP */

@@ -41,21 +41,15 @@ namespace LineairDB {
  * https://www.microsoft.com/en-us/research/uploads/prod/2018/03/faster-sigmod18.pdf
  */
 class EpochFramework {
- public:
+public:
   static constexpr EpochNumber THREAD_OFFLINE = UINT32_MAX;
 
- public:
+public:
   EpochFramework(size_t epoch_duration_ms = 40)
-      : start_(false),
-        stop_(false),
-        global_epoch_(1),
+      : start_(false), stop_(false), global_epoch_(1),
         epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
-  EpochFramework(size_t epoch_duration_ms,
-                 std::function<void(EpochNumber)>&& pt)
-      : start_(false),
-        stop_(false),
-        global_epoch_(1),
-        publish_target_(pt),
+  EpochFramework(size_t epoch_duration_ms, std::function<void(EpochNumber)>&& pt)
+      : start_(false), stop_(false), global_epoch_(1), publish_target_(pt),
         epoch_writer_([=]() { EpochWriterJob(epoch_duration_ms); }) {}
 
   ~EpochFramework() { Stop(); }
@@ -64,22 +58,19 @@ class EpochFramework {
 
   EpochNumber GetGlobalEpoch() const { return global_epoch_.load(); }
   EpochNumber& GetMyThreadLocalEpoch() {
-    EpochNumber* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    EpochNumber* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     return *my_epoch;
   }
 
   EpochNumber MakeMeOnline() {
-    EpochNumber* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    EpochNumber* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     assert(*my_epoch == THREAD_OFFLINE);
     *my_epoch = GetGlobalEpoch();
     return *my_epoch;
   }
 
   void MakeMeOffline() {
-    EpochNumber* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    EpochNumber* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     assert(*my_epoch != THREAD_OFFLINE);
     *my_epoch = THREAD_OFFLINE;
   }
@@ -89,9 +80,10 @@ class EpochFramework {
     size_t reload_count = 0;
     for (;;) {
       auto current_epoch = global_epoch_.load();
-      auto reload_epoch  = global_epoch_.load();
+      auto reload_epoch = global_epoch_.load();
       while (current_epoch == reload_epoch) {
-        if (stop_.load()) return reload_epoch;
+        if (stop_.load())
+          return reload_epoch;
         std::this_thread::yield();
         reload_epoch = global_epoch_.load();
       }
@@ -102,22 +94,26 @@ class EpochFramework {
       // The first while loop waits for all threads that are in the old epoch
       // when Sync() is called. The next while loop waits for all threads to
       // progress to the next epoch.
-      if (reload_count == 2) return reload_epoch;
+      if (reload_count == 2)
+        return reload_epoch;
     }
   }
 
   void Start() { start_.store(true); }
   void Stop() {
     stop_.store(true);
-    if (epoch_writer_.joinable()) epoch_writer_.join();
+    if (epoch_writer_.joinable())
+      epoch_writer_.join();
   }
 
- public:
+public:
   uint32_t GetSmallestEpoch() {
     uint32_t min_epoch = THREAD_OFFLINE;
     tls_.ForEach([&](const EpochNumber* local_epoch) {
       const EpochNumber e = *local_epoch;
-      if (0 < e && e < min_epoch) { min_epoch = e; }
+      if (0 < e && e < min_epoch) {
+        min_epoch = e;
+      }
     });
 
     return min_epoch;
@@ -125,7 +121,8 @@ class EpochFramework {
 
   void EpochWriterJob(size_t epoch_duration_ms) {
     const uint64_t epoch_duration = epoch_duration_ms * 1000 * 1000;
-    while (!start_.load()) std::this_thread::yield();
+    while (!start_.load())
+      std::this_thread::yield();
 
     for (;;) {
       std::this_thread::sleep_for(std::chrono::nanoseconds(epoch_duration));
@@ -133,13 +130,15 @@ class EpochFramework {
       EpochNumber old_epoch = global_epoch_;
       if (min_epoch == THREAD_OFFLINE || min_epoch == old_epoch) {
         EpochNumber updated = global_epoch_.fetch_add(1);
-        if (publish_target_) publish_target_(updated);
+        if (publish_target_)
+          publish_target_(updated);
       }
-      if (stop_.load() && min_epoch == THREAD_OFFLINE) break;
+      if (stop_.load() && min_epoch == THREAD_OFFLINE)
+        break;
     }
   }
 
- private:
+private:
   std::atomic<bool> start_;
   std::atomic<bool> stop_;
   std::atomic<EpochNumber> global_epoch_;
@@ -148,5 +147,5 @@ class EpochFramework {
   ThreadKeyStorage<EpochNumber> tls_;
 };
 
-}  // namespace LineairDB
+} // namespace LineairDB
 #endif

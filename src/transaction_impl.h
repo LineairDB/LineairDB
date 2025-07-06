@@ -52,21 +52,17 @@ namespace LineairDB {
 class Transaction::Impl {
   friend class Database::Impl;
 
- public:
+public:
   Impl(Database::Impl*) noexcept;
   ~Impl() noexcept;
 
   TxStatus GetCurrentStatus();
-  const std::pair<const std::byte* const, const size_t> Read(
-      const std::string_view key);
-  void Write(const std::string_view key, const std::byte value[],
-             const size_t size);
+  const std::pair<const std::byte* const, const size_t> Read(const std::string_view key);
+  void Write(const std::string_view key, const std::byte value[], const size_t size);
 
-  const std::optional<size_t> Scan(
-      const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view,
-                         const std::pair<const void*, const size_t>)>
-          operation);
+  const std::optional<size_t>
+  Scan(const std::string_view begin, const std::optional<std::string_view> end,
+       std::function<bool(std::string_view, const std::pair<const void*, const size_t>)> operation);
 
   void Abort();
   bool Precommit();
@@ -76,10 +72,10 @@ class Transaction::Impl {
    */
   void PostProcessing(TxStatus);
 
- private:
+private:
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
- private:
+private:
   TxStatus current_status_;
   Database::Impl* db_pimpl_;
   const Config& config_ref_;
@@ -88,5 +84,5 @@ class Transaction::Impl {
   ReadSetType read_set_;
   WriteSetType write_set_;
 };
-}  // namespace LineairDB
+} // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_IMPL_H */

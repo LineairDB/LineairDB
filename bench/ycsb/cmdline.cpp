@@ -37,7 +37,7 @@ namespace YCSB {
 void PopulateDatabase(LineairDB::Database&, YCSB::Workload&, size_t);
 rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&, bool);
 
-}  // namespace YCSB
+} // namespace YCSB
 
 const std::map<std::string, LineairDB::Config::ConcurrencyControl> Protocols = {
     {"Silo", LineairDB::Config::ConcurrencyControl::Silo},
@@ -46,46 +46,44 @@ const std::map<std::string, LineairDB::Config::ConcurrencyControl> Protocols = {
 };
 
 int main(int argc, char** argv) {
-  cxxopts::Options options(
-      "ycsb",
-      "YCSB: Yahoo! Cloud serving benchmark for multi-key transactions");
+  cxxopts::Options options("ycsb",
+                           "YCSB: Yahoo! Cloud serving benchmark for multi-key transactions");
 
-  options.add_options()          //
-      ("h,help", "Print usage")  //
+  options.add_options()         //
+      ("h,help", "Print usage") //
       ("R,records", "Scale factor of YCSB: the number of records in the table",
-       cxxopts::value<size_t>()->default_value("100000"))  //
+       cxxopts::value<size_t>()->default_value("100000")) //
       ("C,contention", "Skew parameter for zipfian distribution",
-       cxxopts::value<double>()->default_value("0.5"))  //
+       cxxopts::value<double>()->default_value("0.5")) //
       ("w,workload", "Workload",
-       cxxopts::value<std::string>()->default_value("a"))  //
+       cxxopts::value<std::string>()->default_value("a")) //
       ("c,cc", "Concurrency control protocol",
-       cxxopts::value<std::string>()->default_value("SiloNWR"))  //
+       cxxopts::value<std::string>()->default_value("SiloNWR")) //
       ("l,log", "Enable logging",
-       cxxopts::value<bool>()->default_value("false"))  //
+       cxxopts::value<bool>()->default_value("false")) //
       ("P,checkpoint", "Enable checkpointing",
-       cxxopts::value<bool>()->default_value("false"))  //
+       cxxopts::value<bool>()->default_value("false")) //
       ("i,checkpoint_interval", "Checkpoint interval",
-       cxxopts::value<size_t>()->default_value("30"))  //
+       cxxopts::value<size_t>()->default_value("30")) //
       ("r,rehash_threshold", "Rehash threshold of the hash index (percent)",
-       cxxopts::value<double>()->default_value("0.75"))  //
+       cxxopts::value<double>()->default_value("0.75")) //
       ("s,ws", "Size of working set for each transaction",
-       cxxopts::value<size_t>()->default_value("4"))  //
+       cxxopts::value<size_t>()->default_value("4")) //
       ("e,epoch", "Size of epoch duration",
-       cxxopts::value<size_t>()->default_value("40"))  //
+       cxxopts::value<size_t>()->default_value("40")) //
       ("p,payload", "Size (bytes) of each record",
-       cxxopts::value<size_t>()->default_value("8"))  //
+       cxxopts::value<size_t>()->default_value("8")) //
       ("t,thread", "The number of threads working on LineairDB",
-       cxxopts::value<size_t>()->default_value("1"))  //
+       cxxopts::value<size_t>()->default_value("1")) //
       ("q,clients", "The number of threads queueing the jobs into LineairDB",
-       cxxopts::value<size_t>()->default_value("1"))  //
+       cxxopts::value<size_t>()->default_value("1")) //
       // std::to_string(std::thread::hardware_concurrency())))  //
-      ("H,handler",
-       "Use handler interface: queueing threads also execute transactions",
-       cxxopts::value<bool>()->default_value("false"))  //
+      ("H,handler", "Use handler interface: queueing threads also execute transactions",
+       cxxopts::value<bool>()->default_value("false")) //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
-       cxxopts::value<size_t>()->default_value("2000"))  //
+       cxxopts::value<size_t>()->default_value("2000")) //
       ("o,output", "Output JSON filename",
-       cxxopts::value<std::string>()->default_value("ycsb_result.json"))  //
+       cxxopts::value<std::string>()->default_value("ycsb_result.json")) //
       ;
 
   auto result = options.parse(argc, argv);
@@ -98,28 +96,27 @@ int main(int argc, char** argv) {
 
   /** Initialize LineairDB **/
   LineairDB::Config config;
-  auto protocol                       = result["cc"].as<std::string>();
+  auto protocol = result["cc"].as<std::string>();
   config.concurrency_control_protocol = Protocols.find(protocol)->second;
-  config.enable_recovery              = false;
-  config.enable_logging               = result["log"].as<bool>();
-  config.max_thread                   = result["thread"].as<size_t>();
-  config.epoch_duration_ms            = result["epoch"].as<size_t>();
-  config.checkpoint_period            = result["checkpoint_interval"].as<size_t>();
-  config.rehash_threshold             = result["rehash_threshold"].as<double>();
+  config.enable_recovery = false;
+  config.enable_logging = result["log"].as<bool>();
+  config.max_thread = result["thread"].as<size_t>();
+  config.epoch_duration_ms = result["epoch"].as<size_t>();
+  config.checkpoint_period = result["checkpoint_interval"].as<size_t>();
+  config.rehash_threshold = result["rehash_threshold"].as<double>();
   LineairDB::Database db(config);
 
   const auto use_handler = result["handler"].as<bool>();
 
   /** Configure the workload **/
   auto workload_type = result["workload"].as<std::string>();
-  YCSB::Workload workload =
-      YCSB::Workload::GeneratePredefinedWorkload(workload_type);
+  YCSB::Workload workload = YCSB::Workload::GeneratePredefinedWorkload(workload_type);
 
-  workload.recordcount          = result["records"].as<size_t>();
-  workload.zipfian_theta        = result["contention"].as<double>();
-  workload.reps_per_txn         = result["ws"].as<size_t>();
-  workload.payload_size         = result["payload"].as<size_t>();
-  workload.client_thread_size   = result["clients"].as<size_t>();
+  workload.recordcount = result["records"].as<size_t>();
+  workload.zipfian_theta = result["contention"].as<double>();
+  workload.reps_per_txn = result["ws"].as<size_t>();
+  workload.payload_size = result["payload"].as<size_t>();
+  workload.client_thread_size = result["clients"].as<size_t>();
   workload.measurement_duration = result["duration"].as<size_t>();
 
   /** Populate the table **/
@@ -127,17 +124,12 @@ int main(int argc, char** argv) {
 
   /** Run the benchmark **/
   auto result_json = YCSB::RunBenchmark(db, workload, use_handler);
-  auto& allocator  = result_json.GetAllocator();
+  auto& allocator = result_json.GetAllocator();
 
-  result_json.AddMember("workload",
-                        rapidjson::Value(workload_type.c_str(), allocator),
-                        allocator);
-  result_json.AddMember(
-      "protocol", rapidjson::Value(protocol.c_str(), allocator), allocator);
-  result_json.AddMember("threads", static_cast<uint64_t>(config.max_thread),
-                        allocator);
-  result_json.AddMember("clients", static_cast<uint64_t>(workload.client_thread_size),
-                        allocator);
+  result_json.AddMember("workload", rapidjson::Value(workload_type.c_str(), allocator), allocator);
+  result_json.AddMember("protocol", rapidjson::Value(protocol.c_str(), allocator), allocator);
+  result_json.AddMember("threads", static_cast<uint64_t>(config.max_thread), allocator);
+  result_json.AddMember("clients", static_cast<uint64_t>(workload.client_thread_size), allocator);
   result_json.AddMember("handler", use_handler, allocator);
 
   rapidjson::StringBuffer buffer;
@@ -145,16 +137,14 @@ int main(int argc, char** argv) {
   result_json.Accept(writer);
   writer.Flush();
 
-  auto result_string   = buffer.GetString();
+  auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
-  std::ofstream output_f(output_filename,
-                         std::ofstream::out | std::ofstream::trunc);
+  std::ofstream output_f(output_filename, std::ofstream::out | std::ofstream::trunc);
   output_f << result_string;
   if (!output_f.good()) {
     std::cerr << "Unable to write output file" << output_filename << std::endl;
     exit(1);
   }
-  std::cout << "This benchmark result is saved into " << output_filename
-            << std::endl;
+  std::cout << "This benchmark result is saved into " << output_filename << std::endl;
   return 0;
 }

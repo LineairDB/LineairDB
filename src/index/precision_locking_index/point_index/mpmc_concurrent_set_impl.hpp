@@ -48,8 +48,7 @@ namespace Index {
  * created and stored into the index, it will not be changed by #puts.
  */
 
-template <typename T>
-class MPMCConcurrentSetImpl {
+template <typename T> class MPMCConcurrentSetImpl {
   // TODO WANTFIX replace std::hardware_destructive_interference_size
   // TODO performance fix hashed prefix uint64_t key
   struct alignas(64) TableNode {
@@ -80,28 +79,24 @@ class MPMCConcurrentSetImpl {
 
   using TableType = std::vector<std::atomic<TableNode*>>;
 
- public:
+public:
   explicit MPMCConcurrentSetImpl(double r = 0.75)
-      : rehash_threshold_(r),
-        table_(new TableType(InitialTableSize)),
-        populated_count_(0),
+      : rehash_threshold_(r), table_(new TableType(InitialTableSize)), populated_count_(0),
         rehash_thread_([&]() {
           while (!stop_flag_.load()) {
             std::unique_lock<std::mutex> lock(rehash_flag_);
             rehash_cv_.wait(lock, [&]() {
               const double current_fill_rate =
-                  (populated_count_.load() /
-                   static_cast<double>(table_.load()->size()));
-              return (rehash_threshold_ <= current_fill_rate) ||
-                     force_rehash_flag_.load() || stop_flag_.load();
+                  (populated_count_.load() / static_cast<double>(table_.load()->size()));
+              return (rehash_threshold_ <= current_fill_rate) || force_rehash_flag_.load() ||
+                     stop_flag_.load();
             });
 
-            if (stop_flag_.load()) return;
+            if (stop_flag_.load())
+              return;
             const double current_fill_rate =
-                (populated_count_.load() /
-                 static_cast<double>(table_.load()->size()));
-            if ((rehash_threshold_ <= current_fill_rate) ||
-                force_rehash_flag_.load()) {
+                (populated_count_.load() / static_cast<double>(table_.load()->size()));
+            if ((rehash_threshold_ <= current_fill_rate) || force_rehash_flag_.load()) {
               // double checking for sprious wakeup
               force_rehash_flag_.store(false);
               Rehash();
@@ -119,14 +114,14 @@ class MPMCConcurrentSetImpl {
   };
   T* Get(const std::string_view);
   bool Put(const std::string_view, const T* const);
-  void Clear();  // thread-unsafe
+  void Clear(); // thread-unsafe
   void ForEach(std::function<bool(std::string_view, T&)>);
 
- private:
+private:
   inline size_t Hash(std::string_view, TableType*);
   bool Rehash();
 
- private:
+private:
   const double rehash_threshold_;
   std::atomic<TableType*> table_;
   std::atomic<size_t> populated_count_;
@@ -143,8 +138,7 @@ class MPMCConcurrentSetImpl {
 };
 
 /** the followings are implementation **/
-template <typename T>
-T* MPMCConcurrentSetImpl<T>::Get(const std::string_view key) {
+template <typename T> T* MPMCConcurrentSetImpl<T>::Get(const std::string_view key) {
 get_start:
   epoch_framework_.MakeMeOnline();
   auto* table = table_.load(std::memory_order::memory_order_relaxed);
@@ -188,7 +182,7 @@ get_start:
     if (count > 100) {
       epoch_framework_.MakeMeOffline();
       force_rehash_flag_.store(true);
-      rehash_cv_.notify_all();  // rehash the table to reduce the probing length
+      rehash_cv_.notify_all(); // rehash the table to reduce the probing length
       epoch_framework_.Sync();
       count = 0;
       goto get_start;
@@ -200,8 +194,7 @@ get_start:
 }
 
 template <typename T>
-bool MPMCConcurrentSetImpl<T>::Put(const std::string_view key,
-                                   const T* const value_p) {
+bool MPMCConcurrentSetImpl<T>::Put(const std::string_view key, const T* const value_p) {
 put_start:
   epoch_framework_.MakeMeOnline();
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
@@ -230,8 +223,7 @@ put_start:
       bool succ = bucket_atm.compare_exchange_weak(node, new_node);
       if (succ) {
         const size_t current_stored = populated_count_.fetch_add(1);
-        const double current_fill_rate =
-            (current_stored / static_cast<double>(table->size()));
+        const double current_fill_rate = (current_stored / static_cast<double>(table->size()));
         epoch_framework_.MakeMeOffline();
         if (rehash_threshold_ < current_fill_rate) {
           rehash_cv_.notify_one();
@@ -260,7 +252,7 @@ put_start:
     if (count > 100) {
       epoch_framework_.MakeMeOffline();
       force_rehash_flag_.store(true);
-      rehash_cv_.notify_all();  // rehash the table to reduce the probing length
+      rehash_cv_.notify_all(); // rehash the table to reduce the probing length
       epoch_framework_.Sync();
       delete new_node;
       goto put_start;
@@ -269,8 +261,7 @@ put_start:
 }
 
 // FYI: https://preshing.com/20160222/a-resizable-concurrent-map/
-template <typename T>
-bool MPMCConcurrentSetImpl<T>::Rehash() {
+template <typename T> bool MPMCConcurrentSetImpl<T>::Rehash() {
   std::lock_guard<std::mutex> lock(table_lock_);
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
 
@@ -295,24 +286,22 @@ bool MPMCConcurrentSetImpl<T>::Rehash() {
     // lineair probing
     for (;;) {
       auto& target_bucket = (*new_table)[rehashed];
-      if (target_bucket.load(std::memory_order::memory_order_relaxed) ==
-          nullptr) {
+      if (target_bucket.load(std::memory_order::memory_order_relaxed) == nullptr) {
         target_bucket.store(node);
         break;
       }
       rehashed++;
-      if (rehashed == new_table->size()) rehashed = 0;
+      if (rehashed == new_table->size())
+        rehashed = 0;
     }
 
-    [[maybe_unused]] bool exchanged =
-        bucket_atm.compare_exchange_strong(node, GetRedirectedPtr());
-    assert(exchanged);  // NOTE: This class provides concurrent `set` of
+    [[maybe_unused]] bool exchanged = bucket_atm.compare_exchange_strong(node, GetRedirectedPtr());
+    assert(exchanged); // NOTE: This class provides concurrent `set` of
     // `pointer`; we assume that pointer entries are never
     // be deleted and updated.
   }
 
-  [[maybe_unused]] auto table_exchanged =
-      table_.compare_exchange_strong(table, new_table);
+  [[maybe_unused]] auto table_exchanged = table_.compare_exchange_strong(table, new_table);
   assert(table_exchanged);
 
   // QSBR-based garbage collection
@@ -322,21 +311,20 @@ bool MPMCConcurrentSetImpl<T>::Rehash() {
 }
 
 template <typename T>
-inline size_t MPMCConcurrentSetImpl<T>::Hash(std::string_view key,
-                                             TableType* table) {
+inline size_t MPMCConcurrentSetImpl<T>::Hash(std::string_view key, TableType* table) {
   auto capacity = table->size();
   auto hashed = std::hash<std::string_view>()(key);
   hashed = hashed ^ capacity;
   return hashed % capacity;
 }
 
-template <typename T>
-void MPMCConcurrentSetImpl<T>::Clear() {
+template <typename T> void MPMCConcurrentSetImpl<T>::Clear() {
   std::lock_guard<std::mutex> lock(table_lock_);
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   for (auto& bucket_atm : *table) {
     auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
-    if (node == nullptr) continue;
+    if (node == nullptr)
+      continue;
     delete node->value;
 
     delete node;
@@ -345,22 +333,23 @@ void MPMCConcurrentSetImpl<T>::Clear() {
 }
 
 template <typename T>
-void MPMCConcurrentSetImpl<T>::ForEach(
-    std::function<bool(std::string_view, T&)> f) {
+void MPMCConcurrentSetImpl<T>::ForEach(std::function<bool(std::string_view, T&)> f) {
   std::lock_guard<std::mutex> lock(table_lock_);
   epoch_framework_.MakeMeOnline();
   auto* table = table_.load(std::memory_order::memory_order_seq_cst);
   for (auto& bucket_atm : *table) {
     auto* node = bucket_atm.load(std::memory_order::memory_order_seq_cst);
-    if (node == nullptr) continue;
+    if (node == nullptr)
+      continue;
     assert(!IsRedirectedPtr(node));
     auto is_success = f(node->key, *const_cast<T*>(node->value));
-    if (!is_success) break;
+    if (!is_success)
+      break;
   }
   epoch_framework_.MakeMeOffline();
 }
 
-}  // namespace Index
-}  // namespace LineairDB
+} // namespace Index
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_MPMC_CONCURRENT_SET_IMPL_H */

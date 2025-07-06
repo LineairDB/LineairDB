@@ -35,13 +35,10 @@ jobs:
       - name: Run clang-format style check
         shell: bash
         run: |
-          # Retrieve list of target source files
           FILES=$(git ls-files '*.c' '*.cc' '*.cpp' '*.h' '*.hpp')
 
-          # Apply clang-format in-place
           clang-format-14 -style=file -i $FILES
 
-          # Fail the job if any diffs exist (style violations)
           if ! git diff --quiet; then
             echo "::error::Code style violations found. Please run clang-format locally and commit the changes."
             git --no-pager diff

@@ -17,8 +17,8 @@
 #ifndef LINEAIRDB_YCSB_WORKLOAD_H
 #define LINEAIRDB_YCSB_WORKLOAD_H
 
-#include <iostream>
 #include <atomic>
+#include <iostream>
 #include <string_view>
 
 namespace YCSB {
@@ -31,7 +31,7 @@ struct Workload {
   const size_t update_proportion;
   const size_t insert_proportion;
   const size_t scan_proportion;
-  const size_t rmw_proportion;  // RMW: Read-Modify-Write
+  const size_t rmw_proportion; // RMW: Read-Modify-Write
   const Distribution distribution;
   size_t recordcount;
   double zipfian_theta;
@@ -43,14 +43,9 @@ struct Workload {
   size_t client_thread_size;
   size_t measurement_duration;
 
-
   Workload(size_t r, size_t u, size_t i, size_t s, size_t m, Distribution d)
-      : read_proportion(r),
-        update_proportion(u),
-        insert_proportion(i),
-        scan_proportion(s),
-        rmw_proportion(m),
-        distribution(d) {
+      : read_proportion(r), update_proportion(u), insert_proportion(i), scan_proportion(s),
+        rmw_proportion(m), distribution(d) {
     assert((r + u + i + s + m) == 100);
     has_insert = 0 < insert_proportion;
   }
@@ -78,5 +73,5 @@ struct Workload {
     }
   }
 };
-}  // namespace YCSB
+} // namespace YCSB
 #endif /* LINEAIRDB_YCSB_WORKLOAD_H */

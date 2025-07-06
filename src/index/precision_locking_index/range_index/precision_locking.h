@@ -52,7 +52,7 @@ namespace Index {
  *
  */
 class PrecisionLockingIndex {
- public:
+public:
   PrecisionLockingIndex(LineairDB::EpochFramework&);
   ~PrecisionLockingIndex();
   std::optional<size_t> Scan(const std::string_view begin,
@@ -62,23 +62,20 @@ class PrecisionLockingIndex {
   void ForceInsert(const std::string_view key);
   bool Delete(const std::string_view key);
 
- private:
+private:
   bool IsInPredicateSet(const std::string_view);
-  bool IsOverlapWithInsertOrDelete(const std::string_view,
-                                   const std::optional<std::string_view>);
+  bool IsOverlapWithInsertOrDelete(const std::string_view, const std::optional<std::string_view>);
 
   struct Predicate {
     std::string begin;
     std::optional<std::string> end;
-    Predicate(std::string_view b, std::optional<std::string_view> e)
-        : begin(b), end(e) {}
+    Predicate(std::string_view b, std::optional<std::string_view> e) : begin(b), end(e) {}
   };
 
   struct InsertOrDeleteEvent {
     std::string key;
     bool is_delete_event;
-    InsertOrDeleteEvent(std::string_view k, bool i)
-        : key(k), is_delete_event(i) {}
+    InsertOrDeleteEvent(std::string_view k, bool i) : key(k), is_delete_event(i) {}
   };
 
   struct IndexItem {
@@ -86,8 +83,7 @@ class PrecisionLockingIndex {
   };
 
   using PredicateList = std::map<EpochNumber, std::vector<Predicate>>;
-  using InsertOrDeleteKeySet =
-      std::map<EpochNumber, std::vector<InsertOrDeleteEvent>>;
+  using InsertOrDeleteKeySet = std::map<EpochNumber, std::vector<InsertOrDeleteEvent>>;
   using ROWEXRangeIndexContainer = std::map<std::string, IndexItem>;
 
   PredicateList predicate_list_;
@@ -99,7 +95,7 @@ class PrecisionLockingIndex {
   std::atomic<bool> manager_stop_flag_;
   std::thread manager_;
 };
-}  // namespace Index
-}  // namespace LineairDB
+} // namespace Index
+} // namespace LineairDB
 
 #endif /*  LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_H*/

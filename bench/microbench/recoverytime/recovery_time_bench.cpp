@@ -36,15 +36,14 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
                  const size_t number_of_updates_per_data_item) {
   assert(0 < db_size);
   LineairDB::Config config;
-  config.concurrency_control_protocol =
-      LineairDB::Config::ConcurrencyControl::Silo;
-  config.enable_logging  = true;
+  config.concurrency_control_protocol = LineairDB::Config::ConcurrencyControl::Silo;
+  config.enable_logging = true;
   config.enable_recovery = true;
 
-  {  // Populate database
+  { // Populate database
     LineairDB::Database db(config);
     std::vector<std::future<void>> futures;
-    const size_t thread_size            = std::thread::hardware_concurrency();
+    const size_t thread_size = std::thread::hardware_concurrency();
     const size_t per_worker_insert_size = db_size / thread_size;
     std::vector<std::byte> buffer(buffer_size);
 
@@ -54,7 +53,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
           db.ExecuteTransaction(
               [&, i](LineairDB::Transaction& tx) {
                 const size_t from = i * per_worker_insert_size;
-                const size_t to   = (i + 1) * per_worker_insert_size - 1;
+                const size_t to = (i + 1) * per_worker_insert_size - 1;
                 for (size_t j = from; j < to; j++) {
                   tx.Write(std::to_string(j), buffer.data(), buffer.size());
                 }
@@ -65,7 +64,9 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
         }
       }));
     }
-    for (auto& fut : futures) { fut.wait(); }
+    for (auto& fut : futures) {
+      fut.wait();
+    }
     SPDLOG_INFO("Finish database population for all {0} data items.", db_size);
     db.Fence();
     SPDLOG_INFO("DB Fence.");
@@ -73,30 +74,27 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
 
   auto begin = std::chrono::high_resolution_clock::now();
   LineairDB::Database db(config);
-  auto end     = std::chrono::high_resolution_clock::now();
+  auto end = std::chrono::high_resolution_clock::now();
   auto elapsed = end - begin;
 
-  uint64_t milliseconds =
-      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+  uint64_t milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 
   return milliseconds;
 }
 
 int main(int argc, char** argv) {
-  cxxopts::Options options("lockbench",
-                           "Microbenchmark of various locking algortihms");
+  cxxopts::Options options("lockbench", "Microbenchmark of various locking algortihms");
 
-  options.add_options()          //
-      ("h,help", "Print usage")  //
+  options.add_options()         //
+      ("h,help", "Print usage") //
       ("d,dbsize", "The number of data items in LineairDB",
-       cxxopts::value<size_t>()->default_value("100000"))  //
+       cxxopts::value<size_t>()->default_value("100000")) //
       ("u,updates", "The number of update operations per data item",
-       cxxopts::value<size_t>()->default_value("1"))  //
+       cxxopts::value<size_t>()->default_value("1")) //
       ("b,buffersize", "Buffer size (bytes) for each data item",
-       cxxopts::value<size_t>()->default_value("8"))  //
+       cxxopts::value<size_t>()->default_value("8")) //
       ("o,output", "Output JSON filename",
-       cxxopts::value<std::string>()->default_value(
-           "recoverytime_bench_result.json"))  //
+       cxxopts::value<std::string>()->default_value("recoverytime_bench_result.json")) //
       ;
 
   auto result = options.parse(argc, argv);
@@ -105,9 +103,9 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const size_t db_size     = result["dbsize"].as<size_t>();
+  const size_t db_size = result["dbsize"].as<size_t>();
   const size_t buffer_size = result["buffersize"].as<size_t>();
-  const size_t updates     = result["updates"].as<size_t>();
+  const size_t updates = result["updates"].as<size_t>();
 
   std::filesystem::remove_all("lineairdb_logs");
 
@@ -127,16 +125,14 @@ int main(int argc, char** argv) {
   result_json.Accept(writer);
   writer.Flush();
 
-  auto result_string   = buffer.GetString();
+  auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
-  std::ofstream output_f(output_filename,
-                         std::ofstream::out | std::ofstream::trunc);
+  std::ofstream output_f(output_filename, std::ofstream::out | std::ofstream::trunc);
   output_f << result_string;
   if (!output_f.good()) {
     std::cerr << "Unable to write output file" << output_filename << std::endl;
     exit(1);
   }
-  std::cout << "This benchmark result is saved into " << output_filename
-            << std::endl;
+  std::cout << "This benchmark result is saved into " << output_filename << std::endl;
   return 0;
 }

@@ -29,7 +29,7 @@
 namespace LineairDB {
 
 class Database {
- public:
+public:
   /**
    * @brief Construct a new Database object. Thread-safe.
    * Note that a default-constructed Config object will be passed.
@@ -45,7 +45,7 @@ class Database {
   ~Database() noexcept;
   Database(const Database&) = delete;
   Database& operator=(const Database&) = delete;
-  Database(Database&&)                 = delete;
+  Database(Database&&) = delete;
   Database& operator=(Database&&) = delete;
 
   /**
@@ -57,7 +57,7 @@ class Database {
   const Config GetConfig() const noexcept;
 
   using ProcedureType = std::function<void(Transaction&)>;
-  using CallbackType  = std::function<void(const TxStatus)>;
+  using CallbackType = std::function<void(const TxStatus)>;
   /**
    * @brief
    * Processes a transaction given by a transaction procedure proc,
@@ -76,9 +76,8 @@ class Database {
    executed
    * after checking the pre-commit of the transaction, will abort.
    */
-  void ExecuteTransaction(
-      ProcedureType proc, CallbackType commit_clbk,
-      std::optional<CallbackType> precommit_clbk = std::nullopt);
+  void ExecuteTransaction(ProcedureType proc, CallbackType commit_clbk,
+                          std::optional<CallbackType> precommit_clbk = std::nullopt);
 
   /**
    * @brief
@@ -150,12 +149,12 @@ class Database {
    */
   void RequestCallbacks();
 
- private:
+private:
   class Impl;
   const std::unique_ptr<Impl> db_pimpl_;
   friend class Transaction;
 };
 
-};  // namespace LineairDB
+}; // namespace LineairDB
 
 #endif

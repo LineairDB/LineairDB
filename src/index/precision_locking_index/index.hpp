@@ -29,9 +29,8 @@ namespace LineairDB {
 
 namespace Index {
 
-template <typename T>
-class HashTableWithPrecisionLockingIndex {
- public:
+template <typename T> class HashTableWithPrecisionLockingIndex {
+public:
   HashTableWithPrecisionLockingIndex(Config c, EpochFramework& e)
       : point_index_(c.rehash_threshold), range_index_(e) {}
 
@@ -43,17 +42,19 @@ class HashTableWithPrecisionLockingIndex {
   bool Put(const std::string_view key, T&& rhs) { return Put(key, rhs); }
   bool Put(const std::string_view key, const T& rhs) {
     bool r_success = range_index_.Insert(key);
-    if (!r_success) return false;
-    auto* value    = new T(rhs);
+    if (!r_success)
+      return false;
+    auto* value = new T(rhs);
     bool p_success = point_index_.Put(key, value);
-    if (!p_success) delete value;
+    if (!p_success)
+      delete value;
     return true;
   }
 
   void ForcePutBlankEntry(const std::string_view key) {
     auto* new_entry = new T();
     if (!point_index_.Put(key, new_entry))
-      delete new_entry;  // already inserted
+      delete new_entry; // already inserted
     range_index_.ForceInsert(key);
   }
 
@@ -69,9 +70,9 @@ class HashTableWithPrecisionLockingIndex {
    * @return std::optional<size_t> returns std::nullopt if a phantom anomaly has
    * detected.
    */
-  std::optional<size_t> Scan(
-      const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view, T&)> operation) {
+  std::optional<size_t> Scan(const std::string_view begin,
+                             const std::optional<std::string_view> end,
+                             std::function<bool(std::string_view, T&)> operation) {
     return Scan(begin, end, [&](std::string_view key) {
       auto* value = Get(key);
       return operation(key, *value);
@@ -88,17 +89,15 @@ class HashTableWithPrecisionLockingIndex {
     return range_index_.Scan(begin, end, operation);
   };
 
-  void ForEach(std::function<bool(std::string_view, T&)> f) {
-    point_index_.ForEach(f);
-  };
+  void ForEach(std::function<bool(std::string_view, T&)> f) { point_index_.ForEach(f); };
 
- private:
+private:
   MPMCConcurrentSetImpl<T> point_index_;
   PrecisionLockingIndex range_index_;
 };
 
-}  // namespace Index
+} // namespace Index
 
-}  // namespace LineairDB
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_HPP */

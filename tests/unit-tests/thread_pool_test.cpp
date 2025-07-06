@@ -29,13 +29,12 @@ void Blocking(std::atomic<size_t>& num_of_running_txns) {
     msec_elapsed_for_termination++;
     bool too_long_time_elapsed = 100 < msec_elapsed_for_termination;
     EXPECT_FALSE(too_long_time_elapsed);
-    if (too_long_time_elapsed) break;
+    if (too_long_time_elapsed)
+      break;
   }
 }
 
-TEST(ThreadPoolTest, Instantiate) {
-  ASSERT_NO_THROW(LineairDB::ThreadPool thread_pool);
-}
+TEST(ThreadPoolTest, Instantiate) { ASSERT_NO_THROW(LineairDB::ThreadPool thread_pool); }
 
 TEST(ThreadPoolTest, Enqueue) {
   LineairDB::ThreadPool thread_pool;
@@ -49,8 +48,8 @@ TEST(ThreadPoolTest, StopAcceptingTransactions) {
 
   thread_pool.StopAcceptingTransactions();
 
-  ASSERT_FALSE(thread_pool.Enqueue(
-      [&]() { ASSERT_FALSE("Expected not to invoke this assertion"); }));
+  ASSERT_FALSE(
+      thread_pool.Enqueue([&]() { ASSERT_FALSE("Expected not to invoke this assertion"); }));
 }
 
 TEST(ThreadPoolTest, ResumeAcceptingTransactions) {
@@ -58,8 +57,8 @@ TEST(ThreadPoolTest, ResumeAcceptingTransactions) {
 
   thread_pool.StopAcceptingTransactions();
 
-  ASSERT_FALSE(thread_pool.Enqueue(
-      [&]() { ASSERT_FALSE("Expected not to invoke this assertion"); }));
+  ASSERT_FALSE(
+      thread_pool.Enqueue([&]() { ASSERT_FALSE("Expected not to invoke this assertion"); }));
 
   thread_pool.ResumeAcceptingTransactions();
   ASSERT_TRUE(thread_pool.Enqueue([]() {}));
@@ -83,7 +82,9 @@ TEST(ThreadPoolTest, EnqueueForAllThreads) {
     num_of_running_txns--;
     thread_local bool im_already_executed = false;
     ASSERT_FALSE(im_already_executed);
-    if (im_already_executed == false) { im_already_executed = true; }
+    if (im_already_executed == false) {
+      im_already_executed = true;
+    }
   });
 
   Blocking(num_of_running_txns);

@@ -24,6 +24,6 @@ namespace LineairDB {
 
 using EpochNumber = uint32_t;
 
-}  // namespace LineairDB
+} // namespace LineairDB
 
 #endif /* LINEAIRDB_TYPES_H */

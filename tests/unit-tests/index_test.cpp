@@ -26,18 +26,18 @@
 #include "gtest/gtest.h"
 
 class IndexTest : public ::testing::Test {
- protected:
+protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
-    config_.enable_recovery      = false;
-    config_.enable_logging       = false;
+    config_.enable_recovery = false;
+    config_.enable_logging = false;
     config_.enable_checkpointing = false;
     db_ = std::make_unique<LineairDB::Database>(config_);
 
     TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
       int alice = 1;
-      int bob   = 2;
+      int bob = 2;
       int carol = 3;
       tx.template Write<decltype(alice)>("alice", alice);
       tx.template Write<decltype(bob)>("bob", bob);
@@ -48,18 +48,18 @@ class IndexTest : public ::testing::Test {
 };
 
 TEST_F(IndexTest, Scan) {
-  auto& tx   = db_->BeginTransaction();
+  auto& tx = db_->BeginTransaction();
   auto count = tx.Scan("alice", "bob", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob");
     return false;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(2, count.value());  // #Scan is not inclusive
+  ASSERT_EQ(2, count.value()); // #Scan is not inclusive
   db_->EndTransaction(tx, [](auto) {});
 }
 
 TEST_F(IndexTest, AlphabeticalOrdering) {
-  auto& tx   = db_->BeginTransaction();
+  auto& tx = db_->BeginTransaction();
   auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
   ASSERT_FALSE(count.has_value());
 
@@ -70,7 +70,7 @@ TEST_F(IndexTest, AlphabeticalOrdering) {
 }
 
 TEST_F(IndexTest, ScanViaTemplate) {
-  auto& tx   = db_->BeginTransaction();
+  auto& tx = db_->BeginTransaction();
   auto count = tx.Scan<int>("alice", "bob", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob");
     return false;
@@ -81,7 +81,7 @@ TEST_F(IndexTest, ScanViaTemplate) {
 }
 
 TEST_F(IndexTest, StopScanning) {
-  auto& tx   = db_->BeginTransaction();
+  auto& tx = db_->BeginTransaction();
   auto count = tx.Scan("alice", "carol", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice");
     EXPECT_FALSE(key == "bob");
@@ -93,7 +93,7 @@ TEST_F(IndexTest, StopScanning) {
 }
 
 TEST_F(IndexTest, ScanWithoutEnd) {
-  auto& tx   = db_->BeginTransaction();
+  auto& tx = db_->BeginTransaction();
   auto count = tx.Scan("alice", std::nullopt, [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob" || key == "carol");
     return false;
@@ -108,16 +108,15 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
 
   std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
-       [&](LineairDB::Transaction& tx) {
-         auto scan = [&]() {
-           return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
-         };
-         first = scan();
-         std::this_thread::yield();
-         second = scan();
-       }});
+      db_.get(), {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
+                  [&](LineairDB::Transaction& tx) {
+                    auto scan = [&]() {
+                      return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
+                    };
+                    first = scan();
+                    std::this_thread::yield();
+                    second = scan();
+                  }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
   }

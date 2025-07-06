@@ -23,7 +23,7 @@
 #include <random>
 
 class RandomGenerator {
- public:
+public:
   RandomGenerator() : max_(0xdeadbeef) {}
 
   void Init(uint64_t items, double theta) {
@@ -45,18 +45,16 @@ class RandomGenerator {
   uint64_t Random() { return engine_(); }
   uint64_t BoundedRandom() { return engine_() % max_; }
   uint64_t UniformRandom() { return uniform_(engine_); }
-  double   UniformReal() { return uniform_real_(engine_); }
+  double UniformReal() { return uniform_real_(engine_); }
   uint64_t UniformRandom(uint64_t lower_bound, uint64_t upper_bound) {
     return std::uniform_int_distribution<>(lower_bound, upper_bound)(engine_);
   }
-  uint64_t UniformRandom(uint64_t upper_bound) {
-    return UniformRandom(0, upper_bound);
-  }
+  uint64_t UniformRandom(uint64_t upper_bound) { return UniformRandom(0, upper_bound); }
   bool IsIntialized() { return max_ != 0xdeadbeef; }
 
   uint64_t Next(uint64_t max) {
-    if (max != countforzeta_){ // recompute
-      if (max > countforzeta_){
+    if (max != countforzeta_) { // recompute
+      if (max > countforzeta_) {
         zetan_ = zeta(countforzeta_, max, zetan_);
         eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
       } else {
@@ -77,13 +75,12 @@ class RandomGenerator {
       return 1;
     }
 
-    uint64_t ret =
-        static_cast<uint64_t>(max * std::pow(eta_ * u - eta_ + 1, alpha_));
+    uint64_t ret = static_cast<uint64_t>(max * std::pow(eta_ * u - eta_ + 1, alpha_));
 
     return ret;
   }
 
-  uint64_t Next(bool is_insert_occurs = false) { 
+  uint64_t Next(bool is_insert_occurs = false) {
     uint64_t max = is_insert_occurs ? latest.load(std::memory_order_relaxed) : max_;
     return Next(max);
   }
@@ -93,11 +90,11 @@ class RandomGenerator {
   // https://github.com/brianfrankcooper/YCSB/blob/master/core/src/main/java/site/ycsb/generator/SkewedLatestGenerator.java
   static std::atomic<uint64_t> latest;
   static uint64_t XAdd() {
-    //SPDLOG_ERROR("insert {}", latest.load());
+    // SPDLOG_ERROR("insert {}", latest.load());
     return latest.fetch_add(1);
   }
 
- private:
+private:
   double zeta(uint64_t st, uint64_t n, uint64_t initialsum) {
     double sum = initialsum;
     countforzeta_ = n;
@@ -109,7 +106,7 @@ class RandomGenerator {
 
   double zeta(uint64_t n) { return zeta(0, n, 0); }
 
- private:
+private:
   std::random_device seeder_;
   std::mt19937 engine_;
   std::uniform_int_distribution<> uniform_;
