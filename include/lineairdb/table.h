@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "index/concurrent_table.h"
+#include "index/secondary_index.h"
 #include "lineairdb/secondary_index_option.h"
 #include "util/epoch_framework.hpp"
 
@@ -18,6 +19,6 @@ class Table {
   EpochFramework &epoch_framework_;
   Config config_;
   Index::ConcurrentTable primary_index_;
-  std::unordered_map<std::string, Index::ConcurrentTable> secondary_indices_;
+  std::unordered_map<std::string, Index::SecondaryIndex> secondary_indices_;
 };
 }  // namespace LineairDB
