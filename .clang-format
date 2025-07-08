@@ -1,21 +1,6 @@
-BasedOnStyle: LLVM
+BasedOnStyle: Google
 IndentWidth: 2
 TabWidth: 2
-UseTab: Never
-ColumnLimit: 100
-AllowShortIfStatementsOnASingleLine: false
-DerivePointerAlignment: false
-PointerAlignment: Left
-SpaceBeforeParens: ControlStatements
 SortIncludes: true
-IncludeBlocks: Preserve
-Standard: Latest
-BraceWrapping:
-  AfterClass: true
-  AfterControlStatement: true
-  AfterEnum: true
-  AfterFunction: true
-  AfterNamespace: true
-  AfterStruct: true
-  SplitEmptyFunction: false
-  SplitEmptyRecord: false 
+DerivePointerAlignment: false 
+PointerAlignment: Left
