@@ -21,16 +21,18 @@
 #include <thread>
 #include <utility>
 
+#include "gtest/gtest.h"
 #include "lock/impl/readers_writers_lock.hpp"
 #include "lock/impl/ttas_lock.hpp"
 #include "util/logger.hpp"
-#include "gtest/gtest.h"
 
-template <typename T> class LockTest : public ::testing::Test {};
+template <typename T>
+class LockTest : public ::testing::Test {};
 
 using namespace LineairDB::Lock;
-typedef ::testing::Types<TTASLock, TTASLockBO, TTASLockCO, TTASLockBOCO, ReadersWritersLock,
-                         ReadersWritersLockBO, ReadersWritersLockCO, ReadersWritersLockBOCO>
+typedef ::testing::Types<TTASLock, TTASLockBO, TTASLockCO, TTASLockBOCO,
+                         ReadersWritersLock, ReadersWritersLockBO,
+                         ReadersWritersLockCO, ReadersWritersLockBOCO>
     LockTypes;
 TYPED_TEST_SUITE(LockTest, LockTypes);
 
@@ -54,8 +56,7 @@ TYPED_TEST(LockTest, MultiThreaded) {
   lock.Lock();
   auto the_other_thread = std::async(std::launch::async, [&]() {
     ASSERT_FALSE(lock.TryLock());
-    while (barrier.load())
-      std::this_thread::yield();
+    while (barrier.load()) std::this_thread::yield();
     ASSERT_TRUE(lock.TryLock());
   });
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -65,8 +66,7 @@ TYPED_TEST(LockTest, MultiThreaded) {
 }
 
 TYPED_TEST(LockTest, StarvationFreeProperty) {
-  if (TypeParam::IsStarvationFreeAlgorithm() == false)
-    return;
+  if (TypeParam::IsStarvationFreeAlgorithm() == false) return;
   // TODO impl this testcase.
 }
 

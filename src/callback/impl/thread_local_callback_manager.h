@@ -23,7 +23,7 @@
 #include <queue>
 
 #include "callback/callback_manager_base.h"
-#include "concurrentqueue.h" // moodycamel::concurrentqueue
+#include "concurrentqueue.h"  // moodycamel::concurrentqueue
 #include "types/definitions.h"
 #include "util/thread_key_storage.h"
 
@@ -32,27 +32,30 @@ namespace LineairDB {
 namespace Callback {
 
 class ThreadLocalCallbackManager final : public CallbackManagerBase {
-public:
+ public:
   ThreadLocalCallbackManager();
-  void Enqueue(const LineairDB::Database::CallbackType& callback, EpochNumber epoch,
-               bool entrusting) final override;
+  void Enqueue(const LineairDB::Database::CallbackType& callback,
+               EpochNumber epoch, bool entrusting) final override;
   void ExecuteCallbacks(EpochNumber new_epoch) final override;
   void WaitForAllCallbacksToBeExecuted() final override;
 
-private:
+ private:
   struct ThreadLocalStorageNode {
-  public:
-    std::queue<std::pair<EpochNumber, LineairDB::Database::CallbackType>> callback_queue;
+   public:
+    std::queue<std::pair<EpochNumber, LineairDB::Database::CallbackType>>
+        callback_queue;
   };
 
   struct WorkStealingQueueNode {
-    moodycamel::ConcurrentQueue<std::pair<EpochNumber, LineairDB::Database::CallbackType>> queue;
+    moodycamel::ConcurrentQueue<
+        std::pair<EpochNumber, LineairDB::Database::CallbackType>>
+        queue;
   };
 
-private:
+ private:
   inline WorkStealingQueueNode* GetMyWorkStealingQueue();
 
-private:
+ private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
   std::list<WorkStealingQueueNode> work_steal_queues_;
   ThreadKeyStorage<WorkStealingQueueNode*> thread_local_work_steal_queue_;
@@ -60,7 +63,7 @@ private:
   std::atomic<size_t> work_steal_queue_size_;
 };
 
-} // namespace Callback
-} // namespace LineairDB
+}  // namespace Callback
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_THREAD_LOCAL_CALLBACK_MANAGER_BASE_H */

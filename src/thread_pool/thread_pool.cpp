@@ -16,7 +16,7 @@
 
 #include "thread_pool.h"
 
-#include <concurrentqueue.h> // moodycamel::concurrentqueue
+#include <concurrentqueue.h>  // moodycamel::concurrentqueue
 
 #ifndef __APPLE__
 #include <numa.h>
@@ -39,7 +39,10 @@
 
 namespace LineairDB {
 ThreadPool::ThreadPool(size_t pool_size)
-    : stop_(false), shutdown_(false), work_queues_(pool_size), no_steal_queues_(pool_size) {
+    : stop_(false),
+      shutdown_(false),
+      work_queues_(pool_size),
+      no_steal_queues_(pool_size) {
   assert(work_queues_.size() == pool_size);
   for (size_t i = 0; i < pool_size; i++) {
 #ifndef __APPLE__
@@ -79,16 +82,14 @@ void ThreadPool::ResumeAcceptingTransactions() { stop_ = false; }
 void ThreadPool::Shutdown() { shutdown_ = true; }
 
 bool ThreadPool::Enqueue(std::function<void()>&& job) {
-  if (stop_)
-    return false;
+  if (stop_) return false;
   thread_local static std::mt19937 random(0xDEADBEEF);
   auto& queue = work_queues_[random() % work_queues_.size()];
   return queue.enqueue(job);
 }
 
 bool ThreadPool::EnqueueForAllThreads(std::function<void()>&& job) {
-  if (stop_)
-    return false;
+  if (stop_) return false;
   for (auto& queue : no_steal_queues_) {
     while (!queue.enqueue(job)) {
     };
@@ -119,12 +120,10 @@ void ThreadPool::WaitForQueuesToBecomeEmpty() {
   for (auto& queue : no_steal_queues_) {
     for (;;) {
       bool success = queue.enqueue([&]() { ends.fetch_add(1); });
-      if (success)
-        break;
+      if (success) break;
     }
   }
-  while (ends.load() < worker_threads_.size())
-    std::this_thread::yield();
+  while (ends.load() < worker_threads_.size()) std::this_thread::yield();
 }
 
 void ThreadPool::Dequeue() {
@@ -139,8 +138,7 @@ void ThreadPool::Dequeue() {
     // work stealing
     while (selected_queue->size_approx() == 0) {
       idx++;
-      if (work_queues_.size() <= idx)
-        idx = 0;
+      if (work_queues_.size() <= idx) idx = 0;
       selected_queue = &work_queues_[idx];
 
       // It seems that there does not exist any active transaction
@@ -169,4 +167,4 @@ size_t ThreadPool::GetIdxByThreadId() {
   return idx;
 }
 
-} // namespace LineairDB
+}  // namespace LineairDB

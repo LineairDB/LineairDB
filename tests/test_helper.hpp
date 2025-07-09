@@ -32,14 +32,14 @@ using TransactionProcedure = std::function<void(LineairDB::Transaction&)>;
 
 namespace TestHelper {
 
-void RetryTransactionUntilCommit(LineairDB::Database* db, const TransactionProcedure procedure) {
+void RetryTransactionUntilCommit(LineairDB::Database* db,
+                                 const TransactionProcedure procedure) {
   std::atomic<bool> uncommitted(true);
   std::atomic<bool> terminated(false);
   while (uncommitted) {
     terminated.store(false);
     db->ExecuteTransaction(procedure, [&](const auto status) {
-      if (status == LineairDB::TxStatus::Committed)
-        uncommitted.store(false);
+      if (status == LineairDB::TxStatus::Committed) uncommitted.store(false);
       terminated.store(true);
     });
     while (!terminated) {
@@ -49,7 +49,8 @@ void RetryTransactionUntilCommit(LineairDB::Database* db, const TransactionProce
   db->Fence();
 }
 
-bool DoTransactions(LineairDB::Database* db, const std::vector<TransactionProcedure> txns) {
+bool DoTransactions(LineairDB::Database* db,
+                    const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);
   for (auto& tx : txns) {
     db->ExecuteTransaction(tx, [&](const auto) { terminated++; });
@@ -60,16 +61,15 @@ bool DoTransactions(LineairDB::Database* db, const std::vector<TransactionProced
   while (terminated != txns.size()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     msec_elapsed_for_termination++;
-    bool too_long_time_elapsed =
-        (db->GetConfig().epoch_duration_ms * 1000) < msec_elapsed_for_termination;
-    if (too_long_time_elapsed)
-      return false;
+    bool too_long_time_elapsed = (db->GetConfig().epoch_duration_ms * 1000) <
+                                 msec_elapsed_for_termination;
+    if (too_long_time_elapsed) return false;
   }
   return true;
 }
 
-size_t DoTransactionsOnMultiThreads(LineairDB::Database* db,
-                                    const std::vector<TransactionProcedure> txns) {
+size_t DoTransactionsOnMultiThreads(
+    LineairDB::Database* db, const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);
   std::atomic<size_t> committed(0);
   std::vector<std::future<void>> jobs;
@@ -79,8 +79,7 @@ size_t DoTransactionsOnMultiThreads(LineairDB::Database* db,
     jobs.push_back(std::async(std::launch::async, [&]() {
       waits.fetch_add(1);
       for (;;) {
-        if (barrier.load())
-          break;
+        if (barrier.load()) break;
       }
       db->ExecuteTransaction(tx, [&](const auto status) {
         terminated++;
@@ -91,8 +90,7 @@ size_t DoTransactionsOnMultiThreads(LineairDB::Database* db,
     }));
   }
   for (;;) {
-    if (waits.load() == txns.size())
-      break;
+    if (waits.load() == txns.size()) break;
   }
   barrier.store(true);
 
@@ -104,17 +102,16 @@ size_t DoTransactionsOnMultiThreads(LineairDB::Database* db,
   while (terminated != txns.size()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     msec_elapsed_for_termination++;
-    bool too_long_time_elapsed =
-        (db->GetConfig().epoch_duration_ms * 1000) < msec_elapsed_for_termination;
-    if (too_long_time_elapsed)
-      return 0;
+    bool too_long_time_elapsed = (db->GetConfig().epoch_duration_ms * 1000) <
+                                 msec_elapsed_for_termination;
+    if (too_long_time_elapsed) return 0;
   }
 
   return committed;
 }
 
-size_t DoHandlerTransactionsOnMultiThreads(LineairDB::Database* db,
-                                           const std::vector<TransactionProcedure> txns) {
+size_t DoHandlerTransactionsOnMultiThreads(
+    LineairDB::Database* db, const std::vector<TransactionProcedure> txns) {
   std::atomic<size_t> terminated(0);
   std::atomic<size_t> committed(0);
 
@@ -126,8 +123,7 @@ size_t DoHandlerTransactionsOnMultiThreads(LineairDB::Database* db,
     jobs.push_back(std::async(std::launch::async, [&]() {
       waits.fetch_add(1);
       for (;;) {
-        if (barrier.load())
-          break;
+        if (barrier.load()) break;
       }
       auto& tx = db->BeginTransaction();
       proc(tx);
@@ -140,8 +136,7 @@ size_t DoHandlerTransactionsOnMultiThreads(LineairDB::Database* db,
     }));
   }
   for (;;) {
-    if (waits.load() == txns.size())
-      break;
+    if (waits.load() == txns.size()) break;
   }
   barrier.store(true);
 
@@ -153,14 +148,13 @@ size_t DoHandlerTransactionsOnMultiThreads(LineairDB::Database* db,
   while (terminated != txns.size()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     msec_elapsed_for_termination++;
-    bool too_long_time_elapsed =
-        (db->GetConfig().epoch_duration_ms * 1000) < msec_elapsed_for_termination;
-    if (too_long_time_elapsed)
-      return 0;
+    bool too_long_time_elapsed = (db->GetConfig().epoch_duration_ms * 1000) <
+                                 msec_elapsed_for_termination;
+    if (too_long_time_elapsed) return 0;
   }
 
   return committed;
 }
 
-} // namespace TestHelper
+}  // namespace TestHelper
 #endif /* LINEAIRDB_TEST_HELPER_HPP */

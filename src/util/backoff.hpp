@@ -24,13 +24,13 @@
 
 namespace LineairDB {
 namespace Util {
-static inline bool RetryWithExponentialBackoff(std::function<bool()>&& f, size_t sleep_ns = 100,
+static inline bool RetryWithExponentialBackoff(std::function<bool()>&& f,
+                                               size_t sleep_ns = 100,
                                                size_t yield_threshold = 100,
                                                size_t retire_threshold = 0) {
   size_t try_count = 0;
   for (;;) {
-    if (f())
-      return true;
+    if (f()) return true;
     try_count++;
     if (0 < retire_threshold && retire_threshold < try_count) {
       return false;
@@ -44,7 +44,7 @@ static inline bool RetryWithExponentialBackoff(std::function<bool()>&& f, size_t
   }
 }
 
-} // namespace Util
-} // namespace LineairDB
+}  // namespace Util
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_BACKOFF_HPP */

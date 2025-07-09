@@ -80,7 +80,8 @@ int main() {
   {
     // Instantiate with customized configuration.
     LineairDB::Config config;
-    config.concurrency_control_protocol = LineairDB::Config::ConcurrencyControl::Silo;
+    config.concurrency_control_protocol =
+        LineairDB::Config::ConcurrencyControl::Silo;
     config.enable_logging = false;
     config.enable_recovery = false;
     config.max_thread = 1;

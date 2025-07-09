@@ -18,10 +18,10 @@
 
 #include <thread>
 
+#include "gtest/gtest.h"
 #include "types/definitions.h"
 #include "util/epoch_framework.hpp"
 #include "util/logger.hpp"
-#include "gtest/gtest.h"
 
 TEST(ConcurrentTableTest, Instantiate) {
   LineairDB::EpochFramework epoch;
@@ -85,8 +85,7 @@ TEST(ConcurrentTableTest, ConcurrentAndConflictedInserting) {
   bool some_item_were_inserted = false;
   auto* item = table.Get("alice");
   for (size_t i = 0; i < 10; i++) {
-    if (item != nullptr)
-      some_item_were_inserted = true;
+    if (item != nullptr) some_item_were_inserted = true;
   }
 
   ASSERT_TRUE(some_item_were_inserted);
@@ -129,7 +128,8 @@ TEST(ConcurrentTableTest, TremendousPut) {
   constexpr size_t working_set_size = 8192;
   for (size_t i = 0; i < 10; i++) {
     threads.emplace_back([&, i]() {
-      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size; j++) {
+      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size;
+           j++) {
         table.Put(std::to_string(j), {});
       }
     });
@@ -149,7 +149,8 @@ TEST(ConcurrentTableTest, TremendousGetAndPut) {
   constexpr size_t working_set_size = 8192;
   for (size_t i = 0; i < 10; i++) {
     threads.emplace_back([&, i]() {
-      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size; j++) {
+      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size;
+           j++) {
         table.Get(std::to_string(j - working_set_size));
         table.Put(std::to_string(j), {});
       }
@@ -173,7 +174,8 @@ TEST(ConcurrentTableTest, ForEachIsSafeWithRehashing) {
   constexpr size_t working_set_size = 8192;
   for (size_t i = 0; i < 5; i++) {
     threads.emplace_back([&, i]() {
-      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size; j++) {
+      for (size_t j = i * working_set_size; j < (i + 1) * working_set_size;
+           j++) {
         table.Put(std::to_string(j), {});
       }
     });

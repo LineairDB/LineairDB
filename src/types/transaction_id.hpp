@@ -31,7 +31,9 @@ struct TransactionId {
   TransactionId(const TransactionId&) = default;
   TransactionId(uint64_t n) : epoch(n >> 32), tid(n & ~1llu >> 32) {}
   TransactionId& operator=(const TransactionId&) = default;
-  bool operator==(const TransactionId& rhs) { return (epoch == rhs.epoch && tid == rhs.tid); }
+  bool operator==(const TransactionId& rhs) {
+    return (epoch == rhs.epoch && tid == rhs.tid);
+  }
   bool operator!=(const TransactionId& rhs) { return !(*this == rhs); }
   bool operator<(const TransactionId& rhs) {
     if (epoch == rhs.epoch) {
@@ -44,5 +46,5 @@ struct TransactionId {
   MSGPACK_DEFINE(epoch, tid);
 };
 
-} // namespace LineairDB
+}  // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_ID_HPP */

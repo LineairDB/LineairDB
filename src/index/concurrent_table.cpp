@@ -30,24 +30,25 @@ ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
                                  WriteSetType recovery_set)
     : epoch_manager_ref_(epoch_framework) {
   switch (config.index_structure) {
-  case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
-    index_ =
-        std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(config, epoch_manager_ref_);
-    break;
-  default:
-    index_ =
-        std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(config, epoch_manager_ref_);
-    break;
+    case Config::IndexStructure::HashTableWithPrecisionLockingIndex:
+      index_ = std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
+          config, epoch_manager_ref_);
+      break;
+    default:
+      index_ = std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
+          config, epoch_manager_ref_);
+      break;
   }
 
-  if (recovery_set.empty())
-    return;
+  if (recovery_set.empty()) return;
   for (auto& entry : recovery_set) {
     index_->Put(entry.key, *entry.index_cache);
   }
 }
 
-DataItem* ConcurrentTable::Get(const std::string_view key) { return index_->Get(key); }
+DataItem* ConcurrentTable::Get(const std::string_view key) {
+  return index_->Get(key);
+}
 
 DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
   auto* item = index_->Get(key);
@@ -64,21 +65,22 @@ bool ConcurrentTable::Put(const std::string_view key, DataItem&& rhs) {
   return index_->Put(key, std::forward<decltype(rhs)>(rhs));
 }
 
-void ConcurrentTable::ForEach(std::function<bool(std::string_view, DataItem&)> f) {
+void ConcurrentTable::ForEach(
+    std::function<bool(std::string_view, DataItem&)> f) {
   index_->ForEach(f);
 };
 
-std::optional<size_t> ConcurrentTable::Scan(const std::string_view begin,
-                                            const std::optional<std::string_view> end,
-                                            std::function<bool(std::string_view)> operation) {
+std::optional<size_t> ConcurrentTable::Scan(
+    const std::string_view begin, const std::optional<std::string_view> end,
+    std::function<bool(std::string_view)> operation) {
   return index_->Scan(begin, end, operation);
 };
 
-std::optional<size_t>
-ConcurrentTable::Scan(const std::string_view begin, const std::string_view end,
-                      std::function<bool(std::string_view, DataItem&)> operation) {
+std::optional<size_t> ConcurrentTable::Scan(
+    const std::string_view begin, const std::string_view end,
+    std::function<bool(std::string_view, DataItem&)> operation) {
   return index_->Scan(begin, end, operation);
 };
 
-} // namespace Index
-} // namespace LineairDB
+}  // namespace Index
+}  // namespace LineairDB

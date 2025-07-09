@@ -26,7 +26,8 @@
 #include <sstream>
 #include <utility>
 
-template <const uint32_t CounterSize = 1> class HalfWordSet {
+template <const uint32_t CounterSize = 1>
+class HalfWordSet {
   static_assert((CounterSize <= 32) && (32 % CounterSize == 0),
                 "HalfWordSet requires CounterSize <= 32-bit and 8-bit "
                 "divisible");
@@ -42,7 +43,8 @@ template <const uint32_t CounterSize = 1> class HalfWordSet {
     return r;
   }
 
-  template <size_t... i> constexpr static auto MaskBuilder(std::index_sequence<i...>) {
+  template <size_t... i>
+  constexpr static auto MaskBuilder(std::index_sequence<i...>) {
     return std::array<uint32_t, sizeof...(i)>{{MakeMask(i)...}};
   }
 
@@ -52,10 +54,10 @@ template <const uint32_t CounterSize = 1> class HalfWordSet {
 
   constexpr static std::array<uint32_t, ArraySize> Masks = GetMasks();
 
-private:
+ private:
   uint32_t bitarray_;
 
-public:
+ public:
   HalfWordSet() noexcept : bitarray_(0) {}
   HalfWordSet(uint32_t s) : bitarray_(s) {}
 
@@ -64,19 +66,19 @@ public:
     Set(slot, version);
   }
 
-  void Put(const void* seedptr, uint32_t version = 1) { return Put(Hashptr(seedptr), version); }
+  void Put(const void* seedptr, uint32_t version = 1) {
+    return Put(Hashptr(seedptr), version);
+  }
 
   void PutHigherside(const void* seedptr, const uint32_t version) {
     const uint32_t current = Get(seedptr);
-    if (current >= version)
-      return;
+    if (current >= version) return;
     Put(seedptr, version);
   }
 
   void PutLowerside(const void* seedptr, const uint32_t version) {
     const uint32_t current = Get(seedptr);
-    if (current <= version)
-      return;
+    if (current <= version) return;
     Put(seedptr, version);
   }
 
@@ -91,14 +93,13 @@ public:
   HalfWordSet Merge(const HalfWordSet& rhs) const {
     if (CounterSize == 1) {
       return HalfWordSet(bitarray_ | rhs.bitarray_);
-    } else { // @NOTE: merge with choosing lower side
+    } else {  // @NOTE: merge with choosing lower side
 
       HalfWordSet bf;
       for (size_t i = 0; i < ArraySize; i++) {
         const uint32_t lhs_slot = bitarray_ & Masks[i];
         const uint32_t rhs_slot = rhs.bitarray_ & Masks[i];
-        if (lhs_slot == 0 && rhs_slot == 0)
-          continue;
+        if (lhs_slot == 0 && rhs_slot == 0) continue;
 
         if (lhs_slot == 0 || rhs_slot == 0) {
           bf.bitarray_ |= std::max(lhs_slot, rhs_slot);
@@ -116,17 +117,13 @@ public:
   // @NOTE SIMD(MMX)instruction cannot above: ignoring zero.
   // and it does not better for geq: greater or equal than.
   constexpr inline bool IsGreaterThan(const HalfWordSet& rhs) const {
-    if (bitarray_ == 0llu || rhs.bitarray_ == 0llu)
-      return false;
+    if (bitarray_ == 0llu || rhs.bitarray_ == 0llu) return false;
     for (size_t i = 0; i < ArraySize; i++) {
       const uint32_t lhs_slot = bitarray_ & Masks[i];
-      if (lhs_slot == 0)
-        continue;
+      if (lhs_slot == 0) continue;
       const uint32_t rhs_slot = rhs.bitarray_ & Masks[i];
-      if (rhs_slot == 0)
-        continue;
-      if (lhs_slot == Masks[i])
-        return true; // counter is saturated
+      if (rhs_slot == 0) continue;
+      if (lhs_slot == Masks[i]) return true;  // counter is saturated
 
       if (rhs_slot < lhs_slot) {
         return true;
@@ -138,17 +135,13 @@ public:
   // #greater_or_eq_than: compare the slots.
   // if value of any side is zero, it ignores the slot.
   constexpr inline bool IsGreaterOrEqualThan(const HalfWordSet& rhs) const {
-    if (bitarray_ == 0llu || rhs.bitarray_ == 0llu)
-      return false;
+    if (bitarray_ == 0llu || rhs.bitarray_ == 0llu) return false;
     for (size_t i = 0; i < ArraySize; i++) {
       const uint32_t lhs_slot = bitarray_ & Masks[i];
-      if (lhs_slot == 0)
-        continue;
+      if (lhs_slot == 0) continue;
       const uint32_t rhs_slot = rhs.bitarray_ & Masks[i];
-      if (rhs_slot == 0)
-        continue;
-      if (lhs_slot == Masks[i])
-        return true; // counter is saturated
+      if (rhs_slot == 0) continue;
+      if (lhs_slot == Masks[i]) return true;  // counter is saturated
 
       if (rhs_slot <= lhs_slot) {
         return true;
@@ -176,7 +169,7 @@ public:
 
   inline bool Empty() const { return bitarray_ == 0; }
 
-private:
+ private:
   inline void Reset(const uint32_t slot) {
     bitarray_ &= ~(Max << (CounterSize * slot));
     assert((bitarray_ & (Max << (CounterSize * slot))) == 0);
@@ -188,8 +181,7 @@ private:
 
   inline void Set(const uint32_t slot, uint32_t version) {
     Reset(slot);
-    if (Max < version)
-      version = Max;
+    if (Max < version) version = Max;
     bitarray_ |= version << (CounterSize * slot);
   }
 
@@ -211,6 +203,7 @@ private:
 };
 
 template <uint32_t CounterSize>
-constexpr std::array<uint32_t, HalfWordSet<CounterSize>::ArraySize> HalfWordSet<CounterSize>::Masks;
+constexpr std::array<uint32_t, HalfWordSet<CounterSize>::ArraySize>
+    HalfWordSet<CounterSize>::Masks;
 
 #endif

@@ -23,7 +23,7 @@
 #include <random>
 
 class RandomGenerator {
-public:
+ public:
   RandomGenerator() : max_(0xdeadbeef) {}
 
   void Init(uint64_t items, double theta) {
@@ -49,17 +49,21 @@ public:
   uint64_t UniformRandom(uint64_t lower_bound, uint64_t upper_bound) {
     return std::uniform_int_distribution<>(lower_bound, upper_bound)(engine_);
   }
-  uint64_t UniformRandom(uint64_t upper_bound) { return UniformRandom(0, upper_bound); }
+  uint64_t UniformRandom(uint64_t upper_bound) {
+    return UniformRandom(0, upper_bound);
+  }
   bool IsIntialized() { return max_ != 0xdeadbeef; }
 
   uint64_t Next(uint64_t max) {
-    if (max != countforzeta_) { // recompute
+    if (max != countforzeta_) {  // recompute
       if (max > countforzeta_) {
         zetan_ = zeta(countforzeta_, max, zetan_);
-        eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+        eta_ =
+            (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
       } else {
         zetan_ = zeta(0, max, 0);
-        eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+        eta_ =
+            (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
       }
     }
     assert(max >= countforzeta_);
@@ -75,13 +79,15 @@ public:
       return 1;
     }
 
-    uint64_t ret = static_cast<uint64_t>(max * std::pow(eta_ * u - eta_ + 1, alpha_));
+    uint64_t ret =
+        static_cast<uint64_t>(max * std::pow(eta_ * u - eta_ + 1, alpha_));
 
     return ret;
   }
 
   uint64_t Next(bool is_insert_occurs = false) {
-    uint64_t max = is_insert_occurs ? latest.load(std::memory_order_relaxed) : max_;
+    uint64_t max =
+        is_insert_occurs ? latest.load(std::memory_order_relaxed) : max_;
     return Next(max);
   }
 
@@ -94,7 +100,7 @@ public:
     return latest.fetch_add(1);
   }
 
-private:
+ private:
   double zeta(uint64_t st, uint64_t n, uint64_t initialsum) {
     double sum = initialsum;
     countforzeta_ = n;
@@ -106,7 +112,7 @@ private:
 
   double zeta(uint64_t n) { return zeta(0, n, 0); }
 
-private:
+ private:
   std::random_device seeder_;
   std::mt19937 engine_;
   std::uniform_int_distribution<> uniform_;

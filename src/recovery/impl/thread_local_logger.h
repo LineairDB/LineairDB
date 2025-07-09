@@ -37,24 +37,26 @@ namespace LineairDB {
 namespace Recovery {
 
 class ThreadLocalLogger final : public LoggerBase {
-public:
+ public:
   ThreadLocalLogger(const Config&);
   void RememberMe(const EpochNumber) final override;
-  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch, bool entrusting) final override;
+  void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
+               bool entrusting) final override;
   void FlushLogs(EpochNumber stable_epoch) final override;
-  void TruncateLogs(const EpochNumber checkpoint_completed_epoch) final override;
+  void TruncateLogs(
+      const EpochNumber checkpoint_completed_epoch) final override;
   EpochNumber GetMinDurableEpochForAllThreads() final override;
   std::string GetLogFileName(size_t thread_id) const;
   std::string GetWorkingLogFileName(size_t thread_id) const;
 
-private:
+ private:
   std::string WorkingDir;
 
   struct ThreadLocalStorageNode {
-  private:
+   private:
     static std::atomic<size_t> ThreadIdCounter;
 
-  public:
+   public:
     size_t thread_id;
     std::atomic<EpochNumber> durable_epoch;
     EpochNumber truncated_epoch;
@@ -63,15 +65,16 @@ private:
     MSGPACK_DEFINE(log_records);
 
     ThreadLocalStorageNode()
-        : thread_id(ThreadIdCounter.fetch_add(1)), durable_epoch(EpochFramework::THREAD_OFFLINE),
+        : thread_id(ThreadIdCounter.fetch_add(1)),
+          durable_epoch(EpochFramework::THREAD_OFFLINE),
           truncated_epoch(0) {}
     ~ThreadLocalStorageNode() {}
   };
 
-private:
+ private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
 };
 
-} // namespace Recovery
-} // namespace LineairDB
+}  // namespace Recovery
+}  // namespace LineairDB
 #endif /* LINEAIRDB_RECOVERY_THREAD_LOCAL_LOGGER_H */

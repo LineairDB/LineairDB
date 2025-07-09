@@ -29,7 +29,7 @@ namespace LineairDB {
 namespace Callback {
 
 class CallbackManager {
-public:
+ public:
   CallbackManager(const Config& c);
   ~CallbackManager();
 
@@ -45,15 +45,16 @@ function. We can decide here whether the callee thread is willing to manage the
 callback or not. If it is set to false, it is expected the other threads to
 manage this callback as work-stealing.
    */
-  void Enqueue(const Database::CallbackType& callback, EpochNumber epoch, bool entrusting = false);
+  void Enqueue(const Database::CallbackType& callback, EpochNumber epoch,
+               bool entrusting = false);
   void ExecuteCallbacks(EpochNumber new_epoch);
   void WaitForAllCallbacksToBeExecuted();
 
-private:
+ private:
   std::unique_ptr<CallbackManagerBase> callback_manager_pimpl_;
 };
 
-} // namespace Callback
-} // namespace LineairDB
+}  // namespace Callback
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_CALLBACK_MANAGER_H */

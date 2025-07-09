@@ -34,33 +34,36 @@
 namespace LineairDB {
 
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
-    : current_status_(TxStatus::Running), db_pimpl_(db_pimpl), config_ref_(db_pimpl_->GetConfig()) {
-  TransactionReferences&& tx = {read_set_, write_set_, db_pimpl_->epoch_framework_,
-                                current_status_};
+    : current_status_(TxStatus::Running),
+      db_pimpl_(db_pimpl),
+      config_ref_(db_pimpl_->GetConfig()) {
+  TransactionReferences&& tx = {read_set_, write_set_,
+                                db_pimpl_->epoch_framework_, current_status_};
 
   // WANTFIX for performance
   // Here we allocate one (derived) concurrency control instance per
   // transactions. It may be worse on performance because of heap
   // memory allocation. Need to re-implement with composition or templates.
   switch (config_ref_.concurrency_control_protocol) {
-  case Config::ConcurrencyControl::SiloNWR:
-    concurrency_control_ =
-        std::make_unique<ConcurrencyControl::SiloNWR>(std::forward<TransactionReferences>(tx));
-    break;
-  case Config::ConcurrencyControl::Silo:
-    concurrency_control_ =
-        std::make_unique<ConcurrencyControl::Silo>(std::forward<TransactionReferences>(tx));
-    break;
-  case Config::ConcurrencyControl::TwoPhaseLocking:
-    concurrency_control_ = std::make_unique<ConcurrencyControl::TwoPhaseLocking>(
-        std::forward<TransactionReferences>(tx));
-    break;
+    case Config::ConcurrencyControl::SiloNWR:
+      concurrency_control_ = std::make_unique<ConcurrencyControl::SiloNWR>(
+          std::forward<TransactionReferences>(tx));
+      break;
+    case Config::ConcurrencyControl::Silo:
+      concurrency_control_ = std::make_unique<ConcurrencyControl::Silo>(
+          std::forward<TransactionReferences>(tx));
+      break;
+    case Config::ConcurrencyControl::TwoPhaseLocking:
+      concurrency_control_ =
+          std::make_unique<ConcurrencyControl::TwoPhaseLocking>(
+              std::forward<TransactionReferences>(tx));
+      break;
 
-  default:
-    concurrency_control_ =
-        std::make_unique<ConcurrencyControl::SiloNWR>(std::forward<TransactionReferences>(tx));
+    default:
+      concurrency_control_ = std::make_unique<ConcurrencyControl::SiloNWR>(
+          std::forward<TransactionReferences>(tx));
 
-    break;
+      break;
   }
 }
 
@@ -68,20 +71,21 @@ Transaction::Impl::~Impl() noexcept = default;
 
 TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 
-const std::pair<const std::byte* const, const size_t>
-Transaction::Impl::Read(const std::string_view key) {
-  if (IsAborted())
-    return {nullptr, 0};
+const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
+    const std::string_view key) {
+  if (IsAborted()) return {nullptr, 0};
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value(), snapshot.data_item_copy.size());
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
     }
   }
 
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value(), snapshot.data_item_copy.size());
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
     }
   }
   auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
@@ -96,10 +100,9 @@ Transaction::Impl::Read(const std::string_view key) {
   }
 }
 
-void Transaction::Impl::Write(const std::string_view key, const std::byte value[],
-                              const size_t size) {
-  if (IsAborted())
-    return;
+void Transaction::Impl::Write(const std::string_view key,
+                              const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
@@ -114,11 +117,9 @@ void Transaction::Impl::Write(const std::string_view key, const std::byte value[
   }
 
   for (auto& snapshot : write_set_) {
-    if (snapshot.key != key)
-      continue;
+    if (snapshot.key != key) continue;
     snapshot.data_item_copy.Reset(value, size);
-    if (is_rmf)
-      snapshot.is_read_modify_write = true;
+    if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }
 
@@ -126,20 +127,21 @@ void Transaction::Impl::Write(const std::string_view key, const std::byte value[
 
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
-  if (is_rmf)
-    sp.is_read_modify_write = true;
+  if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
-    std::function<bool(std::string_view, const std::pair<const void*, const size_t>)> operation) {
-  auto result = db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
-    const auto read_result = Read(key);
-    if (IsAborted())
-      return true;
-    return operation(key, read_result);
-  });
+    std::function<bool(std::string_view,
+                       const std::pair<const void*, const size_t>)>
+        operation) {
+  auto result =
+      db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
+        const auto read_result = Read(key);
+        if (IsAborted()) return true;
+        return operation(key, read_result);
+      });
   if (!result.has_value()) {
     Abort();
   }
@@ -154,40 +156,46 @@ void Transaction::Impl::Abort() {
   }
 }
 bool Transaction::Impl::Precommit() {
-  if (IsAborted())
-    return false;
+  if (IsAborted()) return false;
 
   const bool need_to_checkpoint =
       (db_pimpl_->GetConfig().enable_checkpointing &&
-       db_pimpl_->IsNeedToCheckpointing(db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
+       db_pimpl_->IsNeedToCheckpointing(
+           db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
   bool committed = concurrency_control_->Precommit(need_to_checkpoint);
   return committed;
 }
 
 void Transaction::Impl::PostProcessing(TxStatus status) {
-  if (status == TxStatus::Aborted)
-    current_status_ = TxStatus::Aborted;
+  if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
   concurrency_control_->PostProcessing(status);
 }
 
-TxStatus Transaction::GetCurrentStatus() { return tx_pimpl_->GetCurrentStatus(); }
-const std::pair<const std::byte* const, const size_t>
-Transaction::Read(const std::string_view key) {
+TxStatus Transaction::GetCurrentStatus() {
+  return tx_pimpl_->GetCurrentStatus();
+}
+const std::pair<const std::byte* const, const size_t> Transaction::Read(
+    const std::string_view key) {
   return tx_pimpl_->Read(key);
 }
-void Transaction::Write(const std::string_view key, const std::byte value[], const size_t size) {
+void Transaction::Write(const std::string_view key, const std::byte value[],
+                        const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
-    std::function<bool(std::string_view, const std::pair<const void*, const size_t>)> operation) {
+    std::function<bool(std::string_view,
+                       const std::pair<const void*, const size_t>)>
+        operation) {
   return tx_pimpl_->Scan(begin, end, operation);
 };
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
 Transaction::Transaction(void* db_pimpl) noexcept
-    : tx_pimpl_(std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {}
+    : tx_pimpl_(
+          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {
+}
 Transaction::~Transaction() noexcept = default;
 
-} // namespace LineairDB
+}  // namespace LineairDB

@@ -30,27 +30,30 @@ namespace Callback {
 CallbackManager::CallbackManager(const Config& config) {
   LineairDB::Util::SetUpSPDLog();
   switch (config.callback_engine) {
-  case Config::CallbackEngine::ThreadLocal:
-    if (config.logger != Config::Logger::ThreadLocalLogger) {
-      SPDLOG_ERROR("ThreadLocal callback engine must be used with ThreadLocalLogger. "
-                   "Please change the configuration.");
+    case Config::CallbackEngine::ThreadLocal:
+      if (config.logger != Config::Logger::ThreadLocalLogger) {
+        SPDLOG_ERROR(
+            "ThreadLocal callback engine must be used with ThreadLocalLogger. "
+            "Please change the configuration.");
+        exit(EXIT_FAILURE);
+      }
+      callback_manager_pimpl_ = std::make_unique<ThreadLocalCallbackManager>();
+      break;
+    default:
+      SPDLOG_ERROR(
+          "ThreadLocal callback engine must be used with ThreadLocalLogger. "
+          "Please change the configuration.");
       exit(EXIT_FAILURE);
-    }
-    callback_manager_pimpl_ = std::make_unique<ThreadLocalCallbackManager>();
-    break;
-  default:
-    SPDLOG_ERROR("ThreadLocal callback engine must be used with ThreadLocalLogger. "
-                 "Please change the configuration.");
-    exit(EXIT_FAILURE);
-    callback_manager_pimpl_ = std::make_unique<ThreadLocalCallbackManager>();
-    break;
+      callback_manager_pimpl_ = std::make_unique<ThreadLocalCallbackManager>();
+      break;
   }
 }
 CallbackManager::~CallbackManager() = default;
 
-void CallbackManager::Enqueue(const LineairDB::Database::CallbackType& callback, EpochNumber epoch,
-                              bool entrusting) {
-  callback_manager_pimpl_->Enqueue(std::forward<decltype(callback)>(callback), epoch, entrusting);
+void CallbackManager::Enqueue(const LineairDB::Database::CallbackType& callback,
+                              EpochNumber epoch, bool entrusting) {
+  callback_manager_pimpl_->Enqueue(std::forward<decltype(callback)>(callback),
+                                   epoch, entrusting);
 }
 void CallbackManager::ExecuteCallbacks(EpochNumber new_epoch) {
   callback_manager_pimpl_->ExecuteCallbacks(new_epoch);
@@ -58,6 +61,6 @@ void CallbackManager::ExecuteCallbacks(EpochNumber new_epoch) {
 void CallbackManager::WaitForAllCallbacksToBeExecuted() {
   callback_manager_pimpl_->WaitForAllCallbacksToBeExecuted();
 }
-}; // namespace Callback
+};  // namespace Callback
 
-} // namespace LineairDB
+}  // namespace LineairDB

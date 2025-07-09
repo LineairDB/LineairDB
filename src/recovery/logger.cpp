@@ -38,27 +38,33 @@ namespace Recovery {
 
 Logger::Logger(const Config& config)
     : DurableEpochNumberFileName(config.work_dir + "/durable_epoch.json"),
-      DurableEpochNumberWorkingFileName(config.work_dir + "/durable_epoch.working.json"),
-      WorkingDir(config.work_dir), durable_epoch_(0),
-      durable_epoch_working_file_(DurableEpochNumberWorkingFileName, std::ofstream::trunc) {
+      DurableEpochNumberWorkingFileName(config.work_dir +
+                                        "/durable_epoch.working.json"),
+      WorkingDir(config.work_dir),
+      durable_epoch_(0),
+      durable_epoch_working_file_(DurableEpochNumberWorkingFileName,
+                                  std::ofstream::trunc) {
   std::filesystem::create_directory(config.work_dir);
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
-  case Config::Logger::ThreadLocalLogger:
-    logger_ = std::make_unique<ThreadLocalLogger>(config);
-    break;
-  default:
-    logger_ = std::make_unique<ThreadLocalLogger>(config);
-    break;
+    case Config::Logger::ThreadLocalLogger:
+      logger_ = std::make_unique<ThreadLocalLogger>(config);
+      break;
+    default:
+      logger_ = std::make_unique<ThreadLocalLogger>(config);
+      break;
   }
 }
 Logger::~Logger() = default;
 
 void Logger::RememberMe(const EpochNumber epoch) { logger_->RememberMe(epoch); }
-void Logger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch, bool entrusting) {
+void Logger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
+                     bool entrusting) {
   logger_->Enqueue(ws_ref, epoch, entrusting);
 }
-void Logger::FlushLogs(const EpochNumber stable_epoch) { logger_->FlushLogs(stable_epoch); }
+void Logger::FlushLogs(const EpochNumber stable_epoch) {
+  logger_->FlushLogs(stable_epoch);
+}
 
 void Logger::TruncateLogs(const EpochNumber checkpoint_completed_epoch) {
   logger_->TruncateLogs(checkpoint_completed_epoch);
@@ -66,7 +72,8 @@ void Logger::TruncateLogs(const EpochNumber checkpoint_completed_epoch) {
 
 EpochNumber Logger::FlushDurableEpoch() {
   auto min_flushed_epoch = logger_->GetMinDurableEpochForAllThreads();
-  if (min_flushed_epoch == EpochFramework::THREAD_OFFLINE || min_flushed_epoch == durable_epoch_) {
+  if (min_flushed_epoch == EpochFramework::THREAD_OFFLINE ||
+      min_flushed_epoch == durable_epoch_) {
     return durable_epoch_;
   }
 
@@ -78,14 +85,17 @@ EpochNumber Logger::FlushDurableEpoch() {
   durable_epoch_working_file_ << durable_epoch_;
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(DurableEpochNumberWorkingFileName.c_str(), DurableEpochNumberFileName.c_str())) {
-    SPDLOG_ERROR("Durability Error: fail to flush the durable epoch number {0:d}. "
-                 "errno: {1}",
-                 durable_epoch_, errno);
+  if (rename(DurableEpochNumberWorkingFileName.c_str(),
+             DurableEpochNumberFileName.c_str())) {
+    SPDLOG_ERROR(
+        "Durability Error: fail to flush the durable epoch number {0:d}. "
+        "errno: {1}",
+        durable_epoch_, errno);
     exit(1);
   }
   durable_epoch_working_file_.close();
-  durable_epoch_working_file_.open(DurableEpochNumberWorkingFileName, std::fstream::trunc);
+  durable_epoch_working_file_.open(DurableEpochNumberWorkingFileName,
+                                   std::fstream::trunc);
 
   return durable_epoch_;
 }
@@ -94,7 +104,8 @@ EpochNumber Logger::GetDurableEpoch() { return durable_epoch_; }
 void Logger::SetDurableEpoch(const EpochNumber e) { durable_epoch_ = e; }
 
 EpochNumber Logger::GetDurableEpochFromLog() {
-  std::ifstream file(DurableEpochNumberFileName, std::ios::binary | std::ios::ate);
+  std::ifstream file(DurableEpochNumberFileName,
+                     std::ios::binary | std::ios::ate);
   EpochNumber epoch;
   auto filesize = file.tellg();
 
@@ -131,48 +142,50 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
     std::ifstream ifs(checkpoint_filename);
     checkpoint_file_exists = ifs.is_open();
   }
-  if (checkpoint_file_exists)
-    logfiles.push_back(checkpoint_filename);
+  if (checkpoint_file_exists) logfiles.push_back(checkpoint_filename);
   WriteSetType recovery_set;
   recovery_set.clear();
 
   for (auto filename : logfiles) {
     std::ifstream file(filename, std::ifstream::in | std::ifstream::binary);
     if (!file.good()) {
-      SPDLOG_ERROR("  Stop recovery procedure: file {0} is broken. Some records may not "
-                   "be recovered.",
-                   filename);
+      SPDLOG_ERROR(
+          "  Stop recovery procedure: file {0} is broken. Some records may not "
+          "be recovered.",
+          filename);
       exit(EXIT_FAILURE);
     };
 
-    std::string buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    if (buffer.empty())
-      continue;
+    std::string buffer((std::istreambuf_iterator<char>(file)),
+                       std::istreambuf_iterator<char>());
+    if (buffer.empty()) continue;
     SPDLOG_DEBUG(" Start recovery from {0}", filename);
 
     LogRecords log_records;
     size_t offset = 0;
     for (;;) {
-      if (offset == buffer.size())
-        break;
+      if (offset == buffer.size()) break;
       try {
         auto oh = msgpack::unpack(buffer.data(), buffer.size(), offset);
         auto obj = oh.get();
         obj.convert(log_records);
       } catch (const std::bad_cast& e) {
-        SPDLOG_ERROR("  Stop recovery procedure: msgpack deserialize failure on file "
-                     "{0}. Some records may not be recovered.");
+        SPDLOG_ERROR(
+            "  Stop recovery procedure: msgpack deserialize failure on file "
+            "{0}. Some records may not be recovered.");
         SPDLOG_DEBUG("Error code: {0}", e.what());
         return recovery_set;
       } catch (...) {
-        SPDLOG_ERROR("  Stop recovery procedure: msgpack deserialize failure on file "
-                     "{0}. Some records may not be recovered.");
+        SPDLOG_ERROR(
+            "  Stop recovery procedure: msgpack deserialize failure on file "
+            "{0}. Some records may not be recovered.");
         return recovery_set;
       }
 
       for (auto& log_record : log_records) {
         assert(0 < log_record.epoch);
-        if (filename == checkpoint_filename || log_record.epoch <= durable_epoch) {
+        if (filename == checkpoint_filename ||
+            log_record.epoch <= durable_epoch) {
           for (auto& kvp : log_record.key_value_pairs) {
             bool not_found = true;
             for (auto& item : recovery_set) {
@@ -181,16 +194,17 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                 if (item.data_item_copy.transaction_id.load() < kvp.tid) {
                   item.data_item_copy.buffer.Reset(kvp.buffer);
                   item.data_item_copy.transaction_id = kvp.tid;
-                  SPDLOG_DEBUG("    update-> key {0}, version {1} in epoch {2}", kvp.key,
-                               kvp.tid.tid, kvp.tid.epoch);
+                  SPDLOG_DEBUG("    update-> key {0}, version {1} in epoch {2}",
+                               kvp.key, kvp.tid.tid, kvp.tid.epoch);
                 }
               }
             }
             if (not_found) {
-              SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}", kvp.key, kvp.tid.tid,
-                           kvp.tid.epoch);
-              Snapshot snapshot = {kvp.key, reinterpret_cast<std::byte*>(kvp.buffer.data()),
-                                   kvp.buffer.size(), nullptr, kvp.tid};
+              SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
+                           kvp.key, kvp.tid.tid, kvp.tid.epoch);
+              Snapshot snapshot = {
+                  kvp.key, reinterpret_cast<std::byte*>(kvp.buffer.data()),
+                  kvp.buffer.size(), nullptr, kvp.tid};
               recovery_set.emplace_back(std::move(snapshot));
             }
           }
@@ -203,5 +217,5 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   return recovery_set;
 }
 
-} // namespace Recovery
-} // namespace LineairDB
+}  // namespace Recovery
+}  // namespace LineairDB

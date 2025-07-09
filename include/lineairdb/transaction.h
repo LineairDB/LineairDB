@@ -49,7 +49,7 @@ namespace LineairDB {
  * @see [Vossen95] https://doi.org/10.1007/BFb0015267
  **/
 class Transaction {
-public:
+ public:
   /**
    * @brief Get the current transaction status.
    * For transactions such that GetCurrentStatus() returns TxStatus::Aborted,
@@ -74,7 +74,8 @@ public:
    * (nullptr, 0).
    *
    */
-  const std::pair<const std::byte* const, const size_t> Read(const std::string_view key);
+  const std::pair<const std::byte* const, const size_t> Read(
+      const std::string_view key);
 
   /**
    * @brief
@@ -87,12 +88,14 @@ public:
    * @param key
    * @return const std::optional<T>
    */
-  template <typename T> const std::optional<T> Read(const std::string_view key) {
+  template <typename T>
+  const std::optional<T> Read(const std::string_view key) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     auto result = Read(key);
     if (result.second != 0) {
-      const T copy_constructed_result = *reinterpret_cast<const T*>(result.first);
+      const T copy_constructed_result =
+          *reinterpret_cast<const T*>(result.first);
       return copy_constructed_result;
     } else {
       return std::nullopt;
@@ -107,7 +110,8 @@ public:
    * @param value
    * @param size
    */
-  void Write(const std::string_view key, const std::byte value[], const size_t size);
+  void Write(const std::string_view key, const std::byte value[],
+             const size_t size);
 
   /**
    * @brief
@@ -119,7 +123,8 @@ public:
    * @param key
    * @param value
    */
-  template <typename T> void Write(const std::string_view key, const T& value) {
+  template <typename T>
+  void Write(const std::string_view key, const T& value) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     std::byte buffer[sizeof(T)];
@@ -153,9 +158,11 @@ public:
    * std::nullopt_t.
    *
    */
-  const std::optional<size_t>
-  Scan(const std::string_view begin, const std::optional<std::string_view> end,
-       std::function<bool(std::string_view, const std::pair<const void*, const size_t>)> operation);
+  const std::optional<size_t> Scan(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
 
   /**
    * @brief
@@ -170,9 +177,9 @@ public:
    * @return std::optional<size_t>
    */
   template <typename T>
-  const std::optional<size_t> Scan(const std::string_view begin,
-                                   const std::optional<std::string_view> end,
-                                   std::function<bool(std::string_view, T)> operation) {
+  const std::optional<size_t> Scan(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, T)> operation) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
     return Scan(begin, end, [&](auto key, auto pair) {
@@ -187,16 +194,16 @@ public:
    */
   void Abort();
 
-private:
+ private:
   Transaction(void*) noexcept;
   ~Transaction() noexcept;
   bool Precommit();
 
-private:
+ private:
   class Impl;
   const std::unique_ptr<Impl> tx_pimpl_;
   friend class Database;
 };
 
-} // namespace LineairDB
+}  // namespace LineairDB
 #endif /** LINEAIRDB_TRANSACTION_H **/

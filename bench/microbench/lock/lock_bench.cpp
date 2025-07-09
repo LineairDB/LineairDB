@@ -32,7 +32,8 @@
 #include "lock/impl/ttas_lock.hpp"
 #include "spdlog/spdlog.h"
 
-template <typename T> size_t benchmark(size_t threads, size_t duration) {
+template <typename T>
+size_t benchmark(size_t threads, size_t duration) {
   T lock;
   std::atomic<bool> end_flag(false);
   std::atomic<size_t> total_succeed(0);
@@ -48,7 +49,8 @@ template <typename T> size_t benchmark(size_t threads, size_t duration) {
         auto lock_type = T::LockType::Exclusive;
         if constexpr (T::IsReadersWritersLockingAlgorithm()) {
           const bool half_random = operation_succeed % 2;
-          half_random ? lock_type = T::LockType::Shared : lock_type = T::LockType::Exclusive;
+          half_random ? lock_type = T::LockType::Shared
+                      : lock_type = T::LockType::Exclusive;
         }
         lock.Lock(lock_type);
         std::this_thread::yield();
@@ -66,19 +68,21 @@ template <typename T> size_t benchmark(size_t threads, size_t duration) {
 }
 
 int main(int argc, char** argv) {
-  cxxopts::Options options("lockbench", "Microbenchmark of various locking algortihms");
+  cxxopts::Options options("lockbench",
+                           "Microbenchmark of various locking algortihms");
 
-  options.add_options()         //
-      ("h,help", "Print usage") //
+  options.add_options()          //
+      ("h,help", "Print usage")  //
       ("t,thread", "The number of threads working on LineairDB",
        cxxopts::value<size_t>()->default_value(
-           std::to_string(std::thread::hardware_concurrency()))) //
+           std::to_string(std::thread::hardware_concurrency())))  //
       ("a,algorithm", "Locking algorithm",
-       cxxopts::value<std::string>()->default_value("TTASLock")) //
+       cxxopts::value<std::string>()->default_value("TTASLock"))  //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
-       cxxopts::value<size_t>()->default_value("2000")) //
+       cxxopts::value<size_t>()->default_value("2000"))  //
       ("o,output", "Output JSON filename",
-       cxxopts::value<std::string>()->default_value("lockbench_result.json")) //
+       cxxopts::value<std::string>()->default_value(
+           "lockbench_result.json"))  //
       ;
 
   auto result = options.parse(argc, argv);
@@ -114,19 +118,22 @@ int main(int argc, char** argv) {
     } else if (algorithm == "ReadersWritersLockBOCO") {
       ops = benchmark<ReadersWritersLockBOCO>(threads, measurement_duration);
     } else {
-      std::cout << "invalid algorithm name." << std::endl << options.help() << std::endl;
+      std::cout << "invalid algorithm name." << std::endl
+                << options.help() << std::endl;
       return EXIT_FAILURE;
     }
   }
   SPDLOG_INFO("Lockbench: measurement has finisihed.");
-  SPDLOG_INFO("Algorithm: {0} Operations per "
-              "seconds (ops): {1}",
-              algorithm, ops);
+  SPDLOG_INFO(
+      "Algorithm: {0} Operations per "
+      "seconds (ops): {1}",
+      algorithm, ops);
 
   /** Output result as json format **/
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();
-  result_json.AddMember("algorithm", rapidjson::Value(algorithm.c_str(), allocator), allocator);
+  result_json.AddMember(
+      "algorithm", rapidjson::Value(algorithm.c_str(), allocator), allocator);
   result_json.AddMember("threads", threads, allocator);
   result_json.AddMember("ops", ops, allocator);
 
@@ -137,12 +144,14 @@ int main(int argc, char** argv) {
 
   auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
-  std::ofstream output_f(output_filename, std::ofstream::out | std::ofstream::trunc);
+  std::ofstream output_f(output_filename,
+                         std::ofstream::out | std::ofstream::trunc);
   output_f << result_string;
   if (!output_f.good()) {
     std::cerr << "Unable to write output file" << output_filename << std::endl;
     exit(1);
   }
-  std::cout << "This benchmark result is saved into " << output_filename << std::endl;
+  std::cout << "This benchmark result is saved into " << output_filename
+            << std::endl;
   return 0;
 }

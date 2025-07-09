@@ -38,7 +38,7 @@ static inline void SetUpSPDLog() {
 #endif
   spdlog::set_pattern("[Thread %t] %+ [+%omsec]");
 }
-} // namespace Util
-} // namespace LineairDB
+}  // namespace Util
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_LOGGER_HPP */

@@ -45,7 +45,8 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
               auto it = predicate_list_.begin();
               if (it->first <= stable_epoch) {
                 const auto beg = it;
-                while (it != predicate_list_.end() && it->first <= stable_epoch) {
+                while (it != predicate_list_.end() &&
+                       it->first <= stable_epoch) {
                   it++;
                 }
                 predicate_list_.erase(beg, it);
@@ -56,7 +57,8 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
               auto it = insert_or_delete_key_set_.begin();
               if (it->first <= stable_epoch) {
                 const auto beg = it;
-                while (it != insert_or_delete_key_set_.end() && it->first <= stable_epoch) {
+                while (it != insert_or_delete_key_set_.end() &&
+                       it->first <= stable_epoch) {
                   it++;
                 }
                 const auto end = it;
@@ -81,16 +83,15 @@ PrecisionLockingIndex::~PrecisionLockingIndex() {
   manager_.join();
 };
 
-std::optional<size_t> PrecisionLockingIndex::Scan(const std::string_view b,
-                                                  const std::optional<std::string_view> e,
-                                                  std::function<bool(std::string_view)> operation) {
+std::optional<size_t> PrecisionLockingIndex::Scan(
+    const std::string_view b, const std::optional<std::string_view> e,
+    std::function<bool(std::string_view)> operation) {
   size_t hit = 0;
   const auto begin = std::string(b);
   auto end = begin;
   if (e.has_value()) {
     end = std::string(e.value());
-    if (end < begin)
-      return std::nullopt;
+    if (end < begin) return std::nullopt;
   }
 
   std::lock_guard<decltype(plock_)> p_guard(plock_);
@@ -106,12 +107,10 @@ std::optional<size_t> PrecisionLockingIndex::Scan(const std::string_view b,
       it_end = container_.upper_bound(end);
     }
     for (; it != it_end; it++) {
-      if (it->second.is_deleted)
-        continue;
+      if (it->second.is_deleted) continue;
       hit++;
       auto cancel = operation(it->first);
-      if (cancel)
-        break;
+      if (cancel) break;
     }
   }
 
@@ -155,24 +154,25 @@ bool PrecisionLockingIndex::Delete(const std::string_view key) {
 bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
   for (auto it = predicate_list_.begin(); it != predicate_list_.end(); it++) {
     for (const auto& predicate : it->second) {
-      if (predicate.begin <= key && key <= predicate.end)
-        return true;
+      if (predicate.begin <= key && key <= predicate.end) return true;
     }
   }
   return false;
 }
 
-bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(const std::string_view begin,
-                                                        const std::optional<std::string_view> end) {
-  for (auto it = insert_or_delete_key_set_.begin(); it != insert_or_delete_key_set_.end(); it++) {
+bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
+    const std::string_view begin, const std::optional<std::string_view> end) {
+  for (auto it = insert_or_delete_key_set_.begin();
+       it != insert_or_delete_key_set_.end(); it++) {
     for (const auto& event : it->second) {
       const bool is_after_begin = begin <= event.key;
-      const bool is_before_end = end.has_value() ? event.key <= end.value() : true;
+      const bool is_before_end =
+          end.has_value() ? event.key <= end.value() : true;
       return is_after_begin && is_before_end;
     }
   }
   return false;
 }
 
-} // namespace Index
-} // namespace LineairDB
+}  // namespace Index
+}  // namespace LineairDB

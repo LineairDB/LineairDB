@@ -35,12 +35,12 @@ struct TransactionReferences {
   TxStatus& current_status_ref_;
 };
 class ConcurrencyControlBase {
-public:
+ public:
   ConcurrencyControlBase(TransactionReferences&& tx) : tx_ref_(tx) {}
   virtual ~ConcurrencyControlBase(){};
   virtual const DataItem Read(std::string_view, DataItem*) = 0;
-  virtual void Write(const std::string_view key, const std::byte* const value, const size_t size,
-                     DataItem*) = 0;
+  virtual void Write(const std::string_view key, const std::byte* const value,
+                     const size_t size, DataItem*) = 0;
   virtual void Abort() = 0;
   virtual bool Precommit(bool) = 0;
   virtual void PostProcessing(TxStatus) = 0;
@@ -48,9 +48,9 @@ public:
   bool IsReadOnly() { return (0 == tx_ref_.write_set_ref_.size()); }
   bool IsWriteOnly() { return (0 == tx_ref_.read_set_ref_.size()); }
 
-protected:
+ protected:
   TransactionReferences tx_ref_;
 };
-} // namespace LineairDB
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_CONCURRENCY_CONTROL_BASE_H */

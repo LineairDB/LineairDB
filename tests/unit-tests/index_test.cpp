@@ -26,7 +26,7 @@
 #include "gtest/gtest.h"
 
 class IndexTest : public ::testing::Test {
-protected:
+ protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
@@ -54,7 +54,7 @@ TEST_F(IndexTest, Scan) {
     return false;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(2, count.value()); // #Scan is not inclusive
+  ASSERT_EQ(2, count.value());  // #Scan is not inclusive
   db_->EndTransaction(tx, [](auto) {});
 }
 
@@ -108,15 +108,16 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
 
   std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(), {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
-                  [&](LineairDB::Transaction& tx) {
-                    auto scan = [&]() {
-                      return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
-                    };
-                    first = scan();
-                    std::this_thread::yield();
-                    second = scan();
-                  }});
+      db_.get(),
+      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
+       [&](LineairDB::Transaction& tx) {
+         auto scan = [&]() {
+           return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
+         };
+         first = scan();
+         std::this_thread::yield();
+         second = scan();
+       }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
   }

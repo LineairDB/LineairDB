@@ -25,16 +25,17 @@ namespace LineairDB {
 namespace Recovery {
 
 class LoggerBase {
-public:
+ public:
   virtual ~LoggerBase() {}
   virtual void RememberMe(const EpochNumber) = 0;
-  virtual void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch, bool entrusting) = 0;
+  virtual void Enqueue(const WriteSetType& ws_ref_, EpochNumber epoch,
+                       bool entrusting) = 0;
   virtual void FlushLogs(EpochNumber stable_epoch) = 0;
   virtual void TruncateLogs(const EpochNumber) = 0;
   virtual EpochNumber GetMinDurableEpochForAllThreads() = 0;
 };
 
-} // namespace Recovery
-} // namespace LineairDB
+}  // namespace Recovery
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_RECOVERY_LOGGER_BASE_H */

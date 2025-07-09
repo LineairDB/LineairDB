@@ -59,7 +59,8 @@
 
 namespace YCSB {
 
-void PopulateDatabase(LineairDB::Database& db, Workload& workload, size_t worker_threads) {
+void PopulateDatabase(LineairDB::Database& db, Workload& workload,
+                      size_t worker_threads) {
   std::vector<int> failed;
   std::vector<std::thread> workers;
 
@@ -100,14 +101,16 @@ struct ThreadLocalResult {
 ThreadKeyStorage<ThreadLocalResult> thread_local_result;
 std::atomic<bool> finish_flag{false};
 
-void ExecuteWorkload(LineairDB::Database& db, Workload& workload, RandomGenerator* rand,
-                     void* payload, bool use_handler = true) {
-  std::function<void(LineairDB::Transaction&, std::string_view, std::string_view, void*, size_t)>
+void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
+                     RandomGenerator* rand, void* payload,
+                     bool use_handler = true) {
+  std::function<void(LineairDB::Transaction&, std::string_view,
+                     std::string_view, void*, size_t)>
       operation;
 
   bool is_scan = false;
   bool is_insert = false;
-  { // choose operation what I do
+  {  // choose operation what I do
     size_t what_i_do = rand->UniformRandom(99);
     size_t proportion = 0;
 
@@ -133,11 +136,11 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload, RandomGenerato
 
   // choose target key
   for (size_t i = 0; i < workload.reps_per_txn; i++) {
-
     if (is_scan) {
-      const uint64_t begin = rand->Next(workload.has_insert); // Zipfian
+      const uint64_t begin = rand->Next(workload.has_insert);  // Zipfian
       const uint64_t end =
-          begin + rand->UniformRandom(100); // YCSB's scan operation range is limited up to 100
+          begin + rand->UniformRandom(
+                      100);  // YCSB's scan operation range is limited up to 100
       keys.emplace_back(std::to_string(begin));
       keys.emplace_back(std::to_string(end));
       break;
@@ -177,9 +180,11 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload, RandomGenerato
     }
   } else {
     db.ExecuteTransaction(
-        [is_scan, operation, keys, payload, workload](LineairDB::Transaction& tx) {
+        [is_scan, operation, keys, payload,
+         workload](LineairDB::Transaction& tx) {
           if (is_scan) {
-            operation(tx, keys.front(), keys.back(), payload, workload.payload_size);
+            operation(tx, keys.front(), keys.back(), payload,
+                      workload.payload_size);
           } else {
             for (auto& key : keys) {
               operation(tx, key, "", payload, workload.payload_size);
@@ -230,7 +235,8 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   SPDLOG_INFO("YCSB: Benchmark start.");
   auto begin = std::chrono::high_resolution_clock::now();
   start_flag.store(true);
-  std::this_thread::sleep_for(std::chrono::milliseconds(workload.measurement_duration));
+  std::this_thread::sleep_for(
+      std::chrono::milliseconds(workload.measurement_duration));
   finish_flag.store(true);
   for (auto& worker : clients) {
     worker.join();
@@ -248,12 +254,14 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   });
 
   auto elapsed = end - begin;
-  uint64_t milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+  uint64_t milliseconds =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
   uint64_t tps = total_commits * 1000 / milliseconds;
 
-  SPDLOG_INFO("YCSB: Benchmark completed. elapsed time: {3}ms, commits: {0}, aborts: "
-              "{1}, tps: {2}",
-              total_commits, total_aborts, tps, milliseconds);
+  SPDLOG_INFO(
+      "YCSB: Benchmark completed. elapsed time: {3}ms, commits: {0}, aborts: "
+      "{1}, tps: {2}",
+      total_commits, total_aborts, tps, milliseconds);
 
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();
@@ -265,4 +273,4 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   return result_json;
 }
 
-} // namespace YCSB
+}  // namespace YCSB

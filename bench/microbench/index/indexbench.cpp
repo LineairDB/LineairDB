@@ -32,19 +32,23 @@
 #include "spdlog/spdlog.h"
 #include "util/epoch_framework.hpp"
 
-const std::string CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const std::string CHARACTERS =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 constexpr auto PopulationSize = 100000;
 
-template <typename T> void Population(T& index) {
+template <typename T>
+void Population(T& index) {
   for (auto i = 0; i < PopulationSize; i++) {
     index.GetOrInsert(std::to_string(i));
   }
 }
 
 template <typename T>
-std::pair<size_t, size_t> Benchmark(T& index, LineairDB::EpochFramework& epoch_f, size_t threads,
-                                    size_t proportion, bool populated, size_t duration) {
+std::pair<size_t, size_t> Benchmark(T& index,
+                                    LineairDB::EpochFramework& epoch_f,
+                                    size_t threads, size_t proportion,
+                                    bool populated, size_t duration) {
   std::atomic<size_t> count_down_latch(0);
   std::atomic<bool> end_flag(false);
   std::atomic<size_t> total_succeed(0);
@@ -72,7 +76,8 @@ std::pair<size_t, size_t> Benchmark(T& index, LineairDB::EpochFramework& epoch_f
         };
         epoch_f.MakeMeOnline();
 
-        const bool is_scan_operation = static_cast<size_t>(dist(engine)) < proportion;
+        const bool is_scan_operation =
+            static_cast<size_t>(dist(engine)) < proportion;
         if (is_scan_operation) {
           std::string begin;
           std::string end;
@@ -88,13 +93,13 @@ std::pair<size_t, size_t> Benchmark(T& index, LineairDB::EpochFramework& epoch_f
               }
             }
 
-            if (begin < end)
-              break;
+            if (begin < end) break;
             begin.clear();
             end.clear();
           }
 
-          auto result = index.Scan(begin, end, [&](auto, auto) { return false; });
+          auto result =
+              index.Scan(begin, end, [&](auto, auto) { return false; });
 
           if (result.has_value()) {
             operation_succeed++;
@@ -120,8 +125,7 @@ std::pair<size_t, size_t> Benchmark(T& index, LineairDB::EpochFramework& epoch_f
   }
   count_down_latch++;
   for (;;) {
-    if (count_down_latch.load() == threads + 1)
-      break;
+    if (count_down_latch.load() == threads + 1) break;
     std::this_thread::yield();
   }
   const auto begin = std::chrono::high_resolution_clock::now();
@@ -133,7 +137,8 @@ std::pair<size_t, size_t> Benchmark(T& index, LineairDB::EpochFramework& epoch_f
   const auto end = std::chrono::high_resolution_clock::now();
 
   const auto duration_ns =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
+          .count();
   auto success_ops = (total_succeed.load() / duration_ns) * 1000;
   auto aborts_ops = (total_aborts.load() / duration_ns) * 1000;
 
@@ -141,23 +146,25 @@ std::pair<size_t, size_t> Benchmark(T& index, LineairDB::EpochFramework& epoch_f
 }
 
 int main(int argc, char** argv) {
-  cxxopts::Options options("indexbench", "Microbenchmark of various index structures");
+  cxxopts::Options options("indexbench",
+                           "Microbenchmark of various index structures");
 
-  options.add_options()         //
-      ("h,help", "Print usage") //
+  options.add_options()          //
+      ("h,help", "Print usage")  //
       ("t,thread", "The number of worker threads",
        cxxopts::value<size_t>()->default_value(
-           std::to_string(std::thread::hardware_concurrency()))) //
+           std::to_string(std::thread::hardware_concurrency())))  //
       ("s,structure", "Index data structure",
-       cxxopts::value<std::string>()->default_value("PrecisionLocking")) //
+       cxxopts::value<std::string>()->default_value("PrecisionLocking"))  //
       ("p,proportion", "Proportion of 'scan' operation",
-       cxxopts::value<size_t>()->default_value("10")) //
+       cxxopts::value<size_t>()->default_value("10"))  //
       ("P,populated", "All data items are populated before benchmarking",
-       cxxopts::value<bool>()->default_value("false")) //
+       cxxopts::value<bool>()->default_value("false"))  //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
-       cxxopts::value<size_t>()->default_value("2000")) //
+       cxxopts::value<size_t>()->default_value("2000"))  //
       ("o,output", "Output JSON filename",
-       cxxopts::value<std::string>()->default_value("indexbench_result.json")) //
+       cxxopts::value<std::string>()->default_value(
+           "indexbench_result.json"))  //
       ;
 
   auto result = options.parse(argc, argv);
@@ -183,20 +190,22 @@ int main(int argc, char** argv) {
     epoch_framework.Start();
     LineairDB::Config config;
     if (structure == "PrecisionLocking") {
-      config.index_structure = decltype(config)::IndexStructure::HashTableWithPrecisionLockingIndex;
+      config.index_structure =
+          decltype(config)::IndexStructure::HashTableWithPrecisionLockingIndex;
     } else {
-      std::cout << "invalid structure name." << std::endl << options.help() << std::endl;
+      std::cout << "invalid structure name." << std::endl
+                << options.help() << std::endl;
       return EXIT_FAILURE;
     }
 
     ConcurrentTable index(epoch_framework, config);
     SPDLOG_INFO("IndexBench: index population starts.");
-    if (populated)
-      Population<decltype(index)>(index);
+    if (populated) Population<decltype(index)>(index);
     SPDLOG_INFO("IndexBench: population has finished.");
 
-    auto res = Benchmark<decltype(index)>(index, epoch_framework, threads, proportion, populated,
-                                          measurement_duration);
+    auto res =
+        Benchmark<decltype(index)>(index, epoch_framework, threads, proportion,
+                                   populated, measurement_duration);
     ops = res.first;
     aps = res.second;
   }
@@ -207,7 +216,8 @@ int main(int argc, char** argv) {
   /** Output result as json format **/
   rapidjson::Document result_json(rapidjson::kObjectType);
   auto& allocator = result_json.GetAllocator();
-  result_json.AddMember("structure", rapidjson::Value(structure.c_str(), allocator), allocator);
+  result_json.AddMember(
+      "structure", rapidjson::Value(structure.c_str(), allocator), allocator);
   result_json.AddMember("threads", threads, allocator);
   result_json.AddMember("cps", ops, allocator);
   result_json.AddMember("aps", aps, allocator);
@@ -220,12 +230,14 @@ int main(int argc, char** argv) {
 
   auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
-  std::ofstream output_f(output_filename, std::ofstream::out | std::ofstream::trunc);
+  std::ofstream output_f(output_filename,
+                         std::ofstream::out | std::ofstream::trunc);
   output_f << result_string;
   if (!output_f.good()) {
     std::cerr << "Unable to write output file" << output_filename << std::endl;
     exit(1);
   }
-  std::cout << "This benchmark result is saved into " << output_filename << std::endl;
+  std::cout << "This benchmark result is saved into " << output_filename
+            << std::endl;
   return 0;
 }

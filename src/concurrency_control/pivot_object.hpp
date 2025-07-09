@@ -24,15 +24,15 @@
 namespace LineairDB {
 
 enum NWRValidationResult {
-  ACYCLIC = 0,         // LineairDB can execute commit with NWR's version order.
-  RW = 2,              // LineairDB should abort with NWR's version order: there may exist
-                       // a path T_k <<(rw)-> T_j.
-  WR = 3,              //  LineairDB should abort with NWR's version order : there may
-                       //  exist a path T_k wr-> T_j.
-  ANTI_DEPENDENCY = 4, //  LineairDB should abort with NWR's version order :
-                       //  there may exist a path T_k -> T-j <<(rw)-> T_k.
-  LINEARIZABILITY = 5, // LineairDB should abort with NWR's version order:
-                       // this version order violates strict serializability.
+  ACYCLIC = 0,  // LineairDB can execute commit with NWR's version order.
+  RW = 2,  // LineairDB should abort with NWR's version order: there may exist
+           // a path T_k <<(rw)-> T_j.
+  WR = 3,  //  LineairDB should abort with NWR's version order : there may
+           //  exist a path T_k wr-> T_j.
+  ANTI_DEPENDENCY = 4,  //  LineairDB should abort with NWR's version order :
+                        //  there may exist a path T_k -> T-j <<(rw)-> T_k.
+  LINEARIZABILITY = 5,  // LineairDB should abort with NWR's version order:
+                        // this version order violates strict serializability.
   NOT_YET_VALIDATED = 6
 };
 
@@ -45,7 +45,7 @@ enum NWRValidationResult {
  *
  */
 class NWRPivotObject {
-public:
+ public:
   using VersionedSet = HalfWordSet<4>;
 
   struct Versions {
@@ -90,12 +90,12 @@ public:
     return ACYCLIC;
   }
 
-public:
+ public:
   Versions versions;
   MergedSets msets;
 
   NWRPivotObject() noexcept : versions(), msets() {}
 };
 
-} // namespace LineairDB
+}  // namespace LineairDB
 #endif

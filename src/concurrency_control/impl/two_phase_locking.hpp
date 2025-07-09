@@ -37,27 +37,30 @@ namespace ConcurrencyControl {
 
 enum class DeadLockAvoidanceType { NoWait, WaitDie, WoundWait };
 
-template <DeadLockAvoidanceType deadlock_avoidance_type = DeadLockAvoidanceType::NoWait>
+template <DeadLockAvoidanceType deadlock_avoidance_type =
+              DeadLockAvoidanceType::NoWait>
 class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
-public:
+ public:
   TwoPhaseLockingImpl(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)) {}
 
   ~TwoPhaseLockingImpl() final override{};
 
-  const DataItem Read(const std::string_view, DataItem* index_leaf) final override {
+  const DataItem Read(const std::string_view,
+                      DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
     auto& rw_lock = index_leaf->GetRWLockRef();
 
-    auto lock_acquired =
-        rw_lock.TryLock(std::remove_reference<decltype(rw_lock)>::type::LockType::Shared);
+    auto lock_acquired = rw_lock.TryLock(
+        std::remove_reference<decltype(rw_lock)>::type::LockType::Shared);
 
     if (!lock_acquired) {
       if constexpr (deadlock_avoidance_type == DeadLockAvoidanceType::NoWait) {
         Abort();
         return {};
       } else {
-        SPDLOG_ERROR("Selected deadlock-avoidance algorithm is not implemented.");
+        SPDLOG_ERROR(
+            "Selected deadlock-avoidance algorithm is not implemented.");
         exit(EXIT_FAILURE);
       }
     }
@@ -66,8 +69,8 @@ public:
 
     return snapshot_item;
   };
-  void Write(const std::string_view key, const std::byte* const value, const size_t size,
-             DataItem* index_leaf) final override {
+  void Write(const std::string_view key, const std::byte* const value,
+             const size_t size, DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
 
     auto& rw_lock = index_leaf->GetRWLockRef();
@@ -83,20 +86,20 @@ public:
     if (is_read_modify_write) {
       // it has already been acquired shared lock. request upgrade.
       assert(read_lock_set_.find(index_leaf) != read_lock_set_.end());
-      lock_acquired =
-          rw_lock.TryLock(std::remove_reference<decltype(rw_lock)>::type::LockType::Upgrade);
-      if (lock_acquired)
-        read_lock_set_.erase(index_leaf);
+      lock_acquired = rw_lock.TryLock(
+          std::remove_reference<decltype(rw_lock)>::type::LockType::Upgrade);
+      if (lock_acquired) read_lock_set_.erase(index_leaf);
     } else {
-      lock_acquired =
-          rw_lock.TryLock(std::remove_reference<decltype(rw_lock)>::type::LockType::Exclusive);
+      lock_acquired = rw_lock.TryLock(
+          std::remove_reference<decltype(rw_lock)>::type::LockType::Exclusive);
     }
     if (!lock_acquired) {
       if constexpr (deadlock_avoidance_type == DeadLockAvoidanceType::NoWait) {
         Abort();
         return;
       } else {
-        SPDLOG_ERROR("Selected deadlock-avoidance algorithm is not implemented.");
+        SPDLOG_ERROR(
+            "Selected deadlock-avoidance algorithm is not implemented.");
         exit(EXIT_FAILURE);
       }
     }
@@ -130,7 +133,7 @@ public:
 
   void PostProcessing(TxStatus) final override { UnlockAll(); }
 
-private:
+ private:
   void Undo() {
     for (auto& item : undo_set_) {
       item.first->Reset(item.second.value(), item.second.size());
@@ -145,13 +148,13 @@ private:
     }
   }
 
-private:
+ private:
   std::vector<std::pair<DataItem*, DataItem>> undo_set_;
   std::set<DataItem*> read_lock_set_;
 };
 
 using TwoPhaseLocking = TwoPhaseLockingImpl<DeadLockAvoidanceType::NoWait>;
 
-} // namespace ConcurrencyControl
-} // namespace LineairDB
+}  // namespace ConcurrencyControl
+}  // namespace LineairDB
 #endif /* LINEAIRDB_TWO_PHASE_LOCKING_NWR_H */

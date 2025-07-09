@@ -35,8 +35,7 @@ struct DataBuffer {
 
   DataBuffer() : size(0) { value = nullptr; }
   ~DataBuffer() {
-    if (value != nullptr)
-      delete[] value;
+    if (value != nullptr) delete[] value;
   }
 
   void Reset(const std::byte* v, const size_t s) {
@@ -49,7 +48,8 @@ struct DataBuffer {
       if (value == nullptr) {
         value = new std::byte[s];
       } else {
-        value = static_cast<decltype(value)>(std::realloc(reinterpret_cast<void*>(value), s));
+        value = static_cast<decltype(value)>(
+            std::realloc(reinterpret_cast<void*>(value), s));
         if (value == nullptr) {
           throw std::bad_alloc();
         }
@@ -64,7 +64,9 @@ struct DataBuffer {
   }
   bool IsEmpty() const { return size == 0; }
 
-  std::string toString() const { return std::string(reinterpret_cast<char*>(value), size); }
+  std::string toString() const {
+    return std::string(reinterpret_cast<char*>(value), size);
+  }
 };
-} // namespace LineairDB
+}  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_BUFFER_HPP */

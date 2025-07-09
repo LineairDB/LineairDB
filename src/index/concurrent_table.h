@@ -33,7 +33,7 @@ namespace LineairDB {
 namespace Index {
 
 class ConcurrentTable {
-public:
+ public:
   ConcurrentTable(EpochFramework& epoch_framework, Config config = Config(),
                   WriteSetType recovery_set = WriteSetType());
 
@@ -44,14 +44,15 @@ public:
   std::optional<size_t> Scan(const std::string_view begin,
                              const std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation);
-  std::optional<size_t> Scan(const std::string_view begin, const std::string_view end,
-                             std::function<bool(std::string_view, DataItem&)> operation);
+  std::optional<size_t> Scan(
+      const std::string_view begin, const std::string_view end,
+      std::function<bool(std::string_view, DataItem&)> operation);
 
-private:
+ private:
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>> index_;
   LineairDB::EpochFramework& epoch_manager_ref_;
 };
-} // namespace Index
-} // namespace LineairDB
+}  // namespace Index
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_CONCURRENT_TABLE_H */

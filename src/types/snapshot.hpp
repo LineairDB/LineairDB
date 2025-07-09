@@ -31,21 +31,22 @@ struct Snapshot {
   DataItem* index_cache;
   bool is_read_modify_write;
 
-  Snapshot(const std::string_view k, const std::byte v[], const size_t s, DataItem* const i,
-           const TransactionId ver = 0)
+  Snapshot(const std::string_view k, const std::byte v[], const size_t s,
+           DataItem* const i, const TransactionId ver = 0)
       : key(k), index_cache(i), is_read_modify_write(false) {
-    if (v != nullptr)
-      data_item_copy.Reset(v, s, ver);
+    if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
   Snapshot(const Snapshot&) = default;
   Snapshot& operator=(const Snapshot&) = default;
 
-  static bool Compare(Snapshot& left, Snapshot& right) { return left.key < right.key; }
+  static bool Compare(Snapshot& left, Snapshot& right) {
+    return left.key < right.key;
+  }
 };
 
 using ReadSetType = std::vector<Snapshot>;
 using WriteSetType = std::vector<Snapshot>;
 
-} // namespace LineairDB
+}  // namespace LineairDB
 
 #endif /* LINEAIRDB_SNAPSHOT_HPP */

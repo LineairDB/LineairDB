@@ -26,11 +26,11 @@
 #include <thread>
 #include <vector>
 
-#include "test_helper.hpp"
 #include "gtest/gtest.h"
+#include "test_helper.hpp"
 
 class HandlerTransactionTest : public ::testing::Test {
-protected:
+ protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
@@ -46,8 +46,11 @@ TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
-    tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice), sizeof(int));
-    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
+    tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
+             sizeof(int));
+    db->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
+    });
   }
   db->Fence();
   {
@@ -56,7 +59,9 @@ TEST_F(HandlerTransactionTest, ExecuteTransaction) {
     ASSERT_NE(alice.first, nullptr);
     ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
 
-    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
+    db->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
+    });
   }
 }
 
@@ -66,7 +71,9 @@ TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
   {
     auto& tx = db->BeginTransaction();
     tx.Write<int>("alice", value_of_alice);
-    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
+    db->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
+    });
   }
   db->Fence();
   {
@@ -74,7 +81,9 @@ TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
     auto alice = tx.Read<int>("alice");
     ASSERT_TRUE(alice.has_value());
     ASSERT_EQ(value_of_alice, alice.value());
-    db->EndTransaction(tx, [](auto status) { ASSERT_EQ(LineairDB::TxStatus::Committed, status); });
+    db->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(LineairDB::TxStatus::Committed, status);
+    });
   }
 }
 
@@ -83,6 +92,8 @@ TEST_F(HandlerTransactionTest, UserAbort) {
   {
     auto& tx = db->BeginTransaction();
     tx.Abort();
-    db->EndTransaction(tx, [&](auto status) { ASSERT_EQ(LineairDB::TxStatus::Aborted, status); });
+    db->EndTransaction(tx, [&](auto status) {
+      ASSERT_EQ(LineairDB::TxStatus::Aborted, status);
+    });
   }
 }

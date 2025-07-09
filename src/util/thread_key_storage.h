@@ -31,16 +31,19 @@
 #include <iostream>
 #include <mutex>
 
-template <class T> class ThreadKeyStorage {
+template <class T>
+class ThreadKeyStorage {
   struct TlsNode {
     TlsNode* prev;
     T payload;
     TlsNode() : prev(nullptr), payload() {}
-    template <class... Ts> TlsNode(Ts... args) : prev(nullptr), payload(&args...) {}
-    template <class U> TlsNode(std::function<U()> f) : prev(nullptr), payload(std::move(f())) {}
+    template <class... Ts>
+    TlsNode(Ts... args) : prev(nullptr), payload(&args...) {}
+    template <class U>
+    TlsNode(std::function<U()> f) : prev(nullptr), payload(std::move(f())) {}
   };
 
-public:
+ public:
   ThreadKeyStorage(int = 0) : head_node_(nullptr) {
     int err = ::pthread_key_create(&key_, nullptr);
     if (err != 0) {
@@ -69,13 +72,15 @@ public:
    * @param func
    * @return T*
    */
-  template <class U> T* Get(std::function<U()>&& func) {
+  template <class U>
+  T* Get(std::function<U()>&& func) {
     void* ptr = pthread_getspecific(key_);
     if (ptr == nullptr) {
       TlsNode* new_obj = new TlsNode(std::move(func));
       int err = ::pthread_setspecific(key_, new_obj);
       if (err == ENOMEM) {
-        std::cerr << "::pthread_setspecific failed: no enough memory" << std::endl;
+        std::cerr << "::pthread_setspecific failed: no enough memory"
+                  << std::endl;
         exit(EXIT_FAILURE);
       } else if (err == EINVAL) {
         std::cerr << "::pthread_setspecific failed: invalid key" << std::endl;
@@ -100,7 +105,8 @@ public:
       TlsNode* new_obj = new TlsNode();
       int err = ::pthread_setspecific(key_, new_obj);
       if (err == ENOMEM) {
-        std::cerr << "::pthread_setspecific failed: no enough memory" << std::endl;
+        std::cerr << "::pthread_setspecific failed: no enough memory"
+                  << std::endl;
         exit(EXIT_FAILURE);
       } else if (err == EINVAL) {
         std::cerr << "::pthread_setspecific failed: invalid key" << std::endl;
@@ -131,15 +137,14 @@ public:
     TlsNode* ptr = head_node_.load();
     while (ptr != nullptr) {
       auto result = f(&ptr->payload);
-      if (!result)
-        break;
+      if (!result) break;
       ptr = ptr->prev;
     }
   }
 
-private:
+ private:
   pthread_key_t key_;
   std::atomic<TlsNode*> head_node_;
 };
 
-#endif // LINEAIRDB_THREAD_KEY_STORAGE_H
+#endif  // LINEAIRDB_THREAD_KEY_STORAGE_H
