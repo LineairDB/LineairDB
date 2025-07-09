@@ -38,13 +38,13 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
   LineairDB::Config config;
   config.concurrency_control_protocol =
       LineairDB::Config::ConcurrencyControl::Silo;
-  config.enable_logging  = true;
+  config.enable_logging = true;
   config.enable_recovery = true;
 
   {  // Populate database
     LineairDB::Database db(config);
     std::vector<std::future<void>> futures;
-    const size_t thread_size            = std::thread::hardware_concurrency();
+    const size_t thread_size = std::thread::hardware_concurrency();
     const size_t per_worker_insert_size = db_size / thread_size;
     std::vector<std::byte> buffer(buffer_size);
 
@@ -54,7 +54,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
           db.ExecuteTransaction(
               [&, i](LineairDB::Transaction& tx) {
                 const size_t from = i * per_worker_insert_size;
-                const size_t to   = (i + 1) * per_worker_insert_size - 1;
+                const size_t to = (i + 1) * per_worker_insert_size - 1;
                 for (size_t j = from; j < to; j++) {
                   tx.Write(std::to_string(j), buffer.data(), buffer.size());
                 }
@@ -65,7 +65,9 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
         }
       }));
     }
-    for (auto& fut : futures) { fut.wait(); }
+    for (auto& fut : futures) {
+      fut.wait();
+    }
     SPDLOG_INFO("Finish database population for all {0} data items.", db_size);
     db.Fence();
     SPDLOG_INFO("DB Fence.");
@@ -73,7 +75,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
 
   auto begin = std::chrono::high_resolution_clock::now();
   LineairDB::Database db(config);
-  auto end     = std::chrono::high_resolution_clock::now();
+  auto end = std::chrono::high_resolution_clock::now();
   auto elapsed = end - begin;
 
   uint64_t milliseconds =
@@ -105,9 +107,9 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const size_t db_size     = result["dbsize"].as<size_t>();
+  const size_t db_size = result["dbsize"].as<size_t>();
   const size_t buffer_size = result["buffersize"].as<size_t>();
-  const size_t updates     = result["updates"].as<size_t>();
+  const size_t updates = result["updates"].as<size_t>();
 
   std::filesystem::remove_all("lineairdb_logs");
 
@@ -127,7 +129,7 @@ int main(int argc, char** argv) {
   result_json.Accept(writer);
   writer.Flush();
 
-  auto result_string   = buffer.GetString();
+  auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
   std::ofstream output_f(output_filename,
                          std::ofstream::out | std::ofstream::trunc);

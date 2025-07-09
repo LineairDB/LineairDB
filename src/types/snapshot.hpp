@@ -44,7 +44,7 @@ struct Snapshot {
   }
 };
 
-using ReadSetType  = std::vector<Snapshot>;
+using ReadSetType = std::vector<Snapshot>;
 using WriteSetType = std::vector<Snapshot>;
 
 }  // namespace LineairDB

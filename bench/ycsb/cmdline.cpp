@@ -98,14 +98,14 @@ int main(int argc, char** argv) {
 
   /** Initialize LineairDB **/
   LineairDB::Config config;
-  auto protocol                       = result["cc"].as<std::string>();
+  auto protocol = result["cc"].as<std::string>();
   config.concurrency_control_protocol = Protocols.find(protocol)->second;
-  config.enable_recovery              = false;
-  config.enable_logging               = result["log"].as<bool>();
-  config.max_thread                   = result["thread"].as<size_t>();
-  config.epoch_duration_ms            = result["epoch"].as<size_t>();
-  config.checkpoint_period            = result["checkpoint_interval"].as<size_t>();
-  config.rehash_threshold             = result["rehash_threshold"].as<double>();
+  config.enable_recovery = false;
+  config.enable_logging = result["log"].as<bool>();
+  config.max_thread = result["thread"].as<size_t>();
+  config.epoch_duration_ms = result["epoch"].as<size_t>();
+  config.checkpoint_period = result["checkpoint_interval"].as<size_t>();
+  config.rehash_threshold = result["rehash_threshold"].as<double>();
   LineairDB::Database db(config);
 
   const auto use_handler = result["handler"].as<bool>();
@@ -115,11 +115,11 @@ int main(int argc, char** argv) {
   YCSB::Workload workload =
       YCSB::Workload::GeneratePredefinedWorkload(workload_type);
 
-  workload.recordcount          = result["records"].as<size_t>();
-  workload.zipfian_theta        = result["contention"].as<double>();
-  workload.reps_per_txn         = result["ws"].as<size_t>();
-  workload.payload_size         = result["payload"].as<size_t>();
-  workload.client_thread_size   = result["clients"].as<size_t>();
+  workload.recordcount = result["records"].as<size_t>();
+  workload.zipfian_theta = result["contention"].as<double>();
+  workload.reps_per_txn = result["ws"].as<size_t>();
+  workload.payload_size = result["payload"].as<size_t>();
+  workload.client_thread_size = result["clients"].as<size_t>();
   workload.measurement_duration = result["duration"].as<size_t>();
 
   /** Populate the table **/
@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
 
   /** Run the benchmark **/
   auto result_json = YCSB::RunBenchmark(db, workload, use_handler);
-  auto& allocator  = result_json.GetAllocator();
+  auto& allocator = result_json.GetAllocator();
 
   result_json.AddMember("workload",
                         rapidjson::Value(workload_type.c_str(), allocator),
@@ -136,8 +136,8 @@ int main(int argc, char** argv) {
       "protocol", rapidjson::Value(protocol.c_str(), allocator), allocator);
   result_json.AddMember("threads", static_cast<uint64_t>(config.max_thread),
                         allocator);
-  result_json.AddMember("clients", static_cast<uint64_t>(workload.client_thread_size),
-                        allocator);
+  result_json.AddMember(
+      "clients", static_cast<uint64_t>(workload.client_thread_size), allocator);
   result_json.AddMember("handler", use_handler, allocator);
 
   rapidjson::StringBuffer buffer;
@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
   result_json.Accept(writer);
   writer.Flush();
 
-  auto result_string   = buffer.GetString();
+  auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
   std::ofstream output_f(output_filename,
                          std::ofstream::out | std::ofstream::trunc);

@@ -68,7 +68,7 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
   workers.reserve(worker_threads);
   for (size_t i = 0; i < worker_threads; ++i) {
     size_t from = workload.recordcount * i / worker_threads;
-    size_t to   = workload.recordcount * (i + 1) / worker_threads;
+    size_t to = workload.recordcount * (i + 1) / worker_threads;
     failed.emplace_back(0);
     workers.emplace_back([&, from, to]() {
       db.ExecuteTransaction(
@@ -87,14 +87,16 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
     });
   }
   SPDLOG_INFO("YCSB: Database population queries are enqueued");
-  for (auto& w : workers) { w.join(); }
+  for (auto& w : workers) {
+    w.join();
+  }
   db.Fence();
   SPDLOG_INFO("YCSB: Database population is completed");
 }
 
 struct ThreadLocalResult {
   size_t commits = 0;
-  size_t aborts  = 0;
+  size_t aborts = 0;
 };
 ThreadKeyStorage<ThreadLocalResult> thread_local_result;
 std::atomic<bool> finish_flag{false};
@@ -109,7 +111,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
   bool is_scan = false;
   bool is_insert = false;
   {  // choose operation what I do
-    size_t what_i_do  = rand->UniformRandom(99);
+    size_t what_i_do = rand->UniformRandom(99);
     size_t proportion = 0;
 
     if (what_i_do < (proportion += workload.read_proportion)) {
@@ -121,7 +123,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       is_insert = true;
     } else if (what_i_do < (proportion += workload.scan_proportion)) {
       operation = YCSB::Interface::Scan;
-      is_scan   = true;
+      is_scan = true;
     } else if (what_i_do < (proportion += workload.rmw_proportion)) {
       operation = YCSB::Interface::ReadModifyWrite;
     } else {
@@ -134,10 +136,11 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 
   // choose target key
   for (size_t i = 0; i < workload.reps_per_txn; i++) {
-
-    if (is_scan){
-      const uint64_t begin = rand->Next(workload.has_insert); // Zipfian
-      const uint64_t end = begin + rand->UniformRandom(100); // YCSB's scan operation range is limited up to 100
+    if (is_scan) {
+      const uint64_t begin = rand->Next(workload.has_insert);  // Zipfian
+      const uint64_t end =
+          begin + rand->UniformRandom(
+                      100);  // YCSB's scan operation range is limited up to 100
       keys.emplace_back(std::to_string(begin));
       keys.emplace_back(std::to_string(end));
       break;
@@ -167,7 +170,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       }
     }
     bool precommitted = db.EndTransaction(tx, [&](LineairDB::TxStatus) {});
-    auto* result      = thread_local_result.Get();
+    auto* result = thread_local_result.Get();
     if (!finish_flag.load(std::memory_order_relaxed)) {
       if (precommitted) {
         result->commits++;
@@ -225,7 +228,9 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   }
 
   // start measurement
-  while (waits_count.load() != clients.size()) { std::this_thread::yield(); }
+  while (waits_count.load() != clients.size()) {
+    std::this_thread::yield();
+  }
 
   SPDLOG_INFO("YCSB: Benchmark start.");
   auto begin = std::chrono::high_resolution_clock::now();
@@ -233,14 +238,16 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   std::this_thread::sleep_for(
       std::chrono::milliseconds(workload.measurement_duration));
   finish_flag.store(true);
-  for (auto& worker : clients) { worker.join(); }
+  for (auto& worker : clients) {
+    worker.join();
+  }
   auto end = std::chrono::high_resolution_clock::now();
   SPDLOG_INFO("YCSB: Benchmark end.");
   db.Fence();
   SPDLOG_INFO("YCSB: DB Fenced.");
 
   uint64_t total_commits = 0;
-  uint64_t total_aborts  = 0;
+  uint64_t total_aborts = 0;
   thread_local_result.ForEach([&](const ThreadLocalResult* res) {
     total_commits += res->commits;
     total_aborts += res->aborts;

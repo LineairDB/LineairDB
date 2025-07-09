@@ -44,7 +44,7 @@ class HashTableWithPrecisionLockingIndex {
   bool Put(const std::string_view key, const T& rhs) {
     bool r_success = range_index_.Insert(key);
     if (!r_success) return false;
-    auto* value    = new T(rhs);
+    auto* value = new T(rhs);
     bool p_success = point_index_.Put(key, value);
     if (!p_success) delete value;
     return true;

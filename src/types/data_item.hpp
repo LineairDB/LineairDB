@@ -62,7 +62,9 @@ struct DataItem {
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
     initialized = rhs.initialized;
-    if (initialized) { buffer.Reset(rhs.buffer); }
+    if (initialized) {
+      buffer.Reset(rhs.buffer);
+    }
     return *this;
   }
 

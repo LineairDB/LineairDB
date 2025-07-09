@@ -65,12 +65,16 @@ class CPRManager {
             {  // REST Phase: sleep
               auto start = std::chrono::high_resolution_clock::now();
               if (current_phase_.load() == Phase::REST) {
-                for (;;){
-                  std::this_thread::sleep_for(
-                    std::chrono::seconds(1));
+                for (;;) {
+                  std::this_thread::sleep_for(std::chrono::seconds(1));
                   if (stop_.load()) return;
                   auto now = std::chrono::high_resolution_clock::now();
-                  if (checkpoint_period <= static_cast<size_t>(std::chrono::duration_cast<std::chrono::seconds>(now - start).count())) break;
+                  if (checkpoint_period <=
+                      static_cast<size_t>(
+                          std::chrono::duration_cast<std::chrono::seconds>(
+                              now - start)
+                              .count()))
+                    break;
                 }
               }
             }
@@ -129,7 +133,7 @@ class CPRManager {
                       data_item.checkpoint_buffer.Reset(nullptr, 0);
                     }
                     kvp.tid.epoch = record.epoch;
-                    kvp.tid.tid   = 0;
+                    kvp.tid.tid = 0;
                     record.key_value_pairs.emplace_back(std::move(kvp));
 
                     data_item.ExclusiveUnlock();
@@ -175,7 +179,9 @@ class CPRManager {
 
   bool IsNeedToCheckpointing(EpochNumber my_epoch) {
     const auto global_phase = current_phase_.load();
-    if (global_phase == Phase::REST) { return false; }
+    if (global_phase == Phase::REST) {
+      return false;
+    }
     return checkpoint_epoch_.load() <= my_epoch;
   }
 

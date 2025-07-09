@@ -62,12 +62,12 @@ class alignas(64) TTASLockImpl
  private:
   std::atomic<uint64_t> lock_bit_;
   static_assert(decltype(lock_bit_)::is_always_lock_free);
-  constexpr static uint64_t Locked   = 1llu;
+  constexpr static uint64_t Locked = 1llu;
   constexpr static uint64_t UnLocked = 0llu;
 };
-using TTASLock     = TTASLockImpl<false, false>;
-using TTASLockBO   = TTASLockImpl<true, false>;
-using TTASLockCO   = TTASLockImpl<false, true>;
+using TTASLock = TTASLockImpl<false, false>;
+using TTASLockBO = TTASLockImpl<true, false>;
+using TTASLockCO = TTASLockImpl<false, true>;
 using TTASLockBOCO = TTASLockImpl<true, true>;
 using TTASLockCOBO = TTASLockBOCO;
 // static_assert(sizeof(TTASLock) ==

@@ -77,7 +77,7 @@ class ThreadKeyStorage {
     void* ptr = pthread_getspecific(key_);
     if (ptr == nullptr) {
       TlsNode* new_obj = new TlsNode(std::move(func));
-      int err          = ::pthread_setspecific(key_, new_obj);
+      int err = ::pthread_setspecific(key_, new_obj);
       if (err == ENOMEM) {
         std::cerr << "::pthread_setspecific failed: no enough memory"
                   << std::endl;
@@ -87,10 +87,12 @@ class ThreadKeyStorage {
         exit(EXIT_FAILURE);
       }
       for (;;) {
-        TlsNode* old  = head_node_.load();
+        TlsNode* old = head_node_.load();
         new_obj->prev = old;
-        bool ret      = head_node_.compare_exchange_weak(old, new_obj);
-        if (ret) { break; }
+        bool ret = head_node_.compare_exchange_weak(old, new_obj);
+        if (ret) {
+          break;
+        }
       }
       ptr = new_obj;
     }
@@ -101,7 +103,7 @@ class ThreadKeyStorage {
     void* ptr = pthread_getspecific(key_);
     if (ptr == nullptr) {
       TlsNode* new_obj = new TlsNode();
-      int err          = ::pthread_setspecific(key_, new_obj);
+      int err = ::pthread_setspecific(key_, new_obj);
       if (err == ENOMEM) {
         std::cerr << "::pthread_setspecific failed: no enough memory"
                   << std::endl;
@@ -111,10 +113,12 @@ class ThreadKeyStorage {
         exit(EXIT_FAILURE);
       }
       for (;;) {
-        TlsNode* old  = head_node_.load();
+        TlsNode* old = head_node_.load();
         new_obj->prev = old;
-        bool ret      = head_node_.compare_exchange_weak(old, new_obj);
-        if (ret) { break; }
+        bool ret = head_node_.compare_exchange_weak(old, new_obj);
+        if (ret) {
+          break;
+        }
       }
       ptr = new_obj;
     }

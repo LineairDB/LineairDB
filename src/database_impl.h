@@ -57,7 +57,9 @@ class Database::Impl {
           "the same time.");
       exit(1);
     }
-    if (config_.enable_recovery) { Recovery(); }
+    if (config_.enable_recovery) {
+      Recovery();
+    }
     epoch_framework_.Start();
   }
 
@@ -67,7 +69,9 @@ class Database::Impl {
     epoch_framework_.Sync();
     checkpoint_manager_.Stop();
     epoch_framework_.Stop();
-    while (!thread_pool_.IsEmpty()) { std::this_thread::yield(); }
+    while (!thread_pool_.IsEmpty()) {
+      std::this_thread::yield();
+    }
     thread_pool_.Shutdown();
     SPDLOG_DEBUG(
         "Epoch number and Durable epoch number are ended at {0}, and {1}, "
@@ -82,7 +86,7 @@ class Database::Impl {
                           std::optional<CallbackType> prclbk) {
     for (;;) {
       bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
-                                           callback       = clbk,
+                                           callback = clbk,
                                            precommit_clbk = prclbk]() {
         epoch_framework_.MakeMeOnline();
         Transaction tx(this);
@@ -140,7 +144,7 @@ class Database::Impl {
       tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
 
       tx.tx_pimpl_->current_status_ = TxStatus::Committed;
-      const auto current_epoch      = epoch_framework_.GetMyThreadLocalEpoch();
+      const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
       callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
 
       if (config_.enable_logging) {
@@ -224,7 +228,7 @@ class Database::Impl {
     SPDLOG_INFO("Start recovery process");
     // Start recovery from logfiles
     EpochNumber highest_epoch = 1;
-    const auto durable_epoch  = logger_.GetDurableEpochFromLog();
+    const auto durable_epoch = logger_.GetDurableEpochFromLog();
     SPDLOG_DEBUG("  Durable epoch is resumed from {0}", highest_epoch);
     logger_.SetDurableEpoch(durable_epoch);
     [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(
@@ -235,9 +239,9 @@ class Database::Impl {
 
     epoch_framework_.MakeMeOnline();
     auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-    local_epoch       = durable_epoch;
+    local_epoch = durable_epoch;
 
-    highest_epoch       = std::max(highest_epoch, durable_epoch);
+    highest_epoch = std::max(highest_epoch, durable_epoch);
     auto&& recovery_set = logger_.GetRecoverySetFromLogs(durable_epoch);
     for (auto& entry : recovery_set) {
       highest_epoch = std::max(

@@ -39,7 +39,7 @@ struct DataBuffer {
   }
 
   void Reset(const std::byte* v, const size_t s) {
-    if (v == nullptr){
+    if (v == nullptr) {
       delete[] value;
       value = nullptr;
       size = 0;
@@ -50,7 +50,9 @@ struct DataBuffer {
       } else {
         value = static_cast<decltype(value)>(
             std::realloc(reinterpret_cast<void*>(value), s));
-        if (value == nullptr) { throw std::bad_alloc(); }
+        if (value == nullptr) {
+          throw std::bad_alloc();
+        }
       }
     }
     size = s;

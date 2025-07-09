@@ -45,7 +45,7 @@ class Database {
   ~Database() noexcept;
   Database(const Database&) = delete;
   Database& operator=(const Database&) = delete;
-  Database(Database&&)                 = delete;
+  Database(Database&&) = delete;
   Database& operator=(Database&&) = delete;
 
   /**
@@ -57,7 +57,7 @@ class Database {
   const Config GetConfig() const noexcept;
 
   using ProcedureType = std::function<void(Transaction&)>;
-  using CallbackType  = std::function<void(const TxStatus)>;
+  using CallbackType = std::function<void(const TxStatus)>;
   /**
    * @brief
    * Processes a transaction given by a transaction procedure proc,

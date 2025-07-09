@@ -39,17 +39,17 @@ class ConcurrencyControlTest
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     config_.concurrency_control_protocol = ConcurrencyControlTest::GetParam();
-    config_.enable_recovery              = false;
-    config_.enable_logging               = false;
-    config_.enable_checkpointing         = false;
+    config_.enable_recovery = false;
+    config_.enable_logging = false;
+    config_.enable_checkpointing = false;
     // NOTE: The testcase AvoidingReadOnlyAnomaly requires to be executed on 3
     // threads in parallel.
-    if (config_.max_thread < 3) { config_.max_thread = 4; }
+    if (config_.max_thread < 3) {
+      config_.max_thread = 4;
+    }
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
-  virtual void TearDown() {
-    std::filesystem::remove_all("lineairdb_logs");
-  }
+  virtual void TearDown() { std::filesystem::remove_all("lineairdb_logs"); }
 };
 
 const std::array<std::string, 3> Protocols{"Silo", "SiloNWR", "2PL"};
@@ -182,7 +182,7 @@ TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** validation **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
                                auto alice = tx.Read<int>("alice");
-                               auto bob   = tx.Read<int>("bob");
+                               auto bob = tx.Read<int>("bob");
                                ASSERT_TRUE(alice.has_value());
                                ASSERT_TRUE(bob.has_value());
                                ASSERT_EQ(1,
@@ -203,7 +203,9 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
     EXPECT_TRUE(y.has_value());
     EXPECT_EQ(0, y.value());
 
-    while (waits) { std::this_thread::yield(); }
+    while (waits) {
+      std::this_thread::yield();
+    }
 
     tx.Write<int>("y", 20);
   });
@@ -224,7 +226,9 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   std::atomic<int> x_value_read_by_t3(0);
   std::atomic<int> y_value_read_by_t3(0);
   TransactionProcedure T3([&](LineairDB::Transaction& tx) {
-    while (waits) { std::this_thread::yield(); }
+    while (waits) {
+      std::this_thread::yield();
+    }
     std::this_thread::yield();
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
@@ -235,7 +239,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   });
 
   size_t committed = 0;
-  size_t retry     = 0;
+  size_t retry = 0;
   while (committed != 3) {
     waits.store(true);
     /** initialize **/
@@ -284,13 +288,13 @@ TEST_P(ConcurrencyControlTest, Recoverability) {
    * We need the interface to fetch the commit order correctly.
    */
   LineairDB::Config config = db_->GetConfig();
-  config.max_thread        = 1;
+  config.max_thread = 1;
   config.epoch_duration_ms = 1;
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
   std::atomic<bool> recoverability_failure = false;
-  constexpr auto UNCOMMITTED               = ~0llu;
+  constexpr auto UNCOMMITTED = ~0llu;
   while (transaction_id.load() < 1000) {
     auto my_tid = transaction_id.fetch_add(1);
 

@@ -72,15 +72,21 @@ class NWRPivotObject {
   // Validation of overwriters depends on baseline protocols.
   NWRValidationResult IsReachableInto(NWRPivotObject& rhs) {
     NWRPivotObject& lhs = *this;
-    if (rhs.msets.rset.IsGreaterOrEqualThan(lhs.msets.wset)) { return WR; }
+    if (rhs.msets.rset.IsGreaterOrEqualThan(lhs.msets.wset)) {
+      return WR;
+    }
 
-    if (rhs.msets.wset.IsGreaterThan(lhs.msets.rset)) { return RW; }
+    if (rhs.msets.wset.IsGreaterThan(lhs.msets.rset)) {
+      return RW;
+    }
     return ACYCLIC;
   }
 
   NWRValidationResult IsConcurrentWith(NWRPivotObject& rhs) {
     NWRPivotObject& lhs = *this;
-    if (rhs.versions.epoch != lhs.versions.epoch) { return LINEARIZABILITY; }
+    if (rhs.versions.epoch != lhs.versions.epoch) {
+      return LINEARIZABILITY;
+    }
     return ACYCLIC;
   }
 

@@ -86,7 +86,9 @@ TYPED_TEST(LockTest, IsReadersWritersLockingAlgorithm) {
 
     // Lock upgrade
     ASSERT_FALSE(lock.TryLock(TypeParam::LockType::Upgrade));
-    for (size_t i = 0; i < 9; i++) { lock.UnLock(); }
+    for (size_t i = 0; i < 9; i++) {
+      lock.UnLock();
+    }
     ASSERT_TRUE(lock.TryLock(TypeParam::LockType::Upgrade));
   }
 }

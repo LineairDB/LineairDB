@@ -45,7 +45,7 @@ class RandomGenerator {
   uint64_t Random() { return engine_(); }
   uint64_t BoundedRandom() { return engine_() % max_; }
   uint64_t UniformRandom() { return uniform_(engine_); }
-  double   UniformReal() { return uniform_real_(engine_); }
+  double UniformReal() { return uniform_real_(engine_); }
   uint64_t UniformRandom(uint64_t lower_bound, uint64_t upper_bound) {
     return std::uniform_int_distribution<>(lower_bound, upper_bound)(engine_);
   }
@@ -55,13 +55,15 @@ class RandomGenerator {
   bool IsIntialized() { return max_ != 0xdeadbeef; }
 
   uint64_t Next(uint64_t max) {
-    if (max != countforzeta_){ // recompute
-      if (max > countforzeta_){
+    if (max != countforzeta_) {  // recompute
+      if (max > countforzeta_) {
         zetan_ = zeta(countforzeta_, max, zetan_);
-        eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+        eta_ =
+            (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
       } else {
         zetan_ = zeta(0, max, 0);
-        eta_ = (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
+        eta_ =
+            (1 - std::pow(2.0 / max, 1 - theta_)) / (1 - zeta2theta_ / zetan_);
       }
     }
     assert(max >= countforzeta_);
@@ -83,8 +85,9 @@ class RandomGenerator {
     return ret;
   }
 
-  uint64_t Next(bool is_insert_occurs = false) { 
-    uint64_t max = is_insert_occurs ? latest.load(std::memory_order_relaxed) : max_;
+  uint64_t Next(bool is_insert_occurs = false) {
+    uint64_t max =
+        is_insert_occurs ? latest.load(std::memory_order_relaxed) : max_;
     return Next(max);
   }
 
@@ -93,7 +96,7 @@ class RandomGenerator {
   // https://github.com/brianfrankcooper/YCSB/blob/master/core/src/main/java/site/ycsb/generator/SkewedLatestGenerator.java
   static std::atomic<uint64_t> latest;
   static uint64_t XAdd() {
-    //SPDLOG_ERROR("insert {}", latest.load());
+    // SPDLOG_ERROR("insert {}", latest.load());
     return latest.fetch_add(1);
   }
 

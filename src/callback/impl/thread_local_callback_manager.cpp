@@ -44,7 +44,7 @@ void ThreadLocalCallbackManager::Enqueue(
   }
 }
 void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
-  auto* queues         = thread_key_storage_.Get();
+  auto* queues = thread_key_storage_.Get();
   auto& callback_queue = queues->callback_queue;
 
   if (callback_queue.empty()) {
@@ -52,7 +52,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
     // helping to the jobs on the work-stealing queue.
     const size_t queue_size = work_steal_queue_size_.load();
     if (0 == queue_size) return;
-    size_t checked_queue      = 0;
+    size_t checked_queue = 0;
     auto work_steal_queue_itr = work_steal_queues_.begin();
     for (;;) {
       auto& queue = work_steal_queue_itr->queue;
@@ -92,12 +92,14 @@ void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
       [&](const ThreadLocalStorageNode* thread_local_node) {
         auto& queue = thread_local_node->callback_queue;
         for (;;) {
-          if (queue.empty()) { break; }
+          if (queue.empty()) {
+            break;
+          }
           std::this_thread::yield();
         }
       });
 
-  size_t checked                     = 0;
+  size_t checked = 0;
   const size_t work_steal_queue_size = work_steal_queue_size_.load();
   if (0 == work_steal_queue_size) return;
   auto itr = work_steal_queues_.begin();
