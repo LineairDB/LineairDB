@@ -42,9 +42,9 @@ class Database::Impl {
   friend class Transaction::Impl;
 
  public:
-  inline static Database::Impl *CurrentDBInstance;
+  inline static Database::Impl* CurrentDBInstance;
 
-  Impl(const Config &c = Config())
+  Impl(const Config& c = Config())
       : config_(c),
         thread_pool_(c.max_thread),
         logger_(config_),
@@ -87,61 +87,56 @@ class Database::Impl {
     Database::Impl::CurrentDBInstance = nullptr;
   }
 
-  void ExecuteTransaction(ProcedureType proc, CallbackType clbk, std::optional<CallbackType> prclbk) {
+  void ExecuteTransaction(ProcedureType proc, CallbackType clbk,
+                          std::optional<CallbackType> prclbk) {
     for (;;) {
-<<<<<<< HEAD
-      bool success =
-          thread_pool_.Enqueue([&, transaction_procedure = proc, callback = clbk, precommit_clbk = prclbk]() {
-            epoch_framework_.MakeMeOnline();
-            Transaction tx(this);
-=======
       bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
                                            callback = clbk,
                                            precommit_clbk = prclbk]() {
         epoch_framework_.MakeMeOnline();
         Transaction tx(this);
->>>>>>> main
 
-            transaction_procedure(tx);
-            if (tx.IsAborted()) {
-              if (precommit_clbk) precommit_clbk.value()(LineairDB::TxStatus::Aborted);
-              callback(LineairDB::TxStatus::Aborted);
-              epoch_framework_.MakeMeOffline();
-              return;
-            }
+        transaction_procedure(tx);
+        if (tx.IsAborted()) {
+          if (precommit_clbk)
+            precommit_clbk.value()(LineairDB::TxStatus::Aborted);
+          callback(LineairDB::TxStatus::Aborted);
+          epoch_framework_.MakeMeOffline();
+          return;
+        }
 
-            bool committed = tx.Precommit();
-            if (committed) {
-              tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
+        bool committed = tx.Precommit();
+        if (committed) {
+          tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
 
-              if (precommit_clbk.has_value()) {
-                precommit_clbk.value()(TxStatus::Committed);
-              }
-              const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-              callback_manager_.Enqueue(std::move(callback), current_epoch);
-              if (config_.enable_logging) {
-                logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
-              }
-            } else {
-              tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
-              if (precommit_clbk.has_value()) {
-                precommit_clbk.value()(TxStatus::Aborted);
-              }
-              callback(LineairDB::TxStatus::Aborted);
-            }
+          if (precommit_clbk.has_value()) {
+            precommit_clbk.value()(TxStatus::Committed);
+          }
+          const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
+          callback_manager_.Enqueue(std::move(callback), current_epoch);
+          if (config_.enable_logging) {
+            logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
+          }
+        } else {
+          tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
+          if (precommit_clbk.has_value()) {
+            precommit_clbk.value()(TxStatus::Aborted);
+          }
+          callback(LineairDB::TxStatus::Aborted);
+        }
 
-            epoch_framework_.MakeMeOffline();
-          });
+        epoch_framework_.MakeMeOffline();
+      });
       if (success) break;
     }
   }
 
-  Transaction &BeginTransaction() {
+  Transaction& BeginTransaction() {
     epoch_framework_.MakeMeOnline();
     return *(new Transaction(this));
   }
 
-  bool EndTransaction(Transaction &tx, CallbackType clbk) {
+  bool EndTransaction(Transaction& tx, CallbackType clbk) {
     if (tx.IsAborted()) {
       clbk(TxStatus::Aborted);
       delete &tx;
@@ -167,7 +162,8 @@ class Database::Impl {
     epoch_framework_.MakeMeOffline();
 
     if (config_.enable_checkpointing) {
-      auto checkpoint_completed = checkpoint_manager_.GetCheckpointCompletedEpoch();
+      auto checkpoint_completed =
+          checkpoint_manager_.GetCheckpointCompletedEpoch();
       logger_.TruncateLogs(checkpoint_completed);
     }
     delete &tx;
@@ -179,15 +175,17 @@ class Database::Impl {
     callback_manager_.ExecuteCallbacks(current_epoch);
   }
 
-  const EpochNumber &GetMyThreadLocalEpoch() { return epoch_framework_.GetMyThreadLocalEpoch(); }
+  const EpochNumber& GetMyThreadLocalEpoch() {
+    return epoch_framework_.GetMyThreadLocalEpoch();
+  }
 
   void Fence() {
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
     callback_manager_.WaitForAllCallbacksToBeExecuted();
   }
-  const Config &GetConfig() const { return config_; }
-  Index::ConcurrentTable &GetIndex() { return index_; }
+  const Config& GetConfig() const { return config_; }
+  Index::ConcurrentTable& GetIndex() { return index_; }
 
   // NOTE: Called by a special thread managed by EpochFramework.
   std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {
@@ -195,17 +193,24 @@ class Database::Impl {
       // Logging
       if (config_.enable_logging) {
         EpochNumber durable_epoch = logger_.FlushDurableEpoch();
-        thread_pool_.EnqueueForAllThreads([&, old_epoch]() { logger_.FlushLogs(old_epoch); });
-        thread_pool_.EnqueueForAllThreads([&, durable_epoch] { callback_manager_.ExecuteCallbacks(durable_epoch); });
+        thread_pool_.EnqueueForAllThreads(
+            [&, old_epoch]() { logger_.FlushLogs(old_epoch); });
+        thread_pool_.EnqueueForAllThreads([&, durable_epoch] {
+          callback_manager_.ExecuteCallbacks(durable_epoch);
+        });
       }
 
       // Execute Callbacks
-      thread_pool_.EnqueueForAllThreads([&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
+      thread_pool_.EnqueueForAllThreads(
+          [&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
 
       if (config_.enable_checkpointing) {
-        auto checkpoint_completed = checkpoint_manager_.GetCheckpointCompletedEpoch();
+        auto checkpoint_completed =
+            checkpoint_manager_.GetCheckpointCompletedEpoch();
 
-        thread_pool_.EnqueueForAllThreads([&, checkpoint_completed]() { logger_.TruncateLogs(checkpoint_completed); });
+        thread_pool_.EnqueueForAllThreads([&, checkpoint_completed]() {
+          logger_.TruncateLogs(checkpoint_completed);
+        });
       }
     };
   }
@@ -218,18 +223,22 @@ class Database::Impl {
     });
   }
 
-  bool IsNeedToCheckpointing(const EpochNumber epoch) { return checkpoint_manager_.IsNeedToCheckpointing(epoch); }
+  bool IsNeedToCheckpointing(const EpochNumber epoch) {
+    return checkpoint_manager_.IsNeedToCheckpointing(epoch);
+  }
 
   bool CreateTable(const std::string table_name) {
     if (tables_.find(table_name) != tables_.end()) {
       return false;
     }
-    auto [it, inserted] = tables_.emplace(std::piecewise_construct, std::forward_as_tuple(table_name),
-                                          std::forward_as_tuple(epoch_framework_, config_));
+    auto [it, inserted] = tables_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(table_name),
+        std::forward_as_tuple(epoch_framework_, config_));
     return inserted;
   }
 
-  bool CreateSecondaryIndex(const std::string table_name, const std::string index_name,
+  bool CreateSecondaryIndex(const std::string table_name,
+                            const std::string index_name,
                             const SecondaryIndexOption::Constraint constraint) {
     auto it = tables_.find(table_name);
     if (it == tables_.end()) {
@@ -246,21 +255,14 @@ class Database::Impl {
     const auto durable_epoch = logger_.GetDurableEpochFromLog();
     SPDLOG_DEBUG("  Durable epoch is resumed from {0}", highest_epoch);
     logger_.SetDurableEpoch(durable_epoch);
-    [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads([&]() { logger_.RememberMe(durable_epoch); });
+    [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(
+        [&]() { logger_.RememberMe(durable_epoch); });
     assert(enqueued);
 
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
-<<<<<<< HEAD
-    auto &local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-    local_epoch = durable_epoch;
 
-    highest_epoch = std::max(highest_epoch, durable_epoch);
-    auto &&recovery_set = logger_.GetRecoverySetFromLogs(durable_epoch);
-    for (auto &entry : recovery_set) {
-      highest_epoch = std::max(highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
-=======
     auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
     local_epoch = durable_epoch;
 
@@ -269,7 +271,6 @@ class Database::Impl {
     for (auto& entry : recovery_set) {
       highest_epoch = std::max(
           highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
->>>>>>> main
 
       index_.Put(entry.key, std::move(entry.data_item_copy));
     }
