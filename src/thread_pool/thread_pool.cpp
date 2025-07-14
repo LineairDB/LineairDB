@@ -48,7 +48,7 @@ ThreadPool::ThreadPool(size_t pool_size)
 #ifndef __APPLE__
     worker_threads_.emplace_back([&, i]() {
       const auto pid = gettid();
-      auto* mask     = numa_bitmask_alloc(std::thread::hardware_concurrency());
+      auto* mask = numa_bitmask_alloc(std::thread::hardware_concurrency());
       const auto cpu_bit = i % mask->size;
       numa_bitmask_clearall(mask);
       numa_bitmask_setbit(mask, cpu_bit);
@@ -60,16 +60,20 @@ ThreadPool::ThreadPool(size_t pool_size)
 #endif
       for (;;) {
         Dequeue();
-        if (stop_ && IsEmpty() && shutdown_) { break; }
+        if (stop_ && IsEmpty() && shutdown_) {
+          break;
+        }
       }
     });
   }
 }
 
 ThreadPool::~ThreadPool() {
-  stop_     = true;
+  stop_ = true;
   shutdown_ = true;
-  for (auto& thread : worker_threads_) { thread.join(); }
+  for (auto& thread : worker_threads_) {
+    thread.join();
+  }
 }
 
 size_t ThreadPool::GetPoolSize() const { return worker_threads_.size(); }
@@ -87,7 +91,8 @@ bool ThreadPool::Enqueue(std::function<void()>&& job) {
 bool ThreadPool::EnqueueForAllThreads(std::function<void()>&& job) {
   if (stop_) return false;
   for (auto& queue : no_steal_queues_) {
-    while (!queue.enqueue(job)) {};
+    while (!queue.enqueue(job)) {
+    };
   }
   return true;
 }
@@ -98,10 +103,14 @@ bool ThreadPool::EnqueueForAllThreads(std::function<void()>&& job) {
 // Thus, you cannot use this method to wait until all queues become empty.
 bool ThreadPool::IsEmpty() {
   for (auto& queue : work_queues_) {
-    if (queue.size_approx() != 0) { return false; }
+    if (queue.size_approx() != 0) {
+      return false;
+    }
   }
   for (auto& queue : no_steal_queues_) {
-    if (queue.size_approx() != 0) { return false; }
+    if (queue.size_approx() != 0) {
+      return false;
+    }
   }
   return true;
 }
@@ -118,10 +127,10 @@ void ThreadPool::WaitForQueuesToBecomeEmpty() {
 }
 
 void ThreadPool::Dequeue() {
-  size_t idx              = GetIdxByThreadId();
-  auto* my_queue          = &work_queues_[idx];
+  size_t idx = GetIdxByThreadId();
+  auto* my_queue = &work_queues_[idx];
   auto* my_no_steal_queue = &no_steal_queues_[idx];
-  auto* selected_queue    = my_queue;
+  auto* selected_queue = my_queue;
 
   if (my_queue->size_approx() == 0 && my_no_steal_queue->size_approx() != 0) {
     selected_queue = my_no_steal_queue;

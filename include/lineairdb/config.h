@@ -143,9 +143,9 @@ struct Config {
   /**
    * @brief
    * It uses as the threshold (percentage) for rehashing of the hash index.
-   * A large value (e.g., 99) will not easily rehash the index and thus reduce memory
-   * consumption because leaving less room in the index.
-   * On the other hand, a problem with open addressing hash indexes (current implementation)
+   * A large value (e.g., 99) will not easily rehash the index and thus reduce
+   * memory consumption because leaving less room in the index. On the other
+   * hand, a problem with open addressing hash indexes (current implementation)
    * is that the computational cost of an insert increases on the less room.
    *
    * Default: 75 (percent)

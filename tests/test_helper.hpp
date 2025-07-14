@@ -83,7 +83,9 @@ size_t DoTransactionsOnMultiThreads(
       }
       db->ExecuteTransaction(tx, [&](const auto status) {
         terminated++;
-        if (status == LineairDB::TxStatus::Committed) { committed++; }
+        if (status == LineairDB::TxStatus::Committed) {
+          committed++;
+        }
       });
     }));
   }
@@ -92,7 +94,9 @@ size_t DoTransactionsOnMultiThreads(
   }
   barrier.store(true);
 
-  for (auto& job : jobs) { job.wait(); }
+  for (auto& job : jobs) {
+    job.wait();
+  }
 
   size_t msec_elapsed_for_termination = 0;
   while (terminated != txns.size()) {
@@ -124,7 +128,9 @@ size_t DoHandlerTransactionsOnMultiThreads(
       auto& tx = db->BeginTransaction();
       proc(tx);
       db->EndTransaction(tx, [&](auto status) {
-        if (status == LineairDB::TxStatus::Committed) { committed++; }
+        if (status == LineairDB::TxStatus::Committed) {
+          committed++;
+        }
         terminated++;
       });
     }));
@@ -134,7 +140,9 @@ size_t DoHandlerTransactionsOnMultiThreads(
   }
   barrier.store(true);
 
-  for (auto& job : jobs) { job.wait(); }
+  for (auto& job : jobs) {
+    job.wait();
+  }
 
   size_t msec_elapsed_for_termination = 0;
   while (terminated != txns.size()) {

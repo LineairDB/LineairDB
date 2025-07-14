@@ -45,11 +45,19 @@ namespace LineairDB
      */
     Database(const Config &config) noexcept;
 
+<<<<<<< HEAD
     ~Database() noexcept;
     Database(const Database &) = delete;
     Database &operator=(const Database &) = delete;
     Database(Database &&) = delete;
     Database &operator=(Database &&) = delete;
+=======
+  ~Database() noexcept;
+  Database(const Database&) = delete;
+  Database& operator=(const Database&) = delete;
+  Database(Database&&) = delete;
+  Database& operator=(Database&&) = delete;
+>>>>>>> main
 
     /**
      * @brief Return the Config object set by constructor.
@@ -59,6 +67,7 @@ namespace LineairDB
      */
     const Config GetConfig() const noexcept;
 
+<<<<<<< HEAD
     using ProcedureType = std::function<void(Transaction &)>;
     using CallbackType = std::function<void(const TxStatus)>;
     /**
@@ -82,6 +91,31 @@ namespace LineairDB
     void ExecuteTransaction(
         ProcedureType proc, CallbackType commit_clbk,
         std::optional<CallbackType> precommit_clbk = std::nullopt);
+=======
+  using ProcedureType = std::function<void(Transaction&)>;
+  using CallbackType = std::function<void(const TxStatus)>;
+  /**
+   * @brief
+   * Processes a transaction given by a transaction procedure proc,
+   * and afterwards process callback function with the resulting TxStatus.
+   * It enqueues these two functions into LineairDB's thread pool.
+   * Thread-safe.
+   * @param[in] proc A transaction procedure processed by LineairDB.
+   * @param[out] commit_clbk A callback function accepts a result (Committed or
+   * Aborted) of this transaction.
+   * @param[out] precommit_clbk A callback function accepts a result
+   * (Precommitted or Aborted) of this transaction.
+   * Note that pre-committed transactions have not been committed. Since the
+   * recovery log has not been persisted, this transaction may be aborted. The
+   * callback is good for describing  transaction dependencies. If a transaction
+   * is aborted, it is guaranteed that the other  transactions, that are
+   executed
+   * after checking the pre-commit of the transaction, will abort.
+   */
+  void ExecuteTransaction(
+      ProcedureType proc, CallbackType commit_clbk,
+      std::optional<CallbackType> precommit_clbk = std::nullopt);
+>>>>>>> main
 
     /**
      * @brief

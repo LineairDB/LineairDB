@@ -17,8 +17,8 @@
 #ifndef LINEAIRDB_YCSB_WORKLOAD_H
 #define LINEAIRDB_YCSB_WORKLOAD_H
 
-#include <iostream>
 #include <atomic>
+#include <iostream>
 #include <string_view>
 
 namespace YCSB {
@@ -42,7 +42,6 @@ struct Workload {
   size_t payload_size;
   size_t client_thread_size;
   size_t measurement_duration;
-
 
   Workload(size_t r, size_t u, size_t i, size_t s, size_t m, Distribution d)
       : read_proportion(r),

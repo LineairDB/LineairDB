@@ -36,11 +36,11 @@ class DurabilityTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::filesystem::remove_all("lineairdb_logs");
-    config_.max_thread           = 4;
-    config_.enable_logging       = true;
-    config_.enable_recovery      = true;
+    config_.max_thread = 4;
+    config_.enable_logging = true;
+    config_.enable_recovery = true;
     config_.enable_checkpointing = true;
-    config_.checkpoint_period    = 1;
+    config_.checkpoint_period = 1;
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
 };
@@ -154,7 +154,7 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
 
 size_t getLogDirectorySize(const LineairDB::Config& conf) {
   namespace fs = std::filesystem;
-  size_t size  = 0;
+  size_t size = 0;
   for (const auto& entry : fs::directory_iterator(conf.work_dir)) {
     if (entry.path().filename().generic_string().find("working") !=
         std::string::npos)
@@ -221,9 +221,9 @@ TEST_F(DurabilityTest,
   std::atomic<bool> stop(false);
   std::thread worker_thread([&]() {
     for (;;) {
-      auto& tx                    = db_->BeginTransaction();
+      auto& tx = db_->BeginTransaction();
       [[maybe_unused]] auto alice = tx.Read<int>("alice");
-      int value                   = 0xBEEF;
+      int value = 0xBEEF;
       tx.Write<int>("alice", value);
       db_->EndTransaction(tx, [](auto) {});
       if (stop.load()) return;
@@ -264,7 +264,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
    */
 
   LineairDB::Config config = db_->GetConfig();
-  config.enable_logging    = false;
+  config.enable_logging = false;
   config.checkpoint_period = 5;  // 5sec
   ASSERT_TRUE(config.enable_checkpointing);
   db_.reset(nullptr);
@@ -301,7 +301,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
 TEST_F(DurabilityTest,
        CPRConsistencyOnHandlerInterface) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
-  config.enable_logging    = false;
+  config.enable_logging = false;
   config.checkpoint_period = 5;  // 5sec
   ASSERT_TRUE(config.enable_checkpointing);
   db_.reset(nullptr);

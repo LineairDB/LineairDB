@@ -58,7 +58,7 @@ std::pair<size_t, size_t> Benchmark(T& index,
   for (size_t i = 0; i < threads; i++) {
     futures.push_back(std::async(std::launch::async, [&]() {
       size_t operation_succeed = 0;
-      size_t operation_aborts  = 0;
+      size_t operation_aborts = 0;
 
       std::random_device seed_gen;
       std::mt19937 engine(seed_gen());
@@ -85,7 +85,7 @@ std::pair<size_t, size_t> Benchmark(T& index,
           for (;;) {
             if (populated) {
               begin = std::to_string(dist_for_populated(engine));
-              end   = std::to_string(dist_for_populated(engine));
+              end = std::to_string(dist_for_populated(engine));
             } else {
               for (auto i = 0; i < 5; i++) {
                 begin += CHARACTERS[random_string(engine)];
@@ -98,9 +98,8 @@ std::pair<size_t, size_t> Benchmark(T& index,
             end.clear();
           }
 
-          auto result = index.Scan(begin, end, [&](auto, auto) {
-            return false;
-          });
+          auto result =
+              index.Scan(begin, end, [&](auto, auto) { return false; });
 
           if (result.has_value()) {
             operation_succeed++;
@@ -132,14 +131,16 @@ std::pair<size_t, size_t> Benchmark(T& index,
   const auto begin = std::chrono::high_resolution_clock::now();
   std::this_thread::sleep_for(std::chrono::milliseconds(duration));
   end_flag.store(true);
-  for (auto& fut : futures) { fut.wait(); }
+  for (auto& fut : futures) {
+    fut.wait();
+  }
   const auto end = std::chrono::high_resolution_clock::now();
 
   const auto duration_ns =
       std::chrono::duration_cast<std::chrono::milliseconds>(end - begin)
           .count();
   auto success_ops = (total_succeed.load() / duration_ns) * 1000;
-  auto aborts_ops  = (total_aborts.load() / duration_ns) * 1000;
+  auto aborts_ops = (total_aborts.load() / duration_ns) * 1000;
 
   return std::make_pair(success_ops, aborts_ops);
 }
@@ -172,11 +173,11 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const uint64_t threads          = result["thread"].as<size_t>();
+  const uint64_t threads = result["thread"].as<size_t>();
   const auto measurement_duration = result["duration"].as<size_t>();
-  const auto proportion           = result["proportion"].as<size_t>();
-  const auto populated            = result["populated"].as<bool>();
-  const auto structure            = result["structure"].as<std::string>();
+  const auto proportion = result["proportion"].as<size_t>();
+  const auto populated = result["populated"].as<bool>();
+  const auto structure = result["structure"].as<std::string>();
 
   /** run benchmark **/
   auto ops = 0;
@@ -189,7 +190,8 @@ int main(int argc, char** argv) {
     epoch_framework.Start();
     LineairDB::Config config;
     if (structure == "PrecisionLocking") {
-      config.index_structure = decltype(config)::IndexStructure::HashTableWithPrecisionLockingIndex;
+      config.index_structure =
+          decltype(config)::IndexStructure::HashTableWithPrecisionLockingIndex;
     } else {
       std::cout << "invalid structure name." << std::endl
                 << options.help() << std::endl;
@@ -226,7 +228,7 @@ int main(int argc, char** argv) {
   result_json.Accept(writer);
   writer.Flush();
 
-  auto result_string   = buffer.GetString();
+  auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
   std::ofstream output_f(output_filename,
                          std::ofstream::out | std::ofstream::trunc);

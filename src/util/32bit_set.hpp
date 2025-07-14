@@ -33,7 +33,7 @@ class HalfWordSet {
                 "divisible");
 
   constexpr static size_t ArraySize = 32 / CounterSize;
-  constexpr static uint32_t Max     = (2 << (CounterSize - 1)) - 1;
+  constexpr static uint32_t Max = (2 << (CounterSize - 1)) - 1;
 
   constexpr static uint32_t MakeMask(const size_t i) {
     uint32_t r = 0;
@@ -125,7 +125,9 @@ class HalfWordSet {
       if (rhs_slot == 0) continue;
       if (lhs_slot == Masks[i]) return true;  // counter is saturated
 
-      if (rhs_slot < lhs_slot) { return true; }
+      if (rhs_slot < lhs_slot) {
+        return true;
+      }
     }
     return false;
   }
@@ -141,7 +143,9 @@ class HalfWordSet {
       if (rhs_slot == 0) continue;
       if (lhs_slot == Masks[i]) return true;  // counter is saturated
 
-      if (rhs_slot <= lhs_slot) { return true; }
+      if (rhs_slot <= lhs_slot) {
+        return true;
+      }
     }
     return false;
   }
@@ -181,10 +185,10 @@ class HalfWordSet {
     bitarray_ |= version << (CounterSize * slot);
   }
 
-  static constexpr uint32_t FNV       = 2166136261lu;
+  static constexpr uint32_t FNV = 2166136261lu;
   static constexpr uint32_t FNV_PRIME = 16777619lu;
   inline static uint32_t Hash(uint32_t seed) {
-    uint32_t hash  = FNV;
+    uint32_t hash = FNV;
     uint8_t* begin = reinterpret_cast<uint8_t*>(&seed);
     for (size_t i = 0; i < 4; ++i) {
       hash = (FNV_PRIME * hash) ^ begin[i];

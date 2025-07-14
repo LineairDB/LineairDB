@@ -60,9 +60,9 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
 
     for (auto& snapshot : ws_ref) {
       Logger::LogRecord::KeyValuePair kvp;
-      kvp.key    = snapshot.key;
+      kvp.key = snapshot.key;
       kvp.buffer = snapshot.data_item_copy.buffer.toString();
-      kvp.tid    = snapshot.data_item_copy.transaction_id.load();
+      kvp.tid = snapshot.data_item_copy.transaction_id.load();
 
       record.key_value_pairs.emplace_back(std::move(kvp));
     }
@@ -129,7 +129,7 @@ void ThreadLocalLogger::TruncateLogs(
   for (;;) {
     if (offset == buffer.size()) break;
     try {
-      auto oh  = msgpack::unpack(buffer.data(), buffer.size(), offset);
+      auto oh = msgpack::unpack(buffer.data(), buffer.size(), offset);
       auto obj = oh.get();
       obj.convert(deserialized_records);
 
@@ -167,9 +167,9 @@ void ThreadLocalLogger::TruncateLogs(
     exit(1);
   }
   my_storage->truncated_epoch = checkpoint_completed_epoch;
-  my_storage->log_file        = std::fstream(
-             GetLogFileName(my_storage->thread_id),
-             std::fstream::out | std::fstream::binary | std::fstream::ate);
+  my_storage->log_file = std::fstream(
+      GetLogFileName(my_storage->thread_id),
+      std::fstream::out | std::fstream::binary | std::fstream::ate);
 }
 
 EpochNumber ThreadLocalLogger::GetMinDurableEpochForAllThreads() {

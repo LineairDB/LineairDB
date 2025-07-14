@@ -82,9 +82,9 @@ int main() {
     LineairDB::Config config;
     config.concurrency_control_protocol =
         LineairDB::Config::ConcurrencyControl::Silo;
-    config.enable_logging  = false;
+    config.enable_logging = false;
     config.enable_recovery = false;
-    config.max_thread      = 1;
+    config.max_thread = 1;
 
     LineairDB::Database db(config);
     // Example of failures: we passed `config` as rvalue and it is nop to modify

@@ -89,7 +89,7 @@ class EpochFramework {
     size_t reload_count = 0;
     for (;;) {
       auto current_epoch = global_epoch_.load();
-      auto reload_epoch  = global_epoch_.load();
+      auto reload_epoch = global_epoch_.load();
       while (current_epoch == reload_epoch) {
         if (stop_.load()) return reload_epoch;
         std::this_thread::yield();
@@ -117,7 +117,9 @@ class EpochFramework {
     uint32_t min_epoch = THREAD_OFFLINE;
     tls_.ForEach([&](const EpochNumber* local_epoch) {
       const EpochNumber e = *local_epoch;
-      if (0 < e && e < min_epoch) { min_epoch = e; }
+      if (0 < e && e < min_epoch) {
+        min_epoch = e;
+      }
     });
 
     return min_epoch;

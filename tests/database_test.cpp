@@ -35,10 +35,10 @@ class DatabaseTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::filesystem::remove_all(config_.work_dir);
-    config_.max_thread        = 4;
+    config_.max_thread = 4;
     config_.checkpoint_period = 1;
     config_.epoch_duration_ms = 100;
-    db_                       = std::make_unique<LineairDB::Database>(config_);
+    db_ = std::make_unique<LineairDB::Database>(config_);
   }
 };
 
@@ -82,8 +82,8 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
 TEST_F(DatabaseTest, LargeSizeBuffer) {
   constexpr size_t Size = 2048;
   LineairDB::Config conf;
-  conf.checkpoint_period    = 1;
-  conf.max_thread           = 1;
+  conf.checkpoint_period = 1;
+  conf.max_thread = 1;
   conf.enable_checkpointing = false;
 
   std::array<std::byte, Size> alice;
@@ -100,7 +100,7 @@ TEST_F(DatabaseTest, LargeSizeBuffer) {
 
 TEST_F(DatabaseTest, Scan) {
   int alice = 1;
-  int bob   = 2;
+  int bob = 2;
   int carol = 3;
   TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
     tx.template Write<decltype(alice)>("alice", alice);
@@ -112,21 +112,33 @@ TEST_F(DatabaseTest, Scan) {
                     // Scan
                     auto count = tx.Scan<decltype(alice)>(
                         "alice", "carol", [&](auto key, auto value) {
-                          if (key == "alice") { EXPECT_EQ(alice, value); }
-                          if (key == "bob") { EXPECT_EQ(bob, value); }
-                          if (key == "carol") { EXPECT_EQ(carol, value); }
+                          if (key == "alice") {
+                            EXPECT_EQ(alice, value);
+                          }
+                          if (key == "bob") {
+                            EXPECT_EQ(bob, value);
+                          }
+                          if (key == "carol") {
+                            EXPECT_EQ(carol, value);
+                          }
                           return false;
                         });
-                    if (count.has_value()) { ASSERT_EQ(count.value(), 3); }
+                    if (count.has_value()) {
+                      ASSERT_EQ(count.value(), 3);
+                    }
                   },
                   [&](LineairDB::Transaction& tx) {
                     // Cancel
                     auto count = tx.Scan<decltype(alice)>(
                         "alice", "carol", [&](auto key, auto value) {
-                          if (key == "alice") { EXPECT_EQ(alice, value); }
+                          if (key == "alice") {
+                            EXPECT_EQ(alice, value);
+                          }
                           return true;
                         });
-                    if (count.has_value()) { ASSERT_EQ(count.value(), 1); };
+                    if (count.has_value()) {
+                      ASSERT_EQ(count.value(), 1);
+                    };
                   }});
 }
 
@@ -193,7 +205,7 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
 TEST_F(DatabaseTest, NoConfigTransaction) {
   // NOTE: this test will take default 5 seconds for checkpointing
   db_.reset(nullptr);
-  db_                = std::make_unique<LineairDB::Database>();
+  db_ = std::make_unique<LineairDB::Database>();
   int value_of_alice = 1;
   TestHelper::DoTransactions(
       db_.get(),

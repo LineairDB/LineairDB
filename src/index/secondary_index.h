@@ -33,7 +33,6 @@ namespace LineairDB
 {
     namespace Index
     {
-
         class SecondaryIndex
         {
             using PrimaryKey = std::string_view;
@@ -47,29 +46,10 @@ namespace LineairDB
 
             bool AddPK(const std::string_view key, const std::string_view pk);
 
-            bool RemovePK(const std::string_view key, const std::string_view pk);
-
-            std::optional<size_t> ScanKeys(
-                std::string_view begin, std::optional<std::string_view> end,
-                std::function<bool(std::string_view)> op);
-
-            /* DataItem* GetPrimaryKey(const std::string_view key);
-            DataItem* GetOrInsert(const std::string_view key);
-            bool Put(const std::string_view key, DataItem&& value);
-            void ForEach(std::function<bool(std::string_view, DataItem&)>);
-            std::optional<size_t> Scan(const std::string_view begin,
-                                       const std::optional<std::string_view> end,
-                                       std::function<bool(std::string_view)> operation);
-            std::optional<size_t> Scan(
-                const std::string_view begin, const std::string_view end,
-                std::function<bool(std::string_view, DataItem&)> operation); */
-
         private:
+            // HashTableWithPrecisionLockingIndexこれは無駄かもしれない、secondary, primary両方だと重いのでシンプルにB+treeのみでいいかも
             std::unique_ptr<HashTableWithPrecisionLockingIndex<PKList>> secondary_index_;
-            LineairDB::EpochFramework& epoch_manager_ref_;
-
-            /*   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>> index_;
-              LineairDB::EpochFramework& epoch_manager_ref_; */
+            LineairDB::EpochFramework &epoch_manager_ref_;
         };
     } // namespace Index
 } // namespace LineairDB

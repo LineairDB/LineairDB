@@ -1,0 +1,46 @@
+name: clang-format check
+
+on:
+  pull_request:
+    paths:
+      - '**/*.c'
+      - '**/*.cc'
+      - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '.clang-format'
+  push:
+    branches: [ main ]
+    paths:
+      - '**/*.c'
+      - '**/*.cc'
+      - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '.clang-format'
+
+jobs:
+  style:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-14
+
+      - name: Run clang-format style check
+        shell: bash
+        run: |
+          FILES=$(git ls-files '*.c' '*.cc' '*.cpp' '*.h' '*.hpp')
+
+          clang-format-14 -style=file -i $FILES
+
+          if ! git diff --quiet; then
+            echo "::error::Code style violations found. Please run clang-format locally and commit the changes."
+            git --no-pager diff
+            exit 1
+          fi 

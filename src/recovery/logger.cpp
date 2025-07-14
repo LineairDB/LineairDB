@@ -135,9 +135,9 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   SPDLOG_DEBUG("Replay the logs in epoch 0-{0}", durable_epoch);
   SPDLOG_DEBUG("Check WorkingDirectory {0}", WorkingDir);
 
-  auto logfiles                         = glob(WorkingDir + "/thread*");
+  auto logfiles = glob(WorkingDir + "/thread*");
   const std::string checkpoint_filename = WorkingDir + "/checkpoint.log";
-  bool checkpoint_file_exists           = false;
+  bool checkpoint_file_exists = false;
   {
     std::ifstream ifs(checkpoint_filename);
     checkpoint_file_exists = ifs.is_open();
@@ -166,7 +166,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
     for (;;) {
       if (offset == buffer.size()) break;
       try {
-        auto oh  = msgpack::unpack(buffer.data(), buffer.size(), offset);
+        auto oh = msgpack::unpack(buffer.data(), buffer.size(), offset);
         auto obj = oh.get();
         obj.convert(log_records);
       } catch (const std::bad_cast& e) {

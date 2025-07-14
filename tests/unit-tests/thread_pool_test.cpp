@@ -83,7 +83,9 @@ TEST(ThreadPoolTest, EnqueueForAllThreads) {
     num_of_running_txns--;
     thread_local bool im_already_executed = false;
     ASSERT_FALSE(im_already_executed);
-    if (im_already_executed == false) { im_already_executed = true; }
+    if (im_already_executed == false) {
+      im_already_executed = true;
+    }
   });
 
   Blocking(num_of_running_txns);

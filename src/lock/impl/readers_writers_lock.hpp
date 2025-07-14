@@ -110,9 +110,9 @@ class alignas(64) ReadersWritersLockImpl
   static_assert(decltype(lock_bit_)::is_always_lock_free);
 
   constexpr static uint64_t ExclusivelyLocked = 1llu;
-  constexpr static uint64_t UnLocked          = 0llu;
-  constexpr static uint64_t Reader            = 1llu << 1;
-  constexpr static uint64_t ReadersFull       = ~1llu;
+  constexpr static uint64_t UnLocked = 0llu;
+  constexpr static uint64_t Reader = 1llu << 1;
+  constexpr static uint64_t ReadersFull = ~1llu;
 
   inline static bool IsUnlocked(const uint64_t n) { return n == UnLocked; }
   inline static bool IsExclusivelyLocked(const uint64_t n) {
@@ -130,9 +130,9 @@ class alignas(64) ReadersWritersLockImpl
     return n >> ExclusivelyLocked;
   }
 };
-using ReadersWritersLock     = ReadersWritersLockImpl<false, false>;
-using ReadersWritersLockBO   = ReadersWritersLockImpl<true, false>;
-using ReadersWritersLockCO   = ReadersWritersLockImpl<false, true>;
+using ReadersWritersLock = ReadersWritersLockImpl<false, false>;
+using ReadersWritersLockBO = ReadersWritersLockImpl<true, false>;
+using ReadersWritersLockCO = ReadersWritersLockImpl<false, true>;
 using ReadersWritersLockBOCO = ReadersWritersLockImpl<true, true>;
 using ReadersWritersLockCOBO = ReadersWritersLockBOCO;
 // static_assert(sizeof(ReadersWritersLock) ==

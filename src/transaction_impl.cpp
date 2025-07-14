@@ -88,11 +88,11 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size());
     }
   }
-  auto* index_leaf  = db_pimpl_->GetIndex().GetOrInsert(key);
+  auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
-  auto& ref               = read_set_.emplace_back(std::move(snapshot));
+  auto& ref = read_set_.emplace_back(std::move(snapshot));
   if (ref.data_item_copy.IsInitialized()) {
     return {ref.data_item_copy.value(), ref.data_item_copy.size()};
   } else {
@@ -110,7 +110,7 @@ void Transaction::Impl::Write(const std::string_view key,
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key) {
-      is_rmf                        = true;
+      is_rmf = true;
       snapshot.is_read_modify_write = true;
       break;
     }
@@ -142,7 +142,9 @@ const std::optional<size_t> Transaction::Impl::Scan(
         if (IsAborted()) return true;
         return operation(key, read_result);
       });
-  if (!result.has_value()) { Abort(); }
+  if (!result.has_value()) {
+    Abort();
+  }
   return result;
 };
 

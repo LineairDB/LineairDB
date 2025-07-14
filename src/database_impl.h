@@ -89,10 +89,18 @@ class Database::Impl {
 
   void ExecuteTransaction(ProcedureType proc, CallbackType clbk, std::optional<CallbackType> prclbk) {
     for (;;) {
+<<<<<<< HEAD
       bool success =
           thread_pool_.Enqueue([&, transaction_procedure = proc, callback = clbk, precommit_clbk = prclbk]() {
             epoch_framework_.MakeMeOnline();
             Transaction tx(this);
+=======
+      bool success = thread_pool_.Enqueue([&, transaction_procedure = proc,
+                                           callback = clbk,
+                                           precommit_clbk = prclbk]() {
+        epoch_framework_.MakeMeOnline();
+        Transaction tx(this);
+>>>>>>> main
 
             transaction_procedure(tx);
             if (tx.IsAborted()) {
@@ -244,6 +252,7 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
+<<<<<<< HEAD
     auto &local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
     local_epoch = durable_epoch;
 
@@ -251,6 +260,16 @@ class Database::Impl {
     auto &&recovery_set = logger_.GetRecoverySetFromLogs(durable_epoch);
     for (auto &entry : recovery_set) {
       highest_epoch = std::max(highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
+=======
+    auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
+    local_epoch = durable_epoch;
+
+    highest_epoch = std::max(highest_epoch, durable_epoch);
+    auto&& recovery_set = logger_.GetRecoverySetFromLogs(durable_epoch);
+    for (auto& entry : recovery_set) {
+      highest_epoch = std::max(
+          highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
+>>>>>>> main
 
       index_.Put(entry.key, std::move(entry.data_item_copy));
     }

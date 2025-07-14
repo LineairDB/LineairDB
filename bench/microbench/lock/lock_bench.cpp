@@ -48,7 +48,7 @@ size_t benchmark(size_t threads, size_t duration) {
         };
         auto lock_type = T::LockType::Exclusive;
         if constexpr (T::IsReadersWritersLockingAlgorithm()) {
-          const bool half_random  = operation_succeed % 2;
+          const bool half_random = operation_succeed % 2;
           half_random ? lock_type = T::LockType::Shared
                       : lock_type = T::LockType::Exclusive;
         }
@@ -61,7 +61,9 @@ size_t benchmark(size_t threads, size_t duration) {
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(duration));
   end_flag.store(true);
-  for (auto& fut : futures) { fut.wait(); }
+  for (auto& fut : futures) {
+    fut.wait();
+  }
   return total_succeed.load();
 }
 
@@ -89,9 +91,9 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const uint64_t threads          = result["thread"].as<size_t>();
+  const uint64_t threads = result["thread"].as<size_t>();
   const auto measurement_duration = result["duration"].as<size_t>();
-  const auto algorithm            = result["algorithm"].as<std::string>();
+  const auto algorithm = result["algorithm"].as<std::string>();
 
   /** run benchmark **/
   auto ops = 0;
@@ -140,7 +142,7 @@ int main(int argc, char** argv) {
   result_json.Accept(writer);
   writer.Flush();
 
-  auto result_string   = buffer.GetString();
+  auto result_string = buffer.GetString();
   auto output_filename = result["output"].as<std::string>();
   std::ofstream output_f(output_filename,
                          std::ofstream::out | std::ofstream::trunc);

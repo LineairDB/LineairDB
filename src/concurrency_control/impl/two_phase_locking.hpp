@@ -73,7 +73,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
              const size_t size, DataItem* index_leaf) final override {
     assert(index_leaf != nullptr);
 
-    auto& rw_lock             = index_leaf->GetRWLockRef();
+    auto& rw_lock = index_leaf->GetRWLockRef();
     bool is_read_modify_write = false;
     for (auto& item : tx_ref_.read_set_ref_) {
       if (item.key == key) {
@@ -140,8 +140,12 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     }
   }
   void UnlockAll() {
-    for (auto* item : read_lock_set_) { item->GetRWLockRef().UnLock(); }
-    for (auto& item : undo_set_) { item.first->GetRWLockRef().UnLock(); }
+    for (auto* item : read_lock_set_) {
+      item->GetRWLockRef().UnLock();
+    }
+    for (auto& item : undo_set_) {
+      item.first->GetRWLockRef().UnLock();
+    }
   }
 
  private:
