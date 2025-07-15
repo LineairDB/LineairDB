@@ -148,54 +148,78 @@ const std::optional<size_t> Transaction::Impl::Scan(
   return result;
 };
 
-void Transaction::Impl::Abort() {
-  if (!IsAborted()) {
-    current_status_ = TxStatus::Aborted;
-    concurrency_control_->Abort();
-    concurrency_control_->PostProcessing(TxStatus::Aborted);
+void Transaction::Impl::WritePrimaryIndex(const std::string_view table_name,
+                                          const std::string_view primary_key,
+                                          const std::byte value[],
+                                          const size_t size) {
+  // TODO: implement this
+}
+
+void Transaction::Impl::WriteSecondaryIndex(const std::string_view table_name,
+                                            std::string_view index_name,
+                                            std::string_view secondary_key,
+                                            const std::byte value[],
+                                            const size_t size) {
+  // TODO: implement this
+}
+
+void Transaction::Impl::ReadPrimaryIndex(const std::string_view table_name,
+                                         const std::string_view primary_key) {
+  // TODO: implement this
+}
+
+void Transaction::Impl::ReadSecondaryIndex(const std::string_view table_name,
+                                           const std::string_view index_name,
+                                           const std::string_view secondary_key) {
+  // TODO: implement this
+}
+  void Transaction::Impl::Abort() {
+    if (!IsAborted()) {
+      current_status_ = TxStatus::Aborted;
+      concurrency_control_->Abort();
+      concurrency_control_->PostProcessing(TxStatus::Aborted);
+    }
   }
-}
-bool Transaction::Impl::Precommit() {
-  if (IsAborted()) return false;
+  bool Transaction::Impl::Precommit() {
+    if (IsAborted()) return false;
 
-  const bool need_to_checkpoint =
-      (db_pimpl_->GetConfig().enable_checkpointing &&
-       db_pimpl_->IsNeedToCheckpointing(
-           db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
-  bool committed = concurrency_control_->Precommit(need_to_checkpoint);
-  return committed;
-}
+    const bool need_to_checkpoint =
+        (db_pimpl_->GetConfig().enable_checkpointing &&
+         db_pimpl_->IsNeedToCheckpointing(
+             db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
+    bool committed = concurrency_control_->Precommit(need_to_checkpoint);
+    return committed;
+  }
 
-void Transaction::Impl::PostProcessing(TxStatus status) {
-  if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
-  concurrency_control_->PostProcessing(status);
-}
+  void Transaction::Impl::PostProcessing(TxStatus status) {
+    if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
+    concurrency_control_->PostProcessing(status);
+  }
 
-TxStatus Transaction::GetCurrentStatus() {
-  return tx_pimpl_->GetCurrentStatus();
-}
-const std::pair<const std::byte* const, const size_t> Transaction::Read(
-    const std::string_view key) {
-  return tx_pimpl_->Read(key);
-}
-void Transaction::Write(const std::string_view key, const std::byte value[],
-                        const size_t size) {
-  tx_pimpl_->Write(key, value, size);
-}
-const std::optional<size_t> Transaction::Scan(
-    const std::string_view begin, const std::optional<std::string_view> end,
-    std::function<bool(std::string_view,
-                       const std::pair<const void*, const size_t>)>
-        operation) {
-  return tx_pimpl_->Scan(begin, end, operation);
-};
-void Transaction::Abort() { tx_pimpl_->Abort(); }
-bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
+  TxStatus Transaction::GetCurrentStatus() {
+    return tx_pimpl_->GetCurrentStatus();
+  }
+  const std::pair<const std::byte* const, const size_t> Transaction::Read(
+      const std::string_view key) {
+    return tx_pimpl_->Read(key);
+  }
+  void Transaction::Write(const std::string_view key, const std::byte value[],
+                          const size_t size) {
+    tx_pimpl_->Write(key, value, size);
+  }
+  const std::optional<size_t> Transaction::Scan(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation) {
+    return tx_pimpl_->Scan(begin, end, operation);
+  };
+  void Transaction::Abort() { tx_pimpl_->Abort(); }
+  bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
-Transaction::Transaction(void* db_pimpl) noexcept
-    : tx_pimpl_(
-          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {
-}
-Transaction::~Transaction() noexcept = default;
+  Transaction::Transaction(void* db_pimpl) noexcept
+      : tx_pimpl_(std::make_unique<Impl>(
+            reinterpret_cast<Database::Impl*>(db_pimpl))) {}
+  Transaction::~Transaction() noexcept = default;
 
 }  // namespace LineairDB

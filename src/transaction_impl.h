@@ -64,6 +64,25 @@ class Transaction::Impl {
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view, const std::pair<const void*, const size_t>)> operation);
 
+  void WritePrimaryIndex(const std::string_view table_name,
+                         const std::string_view primary_key, const std::byte value[],
+                         const size_t size);
+
+  void WriteSecondaryIndex(const std::string_view table_name,
+                           const std::string_view index_name,
+                           const std::string_view secondary_key,
+                           const std::byte value[],
+                           const size_t size);
+
+
+  std::optional<std::pair<const std::byte* const, const size_t>> ReadPrimaryIndex(const std::string_view table_name,
+                        const std::string_view primary_key);
+
+  std::optional<std::pair<const std::byte* const, const size_t>> ReadSecondaryIndex(const std::string_view table_name,
+                          const std::string_view index_name,
+                          const std::string_view secondary_key);
+
+
   void Abort();
   bool Precommit();
 
@@ -80,7 +99,6 @@ class Transaction::Impl {
   Database::Impl* db_pimpl_;
   const Config& config_ref_;
   std::unique_ptr<ConcurrencyControlBase> concurrency_control_;
-
   ReadSetType read_set_;
   WriteSetType write_set_;
 };

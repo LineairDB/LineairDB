@@ -194,6 +194,37 @@ class Transaction {
    */
   void Abort();
 
+  // For Secondary index implementation
+  // WritePrimaryIndex(table_name, primary_key, value)
+  template <typename T>
+  void WritePrimaryIndex(const std::string_view table_name,
+                         const std::string_view primary_key, const T& value) {
+    // TODO: plan for this
+  }
+
+  template <typename T>
+  void WriteSecondaryIndex(const std::string_view table_name,
+                           const std::string_view index_name,
+                           const std::string_view secondary_key,
+                           const std::string_view primary_key) {
+    // TODO: plan for this
+  }
+
+  template <typename T>
+  const std::optional<std::pair<const std::byte* const, const size_t>>
+  ReadPrimaryIndex(const std::string_view table_name,
+                   const std::string_view primary_key) {
+    // TODO: plan for this
+  }
+
+  template <typename T>
+  const std::optional<std::pair<const std::byte* const, const size_t>>
+  ReadSecondaryIndex(const std::string_view table_name,
+                     const std::string_view index_name,
+                     const std::string_view secondary_key) {
+    // TODO: plan for this
+  }
+
  private:
   Transaction(void*) noexcept;
   ~Transaction() noexcept;
@@ -207,3 +238,5 @@ class Transaction {
 
 }  // namespace LineairDB
 #endif /** LINEAIRDB_TRANSACTION_H **/
+
+// Write/ReadPrimaryを、元のRead Write関数を元に実装する
