@@ -185,6 +185,43 @@ void Transaction::Impl::WritePrimaryIndex(const std::string_view table_name,
   write_set_.emplace_back(std::move(sp));
 }
 
+std::optional<std::pair<const std::byte* const, size_t>>
+Transaction::Impl::ReadPrimaryIndex(const std::string_view table_name,
+                                    const std::string_view primary_key) {
+  if (IsAborted()) return std::nullopt;
+
+  std::string qualified_key =
+      std::string(table_name) + "\x1F" + std::string(primary_key);
+
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == qualified_key) {
+      return std::make_optional(std::make_pair(snapshot.data_item_copy.value(),
+                                               snapshot.data_item_copy.size()));
+    }
+  }
+
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == qualified_key) {
+      return std::make_optional(std::make_pair(snapshot.data_item_copy.value(),
+                                               snapshot.data_item_copy.size()));
+    }
+  }
+  auto* index_leaf = db_pimpl_->GetTable(table_name)
+                         .GetPrimaryIndex()
+                         .GetOrInsert(primary_key);
+  Snapshot snapshot = {qualified_key, nullptr, 0, index_leaf};
+
+  snapshot.data_item_copy =
+      concurrency_control_->Read(qualified_key, index_leaf);
+  auto& ref = read_set_.emplace_back(std::move(snapshot));
+  if (ref.data_item_copy.IsInitialized()) {
+    return std::make_optional(
+        std::make_pair(ref.data_item_copy.value(), ref.data_item_copy.size()));
+  } else {
+    return std::nullopt;
+  }
+}
+
 /* void Transaction::Impl::WriteSecondaryIndex(const std::string_view
 table_name, std::string_view index_name, std::string_view secondary_key, const
 std::byte value[], const size_t size) {
@@ -242,6 +279,12 @@ void Transaction::WritePrimaryIndex(const std::string_view table_name,
                                     const std::byte value[],
                                     const size_t size) {
   tx_pimpl_->WritePrimaryIndex(table_name, primary_key, value, size);
+}
+
+std::optional<std::pair<const std::byte* const, size_t>>
+Transaction::ReadPrimaryIndex(const std::string_view table_name,
+                              const std::string_view primary_key) {
+  return tx_pimpl_->ReadPrimaryIndex(table_name, primary_key);
 }
 
 const std::optional<size_t> Transaction::Scan(

@@ -75,16 +75,20 @@ TEST_F(DatabaseTest, CreateSecondaryIndexUniqueOnly)
   ASSERT_TRUE(db_->CreateSecondaryIndex("users", "email", Constraint::UNIQUE));
 }
 
-//WritePrimaryIndex only
-TEST_F(DatabaseTest, WritePrimaryIndexOnly)
+//WritePrimaryIndex and ReadPrimaryIndex
+TEST_F(DatabaseTest, WritePrimaryIndexAndReadPrimaryIndex)
 {
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>();
   ASSERT_TRUE(db_->CreateTable("users"));
-  auto &tx = db_->BeginTransaction();
-  tx.WritePrimaryIndex<int>("users", "user#1", 42);
-  ASSERT_TRUE(db_->EndTransaction(tx, [](auto s)
-                                  { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  {
+    auto &tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<int>("users", "user#1", 42);
+    auto val = tx.ReadPrimaryIndex<int>("users", "user#1");
+    ASSERT_EQ(val.value(), 42);
+    ASSERT_TRUE(db_->EndTransaction(tx, [](auto s)
+                                    { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
 }
 
 // Insertion test with variant key type

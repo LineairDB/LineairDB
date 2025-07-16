@@ -216,22 +216,32 @@ class Transaction {
                            const std::string_view secondary_key,
                            const std::string_view primary_key) {
     // TODO: plan for this
-  }
+  } */
+
+  std::optional<std::pair<const std::byte* const, size_t>> ReadPrimaryIndex(
+      const std::string_view table_name, const std::string_view primary_key);
 
   template <typename T>
-  const std::optional<std::pair<const std::byte* const, const size_t>>
-  ReadPrimaryIndex(const std::string_view table_name,
-                   const std::string_view primary_key) {
-    // TODO: plan for this
+  std::optional<T> ReadPrimaryIndex(const std::string_view table_name,
+                                    const std::string_view primary_key) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    auto pair_opt = ReadPrimaryIndex(table_name, primary_key);
+    if (pair_opt && pair_opt->second != 0) {
+      const T value_copy = *reinterpret_cast<const T*>(pair_opt->first);
+      return std::make_optional(value_copy);
+    } else {
+      return std::nullopt;
+    }
   }
 
-  template <typename T>
+  /* template <typename T>
   const std::optional<std::pair<const std::byte* const, const size_t>>
   ReadSecondaryIndex(const std::string_view table_name,
                      const std::string_view index_name,
                      const std::string_view secondary_key) {
     // TODO: plan for this
-  } */
+  }  */
 
  private:
   Transaction(void*) noexcept;
