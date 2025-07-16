@@ -247,6 +247,10 @@ class Database::Impl {
     return it->second.CreateSecondaryIndex(index_name, constraint);
   }
 
+  Table& GetTable(const std::string_view table_name) {
+    return tables_.at(std::string(table_name));
+  }
+
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");

@@ -11,12 +11,15 @@
 namespace LineairDB {
 class Table {
  public:
-  Table(EpochFramework &epoch_framework, const Config &config);
+  Table(EpochFramework& epoch_framework, const Config& config);
   bool CreateSecondaryIndex(const std::string index_name,
-                            const SecondaryIndexOption::Constraint constraint [[maybe_unused]]);
+                            const SecondaryIndexOption::Constraint constraint
+                            [[maybe_unused]]);
+  
+  Index::ConcurrentTable& GetPrimaryIndex();
 
  private:
-  EpochFramework &epoch_framework_;
+  EpochFramework& epoch_framework_;
   Config config_;
   Index::ConcurrentTable primary_index_;
   std::unordered_map<std::string, Index::SecondaryIndex> secondary_indices_;

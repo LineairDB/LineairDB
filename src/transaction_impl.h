@@ -68,7 +68,7 @@ class Transaction::Impl {
                          const std::string_view primary_key, const std::byte value[],
                          const size_t size);
 
-  void WriteSecondaryIndex(const std::string_view table_name,
+  /* void WriteSecondaryIndex(const std::string_view table_name,
                            const std::string_view index_name,
                            const std::string_view secondary_key,
                            const std::byte value[],
@@ -80,7 +80,7 @@ class Transaction::Impl {
 
   std::optional<std::pair<const std::byte* const, const size_t>> ReadSecondaryIndex(const std::string_view table_name,
                           const std::string_view index_name,
-                          const std::string_view secondary_key);
+                          const std::string_view secondary_key); */
 
 
   void Abort();

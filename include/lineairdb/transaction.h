@@ -194,15 +194,23 @@ class Transaction {
    */
   void Abort();
 
+  void WritePrimaryIndex(const std::string_view table_name,
+                         const std::string_view primary_key,
+                         const std::byte value[], const size_t size);
+
   // For Secondary index implementation
   // WritePrimaryIndex(table_name, primary_key, value)
   template <typename T>
   void WritePrimaryIndex(const std::string_view table_name,
                          const std::string_view primary_key, const T& value) {
-    // TODO: plan for this
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    std::byte buffer[sizeof(T)];
+    std::memcpy(buffer, &value, sizeof(T));
+    WritePrimaryIndex(table_name, primary_key, buffer, sizeof(T));
   }
 
-  template <typename T>
+  /* template <typename T>
   void WriteSecondaryIndex(const std::string_view table_name,
                            const std::string_view index_name,
                            const std::string_view secondary_key,
@@ -223,7 +231,7 @@ class Transaction {
                      const std::string_view index_name,
                      const std::string_view secondary_key) {
     // TODO: plan for this
-  }
+  } */
 
  private:
   Transaction(void*) noexcept;

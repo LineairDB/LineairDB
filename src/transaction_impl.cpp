@@ -152,14 +152,42 @@ void Transaction::Impl::WritePrimaryIndex(const std::string_view table_name,
                                           const std::string_view primary_key,
                                           const std::byte value[],
                                           const size_t size) {
-  // TODO: implement this
+  if (IsAborted()) return;
+
+  // TODO: if `size` is larger than Config.internal_buffer_size,
+  // then we have to abort this transaction or throw exception
+
+  std::string qualified_key =
+      std::string(table_name) + "\x1F" + std::string(primary_key);
+  bool is_rmf = false;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == qualified_key) {
+      is_rmf = true;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != qualified_key) continue;
+    snapshot.data_item_copy.Reset(value, size);
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    return;
+  }
+
+  auto* index_leaf = db_pimpl_->GetTable(table_name)
+                         .GetPrimaryIndex()
+                         .GetOrInsert(primary_key);
+
+  concurrency_control_->Write(qualified_key, value, size, index_leaf);
+  Snapshot sp(qualified_key, value, size, index_leaf);
+  if (is_rmf) sp.is_read_modify_write = true;
+  write_set_.emplace_back(std::move(sp));
 }
 
-void Transaction::Impl::WriteSecondaryIndex(const std::string_view table_name,
-                                            std::string_view index_name,
-                                            std::string_view secondary_key,
-                                            const std::byte value[],
-                                            const size_t size) {
+/* void Transaction::Impl::WriteSecondaryIndex(const std::string_view
+table_name, std::string_view index_name, std::string_view secondary_key, const
+std::byte value[], const size_t size) {
   // TODO: implement this
 }
 
@@ -170,56 +198,66 @@ void Transaction::Impl::ReadPrimaryIndex(const std::string_view table_name,
 
 void Transaction::Impl::ReadSecondaryIndex(const std::string_view table_name,
                                            const std::string_view index_name,
-                                           const std::string_view secondary_key) {
+                                           const std::string_view secondary_key)
+{
   // TODO: implement this
+} */
+void Transaction::Impl::Abort() {
+  if (!IsAborted()) {
+    current_status_ = TxStatus::Aborted;
+    concurrency_control_->Abort();
+    concurrency_control_->PostProcessing(TxStatus::Aborted);
+  }
 }
-  void Transaction::Impl::Abort() {
-    if (!IsAborted()) {
-      current_status_ = TxStatus::Aborted;
-      concurrency_control_->Abort();
-      concurrency_control_->PostProcessing(TxStatus::Aborted);
-    }
-  }
-  bool Transaction::Impl::Precommit() {
-    if (IsAborted()) return false;
+bool Transaction::Impl::Precommit() {
+  if (IsAborted()) return false;
 
-    const bool need_to_checkpoint =
-        (db_pimpl_->GetConfig().enable_checkpointing &&
-         db_pimpl_->IsNeedToCheckpointing(
-             db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
-    bool committed = concurrency_control_->Precommit(need_to_checkpoint);
-    return committed;
-  }
+  const bool need_to_checkpoint =
+      (db_pimpl_->GetConfig().enable_checkpointing &&
+       db_pimpl_->IsNeedToCheckpointing(
+           db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
+  bool committed = concurrency_control_->Precommit(need_to_checkpoint);
+  return committed;
+}
 
-  void Transaction::Impl::PostProcessing(TxStatus status) {
-    if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
-    concurrency_control_->PostProcessing(status);
-  }
+void Transaction::Impl::PostProcessing(TxStatus status) {
+  if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
+  concurrency_control_->PostProcessing(status);
+}
 
-  TxStatus Transaction::GetCurrentStatus() {
-    return tx_pimpl_->GetCurrentStatus();
-  }
-  const std::pair<const std::byte* const, const size_t> Transaction::Read(
-      const std::string_view key) {
-    return tx_pimpl_->Read(key);
-  }
-  void Transaction::Write(const std::string_view key, const std::byte value[],
-                          const size_t size) {
-    tx_pimpl_->Write(key, value, size);
-  }
-  const std::optional<size_t> Transaction::Scan(
-      const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view,
-                         const std::pair<const void*, const size_t>)>
-          operation) {
-    return tx_pimpl_->Scan(begin, end, operation);
-  };
-  void Transaction::Abort() { tx_pimpl_->Abort(); }
-  bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
+TxStatus Transaction::GetCurrentStatus() {
+  return tx_pimpl_->GetCurrentStatus();
+}
+const std::pair<const std::byte* const, const size_t> Transaction::Read(
+    const std::string_view key) {
+  return tx_pimpl_->Read(key);
+}
+void Transaction::Write(const std::string_view key, const std::byte value[],
+                        const size_t size) {
+  tx_pimpl_->Write(key, value, size);
+}
 
-  Transaction::Transaction(void* db_pimpl) noexcept
-      : tx_pimpl_(std::make_unique<Impl>(
-            reinterpret_cast<Database::Impl*>(db_pimpl))) {}
-  Transaction::~Transaction() noexcept = default;
+void Transaction::WritePrimaryIndex(const std::string_view table_name,
+                                    const std::string_view primary_key,
+                                    const std::byte value[],
+                                    const size_t size) {
+  tx_pimpl_->WritePrimaryIndex(table_name, primary_key, value, size);
+}
+
+const std::optional<size_t> Transaction::Scan(
+    const std::string_view begin, const std::optional<std::string_view> end,
+    std::function<bool(std::string_view,
+                       const std::pair<const void*, const size_t>)>
+        operation) {
+  return tx_pimpl_->Scan(begin, end, operation);
+};
+void Transaction::Abort() { tx_pimpl_->Abort(); }
+bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
+
+Transaction::Transaction(void* db_pimpl) noexcept
+    : tx_pimpl_(
+          std::make_unique<Impl>(reinterpret_cast<Database::Impl*>(db_pimpl))) {
+}
+Transaction::~Transaction() noexcept = default;
 
 }  // namespace LineairDB
