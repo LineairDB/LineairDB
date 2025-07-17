@@ -222,12 +222,107 @@ Transaction::Impl::ReadPrimaryIndex(const std::string_view table_name,
   }
 }
 
-/* void Transaction::Impl::WriteSecondaryIndex(const std::string_view
-table_name, std::string_view index_name, std::string_view secondary_key, const
-std::byte value[], const size_t size) {
-  // TODO: implement this
+void Transaction::Impl::WriteSecondaryIndex(
+    const std::string_view table_name, const std::string_view index_name,
+    const std::string_view encoded_secondary_key,
+    const std::byte primary_key_bytes[], const size_t primary_key_size) {
+  if (IsAborted()) {
+    return;
+  }
+
+  // Note: この実装は、以下の前提設計に基づいています。
+  // 1. SecondaryIndex は、キー（encoded_secondary_key）ごとに専用の DataItem
+  // を保持する。
+  // 2. その DataItem のペイロード（値）には、プライマリキーのリスト（PKList）が
+  //    シリアライズされて格納される。
+  // 3. ロックと並行性制御は、このセカンダリキー専用の DataItem
+  // に対して行われる。
+  //
+  // このため、Table::GetSecondaryIndex や SecondaryIndex::GetOrInsertDataItem
+  // などの補助メソッドが将来実装される必要があります。
+
+  try {
+    auto& table = db_pimpl_->GetTable(table_name);
+
+    // TODO: Table::GetSecondaryIndex(index_name) を実装し、SecondaryIndex
+    // のインスタンスを取得する。 auto* sidx =
+    // table.GetSecondaryIndex(index_name); if (!sidx) {
+    //   Abort();
+    //   return;
+    // }
+
+    // プライマリキーの存在をチェックする。
+    const std::string_view primary_key(
+        reinterpret_cast<const char*>(primary_key_bytes), primary_key_size);
+    auto* pk_data_item = table.GetPrimaryIndex().Get(primary_key);
+    if (pk_data_item == nullptr) {
+      // 参照先のプライマリキーが存在しないため、アボートする。
+      Abort();
+      return;
+    }
+
+    // トランザクションの read/write set で使用する一意なキーを生成する。
+    std::string qualified_key = std::string(table_name) + "\x1F" +
+                                std::string(index_name) + "\x1E" +
+                                std::string(encoded_secondary_key);
+
+    // TODO: セカンダリキーに対応する DataItem を取得または新規作成する。
+    // SecondaryIndex に GetOrInsertDataItem のようなメソッドが必要。
+    // auto* sk_data_item = sidx->GetOrInsertDataItem(encoded_secondary_key);
+
+    // --- ここから Read-Modify-Write のロジック ---
+    // 1. 現在の PKList を読み出す (既存の write_set またはストレージから)。
+    // 2. 新しいプライマリキーを PKList に追加する (重複や UNIQUE 制約も考慮)。
+    // 3. 更新後の PKList をシリアライズし、新しい値とする。
+
+    // (以下は仮の実装です。シリアライズライブラリ(例:msgpack)と上記ヘルパーが必要です)
+    const std::byte* new_value = primary_key_bytes;
+    size_t new_size = primary_key_size;
+
+    // RMWのため、一度write_setの中を探す
+    for (auto& snapshot : write_set_) {
+      if (snapshot.key == qualified_key) {
+        // すでに更新予定がある場合、その内容をさらに更新する。
+        // TODO: snapshot.data_item_copy からPKListをデシリアライズし、
+        //       新しいPKを追加後、再シリアライズして data_item_copy
+        //       を更新する。 現状は単純に上書きするだけ。
+        // snapshot.data_item_copy.Reset(new_value, new_size);
+        return;
+      }
+    }
+
+    // TODO: 本来は sk_data_item
+    // を使うべきだが、今はダミーとしてプライマリ行のものを流用。
+    //       これによりロックはプライマリ行にかかるが、コミット時に値が上書きされる問題が残る。
+    //       この問題はセカンダリキー専用のDataItemを導入することで解決される。
+    auto* index_leaf_for_lock = pk_data_item;
+
+    // 新しい書き込み操作として Snapshot を作成する。
+    Snapshot snapshot(qualified_key, new_value, new_size, index_leaf_for_lock);
+
+    // Read-Modify-Write のために read_set を確認
+    for (const auto& read_snap : read_set_) {
+      if (read_snap.key == qualified_key) {
+        snapshot.is_read_modify_write = true;
+        break;
+      }
+    }
+
+    write_set_.emplace_back(std::move(snapshot));
+
+    // Concurrency Control には通知するが、Silo/NWR
+    // ではこの時点での実操作はない。
+    concurrency_control_->Write(qualified_key, new_value, new_size,
+                                index_leaf_for_lock);
+
+  } catch (const std::out_of_range&) {
+    // GetTable でテーブルが見つからなかった場合。
+    Abort();
+    return;
+  }
 }
 
+/*
 void Transaction::Impl::ReadPrimaryIndex(const std::string_view table_name,
                                          const std::string_view primary_key) {
   // TODO: implement this
@@ -279,6 +374,14 @@ void Transaction::WritePrimaryIndex(const std::string_view table_name,
                                     const std::byte value[],
                                     const size_t size) {
   tx_pimpl_->WritePrimaryIndex(table_name, primary_key, value, size);
+}
+
+void Transaction::WriteSecondaryIndex(
+    const std::string_view table_name, const std::string_view index_name,
+    const std::string_view encoded_secondary_key, const std::byte value[],
+    const size_t size) {
+  tx_pimpl_->WriteSecondaryIndex(table_name, index_name, encoded_secondary_key,
+                                 value, size);
 }
 
 std::optional<std::pair<const std::byte* const, size_t>>

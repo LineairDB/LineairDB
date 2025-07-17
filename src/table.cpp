@@ -23,4 +23,8 @@ bool Table::CreateSecondaryIndex(
 };
 
 Index::ConcurrentTable& Table::GetPrimaryIndex() { return primary_index_; }
+
+Index::SecondaryIndex& Table::GetSecondaryIndex(const std::string& index_name) {
+  return secondary_indices_.at(index_name);
+}
 }  // namespace LineairDB

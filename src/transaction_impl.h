@@ -72,11 +72,10 @@ class Transaction::Impl {
                          const std::string_view primary_key,
                          const std::byte value[], const size_t size);
 
-  /* void WriteSecondaryIndex(const std::string_view table_name,
+  void WriteSecondaryIndex(const std::string_view table_name,
                            const std::string_view index_name,
-                           const std::string_view secondary_key,
-                           const std::byte value[],
-                           const size_t size); */
+                           const std::string_view encoded_secondary_key,
+                           const std::byte value[], const size_t size);
 
   std::optional<std::pair<const std::byte* const, size_t>> ReadPrimaryIndex(
       const std::string_view table_name, const std::string_view primary_key);

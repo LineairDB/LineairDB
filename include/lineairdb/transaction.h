@@ -25,6 +25,9 @@
 #include <optional>
 #include <string_view>
 #include <type_traits>
+#include <vector>
+
+#include "util/encode_key.hpp"
 
 namespace LineairDB {
 
@@ -210,13 +213,26 @@ class Transaction {
     WritePrimaryIndex(table_name, primary_key, buffer, sizeof(T));
   }
 
-  /* template <typename T>
   void WriteSecondaryIndex(const std::string_view table_name,
                            const std::string_view index_name,
-                           const std::string_view secondary_key,
+                           const std::string_view encoded_secondary_key,
+                           const std::byte value[], const size_t size);
+
+  /* テンプレート版: 任意型 secondary_key を EncodeKey してフォワード */
+  template <typename SecKeyT>
+  void WriteSecondaryIndex(const std::string_view table_name,
+                           const std::string_view index_name,
+                           const SecKeyT& secondary_key,
                            const std::string_view primary_key) {
-    // TODO: plan for this
-  } */
+    const std::string encoded = Util::EncodeKey(secondary_key);
+
+    const auto* pk_bytes =
+        reinterpret_cast<const std::byte*>(primary_key.data());
+    WriteSecondaryIndex(table_name, index_name,
+                        encoded,              // エンコード済み secondary_key
+                        pk_bytes,             // バイト列へのポインタ
+                        primary_key.size());  // バイト列長
+  }
 
   std::optional<std::pair<const std::byte* const, size_t>> ReadPrimaryIndex(
       const std::string_view table_name, const std::string_view primary_key);

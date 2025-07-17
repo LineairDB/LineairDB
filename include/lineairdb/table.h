@@ -18,6 +18,8 @@ class Table {
   
   Index::ConcurrentTable& GetPrimaryIndex();
 
+  Index::SecondaryIndex& GetSecondaryIndex(const std::string& index_name);
+
  private:
   EpochFramework& epoch_framework_;
   Config config_;
