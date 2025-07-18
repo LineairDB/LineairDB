@@ -120,6 +120,23 @@ TEST_F(DatabaseTest, InsertSecondaryIndexStringKey) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 }
 
+TEST_F(DatabaseTest, InsertSecondaryIndexStringKeyWithTypeMismatch) {
+  db_ = std::make_unique<LineairDB::Database>();
+  db_->CreateTable("users");
+  db_->CreateSecondaryIndex<std::string>("users", "email");
+
+  // Write & Verify string secondary key
+
+  auto& tx = db_->BeginTransaction();
+  int age = 42;
+  tx.WritePrimaryIndex<int>("users", "user#1", age);
+  tx.WriteSecondaryIndex<std::string>("users", "email", 42,
+                                      "user#1");
+  ASSERT_FALSE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+}
+
+
 TEST_F(DatabaseTest, InsertSecondaryIndexIntKey) {
   db_ = std::make_unique<LineairDB::Database>();
   db_->CreateTable("users");
@@ -135,6 +152,20 @@ TEST_F(DatabaseTest, InsertSecondaryIndexIntKey) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 }
 
+TEST_F(DatabaseTest, InsertSecondaryIndexIntKeyWithTypeMismatch) {
+  db_ = std::make_unique<LineairDB::Database>();
+  db_->CreateTable("users");
+  db_->CreateSecondaryIndex<int>("users", "age");
+
+  // Write & Verify int secondary key
+
+  auto& tx = db_->BeginTransaction();
+  tx.WriteSecondaryIndex<int>("users", "age", "alice@example.com", "user#2");
+  ASSERT_FALSE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+
+}
+
 TEST_F(DatabaseTest, InsertSecondaryIndexTimeKey) {
   db_ = std::make_unique<LineairDB::Database>();
   db_->CreateTable("users");
@@ -145,11 +176,25 @@ TEST_F(DatabaseTest, InsertSecondaryIndexTimeKey) {
   // Write & Verify time_t secondary key
 
   auto& tx = db_->BeginTransaction();
-  int age = 30;
-  tx.WritePrimaryIndex<int>("users", "user#3", age);
   tx.WriteSecondaryIndex<std::time_t>("users", "created_at", ts, "user#3");
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+}
+
+TEST_F(DatabaseTest, InsertSecondaryIndexTimeKeyWithTypeMismatch) {
+
+  db_ = std::make_unique<LineairDB::Database>();
+  db_->CreateTable("users");
+  db_->CreateSecondaryIndex<std::time_t>("users", "created_at");
+
+  auto ts = std::time(nullptr);
+
+  // Write & Verify time_t secondary key
+
+  auto& tx = db_->BeginTransaction();
+  tx.WriteSecondaryIndex<std::time_t>("users", "created_at", "alice@example.com", "user#3");
+  ASSERT_FALSE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
 }
 
 // ---------------- Variant key type read tests ----------------
