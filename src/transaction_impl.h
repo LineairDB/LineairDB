@@ -57,16 +57,12 @@ class Transaction::Impl {
   ~Impl() noexcept;
 
   TxStatus GetCurrentStatus();
-  const std::pair<const std::byte* const, const size_t> Read(
-      const std::string_view key);
-  void Write(const std::string_view key, const std::byte value[],
-             const size_t size);
+  const std::pair<const std::byte* const, const size_t> Read(const std::string_view key);
+  void Write(const std::string_view key, const std::byte value[], const size_t size);
 
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view,
-                         const std::pair<const void*, const size_t>)>
-          operation);
+      std::function<bool(std::string_view, const std::pair<const void*, const size_t>)> operation);
 
   void Abort();
   bool Precommit();

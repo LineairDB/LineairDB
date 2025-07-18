@@ -17,6 +17,7 @@
 #ifndef LINEAIRDB_DATABASE_H
 #define LINEAIRDB_DATABASE_H
 
+#include <lineairdb/secondary_index_option.h>
 #include <lineairdb/transaction.h>
 
 #include <functional>
@@ -149,6 +150,13 @@ class Database {
    * CallbackManager).
    */
   void RequestCallbacks();
+
+  bool CreateTable(const std::string table_name);
+
+  bool CreateSecondaryIndex(const std::string table_name,
+                            const std::string index_name,
+                            const SecondaryIndexOption::Constraint constraint =
+                                SecondaryIndexOption::Constraint::NONE);
 
  private:
   class Impl;

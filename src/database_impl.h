@@ -18,10 +18,14 @@
 
 #include <lineairdb/config.h>
 #include <lineairdb/database.h>
+#include <lineairdb/secondary_index_option.h>
+#include <lineairdb/table.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
 
 #include <functional>
+#include <tuple>
+#include <utility>
 
 #include "callback/callback_manager.h"
 #include "index/concurrent_table.h"
@@ -47,6 +51,7 @@ class Database::Impl {
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
         index_(epoch_framework_, config_),
+
         checkpoint_manager_(config_, index_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
@@ -150,7 +155,6 @@ class Database::Impl {
       if (config_.enable_logging) {
         logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
       }
-
     } else {
       tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
       clbk(TxStatus::Aborted);
@@ -223,6 +227,26 @@ class Database::Impl {
     return checkpoint_manager_.IsNeedToCheckpointing(epoch);
   }
 
+  bool CreateTable(const std::string table_name) {
+    if (tables_.find(table_name) != tables_.end()) {
+      return false;
+    }
+    auto [it, inserted] = tables_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(table_name),
+        std::forward_as_tuple(epoch_framework_, config_));
+    return inserted;
+  }
+
+  bool CreateSecondaryIndex(const std::string table_name,
+                            const std::string index_name,
+                            const SecondaryIndexOption::Constraint constraint) {
+    auto it = tables_.find(table_name);
+    if (it == tables_.end()) {
+      return false;  // 再確認用だが、競合状態などで存在しない場合
+    }
+    return it->second.CreateSecondaryIndex(index_name, constraint);
+  }
+
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
@@ -238,6 +262,7 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
+
     auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
     local_epoch = durable_epoch;
 
@@ -262,6 +287,7 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
+  std::unordered_map<std::string, Table> tables_;
   Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
 };
