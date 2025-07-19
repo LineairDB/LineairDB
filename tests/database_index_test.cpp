@@ -114,7 +114,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexStringKey) {
   auto& tx = db_->BeginTransaction();
   int age = 42;
   tx.WritePrimaryIndex<int>("users", "user#1", age);
-  tx.WriteSecondaryIndex<std::string>("users", "email", "alice@example.com",
+  tx.WriteSecondaryIndex("users", "email", "alice@example.com",
                                       "user#1");
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
@@ -130,7 +130,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexStringKeyWithTypeMismatch) {
   auto& tx = db_->BeginTransaction();
   int age = 42;
   tx.WritePrimaryIndex<int>("users", "user#1", age);
-  tx.WriteSecondaryIndex<std::string>("users", "email", 42,
+  tx.WriteSecondaryIndex("users", "email", 42,
                                       "user#1");
   ASSERT_FALSE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
@@ -147,7 +147,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexIntKey) {
   auto& tx = db_->BeginTransaction();
   int age = 24;
   tx.WritePrimaryIndex<int>("users", "user#2", age);
-  tx.WriteSecondaryIndex<int>("users", "age", 20, "user#2");
+  tx.WriteSecondaryIndex("users", "age", 20, "user#2");
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 }
@@ -160,7 +160,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexIntKeyWithTypeMismatch) {
   // Write & Verify int secondary key
 
   auto& tx = db_->BeginTransaction();
-  tx.WriteSecondaryIndex<int>("users", "age", "alice@example.com", "user#2");
+  tx.WriteSecondaryIndex("users", "age", "alice@example.com", "user#2");
   ASSERT_FALSE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
 
@@ -176,7 +176,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexTimeKey) {
   // Write & Verify time_t secondary key
 
   auto& tx = db_->BeginTransaction();
-  tx.WriteSecondaryIndex<std::time_t>("users", "created_at", ts, "user#3");
+  tx.WriteSecondaryIndex("users", "created_at", ts, "user#3");
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 }
@@ -192,7 +192,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexTimeKeyWithTypeMismatch) {
   // Write & Verify time_t secondary key
 
   auto& tx = db_->BeginTransaction();
-  tx.WriteSecondaryIndex<std::time_t>("users", "created_at", "alice@example.com", "user#3");
+  tx.WriteSecondaryIndex("users", "created_at", "alice@example.com", "user#3");
   ASSERT_FALSE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
 }
@@ -207,7 +207,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexStringKey) {
   auto& tx = db_->BeginTransaction();
   int age = 42;
   tx.WritePrimaryIndex<int>("users", "user#1", age);
-  tx.WriteSecondaryIndex<std::string>("users", "email", "alice@example.com",
+  tx.WriteSecondaryIndex("users", "email", "alice@example.com",
                                       "user#1");
 
   auto& rtx = db_->BeginTransaction();
@@ -228,7 +228,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexIntKey) {
   auto& tx = db_->BeginTransaction();
   int age = 24;
   tx.WritePrimaryIndex<int>("users", "user#2", age);
-  tx.WriteSecondaryIndex<int>("users", "age", 20, "user#2");
+  tx.WriteSecondaryIndex("users", "age", 20, "user#2");
 
   auto& rtx = db_->BeginTransaction();
   auto pk = rtx.ReadSecondaryIndex<int>("users", "age", 20);
@@ -249,7 +249,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexTimeKey) {
   auto& tx = db_->BeginTransaction();
   int age = 30;
   tx.WritePrimaryIndex<int>("users", "user#3", age);
-  tx.WriteSecondaryIndex<std::time_t>("users", "created_at", ts, "user#3");
+  tx.WriteSecondaryIndex("users", "created_at", ts, "user#3");
 
   auto& rtx = db_->BeginTransaction();
   auto pk = rtx.ReadSecondaryIndex<std::time_t>("users", "created_at", ts);
@@ -271,7 +271,7 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
     auto& tx = db_->BeginTransaction();
     int age = 42;
     tx.WritePrimaryIndex<int>("users", "user#1", age);
-    tx.WriteSecondaryIndex<std::string>("users", "email", "bob@example.com",
+    tx.WriteSecondaryIndex("users", "email", "bob@example.com",
                                         "user#1");
     ASSERT_TRUE(db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
@@ -282,7 +282,7 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
     auto& tx = db_->BeginTransaction();
     int age = 24;
     tx.WritePrimaryIndex<int>("users", "user#2", age);
-    tx.WriteSecondaryIndex<std::string>("users", "email", "bob@example.com",
+    tx.WriteSecondaryIndex("users", "email", "bob@example.com",
                                         "user#2");  // duplicate key
     ASSERT_FALSE(db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
@@ -298,7 +298,7 @@ TEST_F(DatabaseTest, WriteSecondaryIndexToUnregisteredIndexShouldAbort) {
 
   int age = 22;
   tx.WritePrimaryIndex<int>("users", "user#1", age);
-  tx.WriteSecondaryIndex<std::string>("users", "email", "alice@example.com",
+  tx.WriteSecondaryIndex("users", "email", "alice@example.com",
                                       "user#1");
   db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); });
@@ -325,7 +325,7 @@ TEST_F(DatabaseTest, InsertSKWithNonExistentPKShouldAbort) {
 
   auto& tx = db_->BeginTransaction();
   // PK "ghost#1" does not exist yet
-  tx.WriteSecondaryIndex<std::string>("users", "email", "ghost@example.com",
+  tx.WriteSecondaryIndex("users", "email", "ghost@example.com",
                                       "ghost#1");
 
   // Expect Abort due to reference integrity violation
@@ -346,9 +346,9 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_IntegerOrder) {
     tx.WritePrimaryIndex<std::string>("items", "item#2", "high");
     tx.WritePrimaryIndex<std::string>("items", "item#3", "medium");
 
-    tx.WriteSecondaryIndex<int>("items", "priority", 1, "item#1");
-    tx.WriteSecondaryIndex<int>("items", "priority", 9, "item#2");
-    tx.WriteSecondaryIndex<int>("items", "priority", 10, "item#3");
+    tx.WriteSecondaryIndex("items", "priority", 1, "item#1");
+    tx.WriteSecondaryIndex("items", "priority", 9, "item#2");
+    tx.WriteSecondaryIndex("items", "priority", 10, "item#3");
 
     ASSERT_TRUE(db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
@@ -384,9 +384,9 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_StringOrder) {
     tx.WritePrimaryIndex<int>("users", "user#2", 30);
     tx.WritePrimaryIndex<int>("users", "user#3", 35);
 
-    tx.WriteSecondaryIndex<std::string>("users", "name", "Alice", "user#1");
-    tx.WriteSecondaryIndex<std::string>("users", "name", "Bob", "user#2");
-    tx.WriteSecondaryIndex<std::string>("users", "name", "Charlie", "user#3");
+    tx.WriteSecondaryIndex("users", "name", "Alice", "user#1");
+    tx.WriteSecondaryIndex("users", "name", "Bob", "user#2");
+    tx.WriteSecondaryIndex("users", "name", "Charlie", "user#3");
 
     ASSERT_TRUE(db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
@@ -423,7 +423,7 @@ TEST_F(DatabaseTest, SecondaryIndex_TypeConsistency) {
   {
     auto& tx = db_->BeginTransaction();
     tx.WritePrimaryIndex<std::string>("mixed", "item#1", "data1");
-    tx.WriteSecondaryIndex<int>("mixed", "value", 42, "item#1");
+    tx.WriteSecondaryIndex("mixed", "value", 42, "item#1");
     ASSERT_TRUE(db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
   }
@@ -431,7 +431,7 @@ TEST_F(DatabaseTest, SecondaryIndex_TypeConsistency) {
   {
     auto& tx = db_->BeginTransaction();
     tx.WritePrimaryIndex<std::string>("mixed", "item#2", "data2");
-    tx.WriteSecondaryIndex<std::string>("mixed", "value", "hello", "item#2");
+    tx.WriteSecondaryIndex("mixed", "value", "hello", "item#2");
 
     db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); });
