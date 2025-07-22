@@ -100,6 +100,38 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   }
 }
 
+const std::pair<const std::byte* const, const size_t>
+Transaction::Impl::ReadPrimaryIndex(const std::string_view table_name,
+                                    const std::string_view key) {
+  if (IsAborted()) return {nullptr, 0};
+
+  std::string qualified_key = std::string(table_name) + "#" + std::string(key);
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == qualified_key) {
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
+    }
+  }
+
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == qualified_key) {
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
+    }
+  }
+  auto* index_leaf =
+      db_pimpl_->GetTable(table_name).GetPrimaryIndex().GetOrInsert(key);
+  Snapshot snapshot = {qualified_key, nullptr, 0, index_leaf};
+
+  snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
+  auto& ref = read_set_.emplace_back(std::move(snapshot));
+  if (ref.data_item_copy.IsInitialized()) {
+    return {ref.data_item_copy.value(), ref.data_item_copy.size()};
+  } else {
+    return {nullptr, 0};
+  }
+}
+
 void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {
   if (IsAborted()) return;
@@ -127,6 +159,42 @@ void Transaction::Impl::Write(const std::string_view key,
 
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
+  if (is_rmf) sp.is_read_modify_write = true;
+  write_set_.emplace_back(std::move(sp));
+}
+
+void Transaction::Impl::WritePrimaryIndex(const std::string_view table_name,
+                                          const std::string_view key,
+                                          const std::byte value[],
+                                          const size_t size) {
+  if (IsAborted()) return;
+
+  // TODO: if `size` is larger than Config.internal_buffer_size,
+  // then we have to abort this transaction or throw exception
+
+  std::string qualified_key = std::string(table_name) + "#" + std::string(key);
+
+  bool is_rmf = false;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == qualified_key) {
+      is_rmf = true;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != qualified_key) continue;
+    snapshot.data_item_copy.Reset(value, size);
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    return;
+  }
+
+  auto* index_leaf =
+      db_pimpl_->GetTable(table_name).GetPrimaryIndex().GetOrInsert(key);
+
+  concurrency_control_->Write(qualified_key, value, size, index_leaf);
+  Snapshot sp(qualified_key, value, size, index_leaf);
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
@@ -178,10 +246,25 @@ const std::pair<const std::byte* const, const size_t> Transaction::Read(
     const std::string_view key) {
   return tx_pimpl_->Read(key);
 }
+
+const std::pair<const std::byte* const, const size_t>
+Transaction::ReadPrimaryIndex(const std::string_view table_name,
+                              const std::string_view key) {
+  return tx_pimpl_->ReadPrimaryIndex(table_name, key);
+}
+
 void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
+
+void Transaction::WritePrimaryIndex(const std::string_view table_name,
+                                    const std::string_view key,
+                                    const std::byte value[],
+                                    const size_t size) {
+  tx_pimpl_->WritePrimaryIndex(table_name, key, value, size);
+}
+
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,

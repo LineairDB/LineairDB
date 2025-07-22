@@ -102,6 +102,22 @@ class Transaction {
     }
   }
 
+  const std::pair<const std::byte* const, const size_t> ReadPrimaryIndex(const std::string_view table_name, const std::string_view key);
+
+  template <typename T> 
+  const std::optional<T> ReadPrimaryIndex(const std::string_view table_name ,const std::string_view key) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    auto result = ReadPrimaryIndex(table_name, key);
+    if (result.second != 0) {
+      const T copy_constructed_result =
+          *reinterpret_cast<const T*>(result.first);
+      return copy_constructed_result;
+    } else {
+      return std::nullopt;
+    }
+  }
+
   /**
    * @brief
    * Writes a value with a given key.
@@ -131,6 +147,17 @@ class Transaction {
     std::memcpy(buffer, &value, sizeof(T));
     Write(key, buffer, sizeof(T));
   };
+
+  void WritePrimaryIndex(const std::string_view table_name, const std::string_view key, const std::byte value[], const size_t size);
+
+  template <typename T>
+  void WritePrimaryIndex(const std::string_view table_name, const std::string_view key, const T& value) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    std::byte buffer[sizeof(T)];
+    std::memcpy(buffer, &value, sizeof(T));
+    WritePrimaryIndex(table_name, key, buffer, sizeof(T));
+  }
 
   /**
    * @brief
