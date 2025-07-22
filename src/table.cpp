@@ -1,25 +1,21 @@
 #include "lineairdb/table.h"
+
 #include <tuple>
 #include <utility>
+// #include "index/secondary_index.h"  // now included from table.h
 
-namespace LineairDB
-{
-  Table::Table(EpochFramework &epoch_framework, const Config &config)
-      : epoch_framework_(epoch_framework),
-        config_(config),
-        primary_index_(epoch_framework, config) {}
+namespace LineairDB {
+Table::Table(EpochFramework& epoch_framework, const Config& config)
+    : epoch_framework_(epoch_framework),
+      config_(config),
+      primary_index_(epoch_framework, config) {}
 
-  bool Table::CreateSecondaryIndex(const std::string index_name, const SecondaryIndexOption::Constraint /*constraint*/)
-  {
-    if (secondary_indices_.find(index_name) != secondary_indices_.end())
-    {
-      return false;
-    }
-
-    auto [it, inserted] = secondary_indices_.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(index_name),
-        std::forward_as_tuple(epoch_framework_, config_));
-    return inserted;
+Index::ISecondaryIndex* Table::GetSecondaryIndex(
+    const std::string& index_name) {
+  auto it = secondary_indices_.find(index_name);
+  if (it == secondary_indices_.end()) {
+    return nullptr;
   }
-} // namespace LineairDB
+  return it->second.get();
+}
+}  // namespace LineairDB

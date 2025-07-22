@@ -64,7 +64,23 @@ void Database::RequestCallbacks() { db_pimpl_->RequestCallbacks(); }
 bool Database::CreateTable(const std::string table_name) {
   return db_pimpl_->CreateTable(table_name);
 }
-bool Database::CreateSecondaryIndex(const std::string table_name, const std::string index_name, const SecondaryIndexOption::Constraint constraint) {
-  return db_pimpl_->CreateSecondaryIndex(table_name, index_name, constraint);
+
+template <typename T>
+bool Database::CreateSecondaryIndex(
+    const std::string table_name, const std::string index_name,
+    const SecondaryIndexOption::Constraint constraint) {
+  return db_pimpl_->CreateSecondaryIndex<T>(table_name, index_name, constraint);
 }
+
+// 明示的なインスタンス化
+template bool Database::CreateSecondaryIndex<std::string>(
+    const std::string table_name, const std::string index_name,
+    const SecondaryIndexOption::Constraint constraint);
+template bool Database::CreateSecondaryIndex<int>(
+    const std::string table_name, const std::string index_name,
+    const SecondaryIndexOption::Constraint constraint);
+template bool Database::CreateSecondaryIndex<time_t>(
+    const std::string table_name, const std::string index_name,
+    const SecondaryIndexOption::Constraint constraint);
+
 }  // namespace LineairDB

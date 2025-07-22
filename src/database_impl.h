@@ -237,14 +237,15 @@ class Database::Impl {
     return inserted;
   }
 
+  template <typename T>
   bool CreateSecondaryIndex(const std::string table_name,
                             const std::string index_name,
                             const SecondaryIndexOption::Constraint constraint) {
     auto it = tables_.find(table_name);
     if (it == tables_.end()) {
-      return false;  // 再確認用だが、競合状態などで存在しない場合
+      return false;
     }
-    return it->second.CreateSecondaryIndex(index_name, constraint);
+    return it->second.CreateSecondaryIndex<T>(index_name, constraint);
   }
 
  private:
