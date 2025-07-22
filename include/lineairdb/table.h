@@ -31,6 +31,8 @@ class Table {
     return true;
   }
 
+  Index::ConcurrentTable& GetPrimaryIndex() { return primary_index_; }
+
   Index::ISecondaryIndex* GetSecondaryIndex(const std::string& index_name);
 
  private:

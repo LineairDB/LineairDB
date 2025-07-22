@@ -58,7 +58,9 @@ class Transaction::Impl {
 
   TxStatus GetCurrentStatus();
   const std::pair<const std::byte* const, const size_t> Read(const std::string_view key);
+  const std::pair<const std::byte* const, const size_t> ReadPrimaryIndex(const std::string_view table_name, const std::string_view key);
   void Write(const std::string_view key, const std::byte value[], const size_t size);
+  void WritePrimaryIndex(const std::string_view table_name, const std::string_view key, const std::byte value[], const size_t size);
 
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,

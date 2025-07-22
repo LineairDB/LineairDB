@@ -248,6 +248,14 @@ class Database::Impl {
     return it->second.CreateSecondaryIndex<T>(index_name, constraint);
   }
 
+  Table& GetTable(const std::string_view table_name) {
+    auto it = tables_.find(std::string(table_name));
+    if (it == tables_.end()) {
+      throw std::runtime_error("Table not found");
+    }
+    return it->second;
+  }
+
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
