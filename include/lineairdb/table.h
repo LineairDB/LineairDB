@@ -33,7 +33,7 @@ class Table {
 
   Index::ConcurrentTable& GetPrimaryIndex() { return primary_index_; }
 
-  Index::ISecondaryIndex* GetSecondaryIndex(const std::string& index_name);
+  Index::ISecondaryIndex* GetSecondaryIndex(const std::string_view index_name);
 
  private:
   EpochFramework& epoch_framework_;

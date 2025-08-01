@@ -3,12 +3,10 @@
 #include <typeinfo>
 #include <vector>
 
-namespace LineairDB {
-namespace Index {  // 小文字の index から大文字の Index に修正
+#include "types/data_item.hpp"
 
-// 後続のクラスで使う型エイリアスをここで定義
-using PrimaryKey = std::string_view;
-using PKList = std::vector<PrimaryKey>;
+namespace LineairDB {
+namespace Index {
 
 class ISecondaryIndex {
  public:
@@ -16,9 +14,9 @@ class ISecondaryIndex {
 
   virtual const std::type_info& KeyTypeInfo() const = 0;
 
-  virtual bool AddPK(std::string_view serialized_key, std::string_view pk) = 0;
+  virtual DataItem* Get(std::string_view serialized_key) = 0;
 
-  virtual PKList* GetPKList(std::string_view serialized_key) = 0;
+  virtual DataItem* GetOrInsert(std::string_view serialized_key) = 0;
 
   virtual bool IsUnique() const = 0;
 };

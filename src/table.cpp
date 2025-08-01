@@ -11,8 +11,8 @@ Table::Table(EpochFramework& epoch_framework, const Config& config)
       primary_index_(epoch_framework, config) {}
 
 Index::ISecondaryIndex* Table::GetSecondaryIndex(
-    const std::string& index_name) {
-  auto it = secondary_indices_.find(index_name);
+    const std::string_view index_name) {
+  auto it = secondary_indices_.find(std::string(index_name));
   if (it == secondary_indices_.end()) {
     return nullptr;
   }

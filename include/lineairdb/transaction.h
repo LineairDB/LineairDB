@@ -18,6 +18,7 @@
 
 #include <lineairdb/tx_status.h>
 
+#include <any>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -102,10 +103,12 @@ class Transaction {
     }
   }
 
-  const std::pair<const std::byte* const, const size_t> ReadPrimaryIndex(const std::string_view table_name, const std::string_view key);
+  const std::pair<const std::byte* const, const size_t> ReadPrimaryIndex(
+      const std::string_view table_name, const std::string_view key);
 
-  template <typename T> 
-  const std::optional<T> ReadPrimaryIndex(const std::string_view table_name ,const std::string_view key) {
+  template <typename T>
+  const std::optional<T> ReadPrimaryIndex(const std::string_view table_name,
+                                          const std::string_view key) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     auto result = ReadPrimaryIndex(table_name, key);
@@ -116,6 +119,18 @@ class Transaction {
     } else {
       return std::nullopt;
     }
+  }
+
+  std::vector<std::string> ReadSecondaryIndex(const std::string_view table_name,
+                                              const std::string_view index_name,
+                                              const std::any& key);
+
+  template <typename T>
+  std::vector<std::string> ReadSecondaryIndex(const std::string_view table_name,
+                                              const std::string_view index_name,
+                                              const std::any& key) {
+    auto result = ReadSecondaryIndex(table_name, index_name, key);
+    return result;
   }
 
   /**
@@ -148,10 +163,13 @@ class Transaction {
     Write(key, buffer, sizeof(T));
   };
 
-  void WritePrimaryIndex(const std::string_view table_name, const std::string_view key, const std::byte value[], const size_t size);
+  void WritePrimaryIndex(const std::string_view table_name,
+                         const std::string_view key, const std::byte value[],
+                         const size_t size);
 
   template <typename T>
-  void WritePrimaryIndex(const std::string_view table_name, const std::string_view key, const T& value) {
+  void WritePrimaryIndex(const std::string_view table_name,
+                         const std::string_view key, const T& value) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     std::byte buffer[sizeof(T)];
@@ -159,6 +177,21 @@ class Transaction {
     WritePrimaryIndex(table_name, key, buffer, sizeof(T));
   }
 
+  void WriteSecondaryIndex(const std::string_view table_name,
+                           const std::string_view index_name,
+                           const std::any& key,
+                           const std::string_view primary_key,
+                           const std::byte* primary_key_ptr,
+                           const size_t primary_key_size);
+
+  void WriteSecondaryIndex(const std::string_view table_name,
+                           const std::string_view index_name,
+                           const std::any& key,
+                           const std::string_view primary_key) {
+    WriteSecondaryIndex(table_name, index_name, key, primary_key,
+                        reinterpret_cast<const std::byte*>(primary_key.data()),
+                        primary_key.size());
+  }
   /**
    * @brief
    * Get all data items that match the range from the "begin" key to the "end"

@@ -44,43 +44,32 @@ class SecondaryIndex : public ISecondaryIndex {
                  bool is_unique = false,
                  [[maybe_unused]] WriteSetType recovery_set = WriteSetType())
       : secondary_index_(
-            std::make_unique<HashTableWithPrecisionLockingIndex<PKList>>(
+            std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
                 config, epoch_framework)),
         epoch_manager_ref_(epoch_framework),
         is_unique_(is_unique) {}
 
   const std::type_info& KeyTypeInfo() const override { return typeid(KeyType); }
 
-  PKList* GetPKList(std::string_view serialized_key) override {
+  DataItem* Get(std::string_view serialized_key) override {
     return secondary_index_->Get(serialized_key);
   }
 
-  // TODO: implement unique constraint check
-  bool AddPK(std::string_view serialized_key, std::string_view pk) override {
-    if (is_unique_) {
-      // check if the key is already in the index
-      auto* pk_list = secondary_index_->Get(serialized_key);
-      if (pk_list != nullptr) {
-        return false;
-      }
+  DataItem* GetOrInsert(std::string_view serialized_key) override {
+    auto* item = secondary_index_->Get(serialized_key);
+    if (item == nullptr) {
+      secondary_index_->ForcePutBlankEntry(serialized_key);
+      item = secondary_index_->Get(serialized_key);
+      assert(item != nullptr);
     }
-
-    bool result = secondary_index_->Put(serialized_key, {pk});
-    if (!result) {
-      auto* pk_list = secondary_index_->Get(serialized_key);
-      if (pk_list != nullptr) {
-        pk_list->push_back(pk);
-      } else {
-        return false;
-      }
-    }
-    return true;
+    return item;
   }
 
   bool IsUnique() const override { return is_unique_; }
 
  private:
-  std::unique_ptr<HashTableWithPrecisionLockingIndex<PKList>> secondary_index_;
+  std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>>
+      secondary_index_;
   LineairDB::EpochFramework& epoch_manager_ref_;
   bool is_unique_;
 };
