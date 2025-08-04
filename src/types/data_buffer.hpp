@@ -43,17 +43,11 @@ struct DataBuffer {
       delete[] value;
       value = nullptr;
       size = 0;
+      return;
     }
     if (size < s) {
-      if (value == nullptr) {
-        value = new std::byte[s];
-      } else {
-        value = static_cast<decltype(value)>(
-            std::realloc(reinterpret_cast<void*>(value), s));
-        if (value == nullptr) {
-          throw std::bad_alloc();
-        }
-      }
+      delete[] value;
+      value = new std::byte[s];
     }
     size = s;
     std::memcpy(value, v, s);
