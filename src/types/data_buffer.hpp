@@ -25,8 +25,6 @@
 #include <iostream>
 #include <new>
 
-#include "util/logger.hpp"
-
 namespace LineairDB {
 
 struct DataBuffer {
