@@ -62,7 +62,7 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
          auto alice = tx.Read("alice");
          ASSERT_NE(alice.first, nullptr);
          ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
-         ASSERT_EQ(0, tx.Read("bob").second);
+         ASSERT_EQ(size_t(0), tx.Read("bob").second);
        }});
 }
 
@@ -124,7 +124,7 @@ TEST_F(DatabaseTest, Scan) {
                           return false;
                         });
                     if (count.has_value()) {
-                      ASSERT_EQ(count.value(), 3);
+                      ASSERT_EQ(count.value(), size_t(3));
                     }
                   },
                   [&](LineairDB::Transaction& tx) {
@@ -137,7 +137,7 @@ TEST_F(DatabaseTest, Scan) {
                           return true;
                         });
                     if (count.has_value()) {
-                      ASSERT_EQ(count.value(), 1);
+                      ASSERT_EQ(count.value(), size_t(1));
                     };
                   }});
 }
@@ -149,7 +149,8 @@ TEST_F(DatabaseTest, SaveAsString) {
                               },
                               [&](LineairDB::Transaction& tx) {
                                 auto alice = tx.Read<std::string_view>("alice");
-                                ASSERT_EQ("value", alice.value());
+                                ASSERT_TRUE(alice.has_value());
+                                ASSERT_TRUE(alice.value() == "value");
                               }});
 }
 
@@ -217,6 +218,6 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
          auto alice = tx.Read("alice");
          ASSERT_NE(alice.first, nullptr);
          ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
-         ASSERT_EQ(0, tx.Read("bob").second);
+         ASSERT_EQ(size_t(0), tx.Read("bob").second);
        }});
 }

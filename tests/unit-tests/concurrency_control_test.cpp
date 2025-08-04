@@ -84,7 +84,7 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   db_->Fence();
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("alice");
+                               auto alice = tx.Read<size_t>("alice");
                                ASSERT_TRUE(alice.has_value());
                                auto expected_value =
                                    initial_value + committed_count;
