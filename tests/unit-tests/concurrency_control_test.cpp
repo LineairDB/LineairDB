@@ -79,7 +79,7 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
     tx.Write<int>("alice", current_value);
   });
 
-  size_t committed_count = TestHelper::DoTransactionsOnMultiThreads(
+  int committed_count = TestHelper::DoTransactionsOnMultiThreads(
       db_.get(), {increment, increment, increment, increment});
   db_->Fence();
 
