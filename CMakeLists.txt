@@ -66,7 +66,7 @@ endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -Ofast -ffast-math -DNDEBUG")
 if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-  # Apple Sillicon (m1) does not support `march=native`. use `mcpu` instead.
+  # Apple Silicon (m1) does not support `march=native`. use `mcpu` instead.
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mcpu=apple-m1")
 else()
   set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
