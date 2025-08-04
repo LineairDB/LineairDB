@@ -255,21 +255,22 @@ void Transaction::Impl::WritePrimaryIndex(const std::string_view table_name,
   write_set_.emplace_back(std::move(sp));
 }
 
-void Transaction::Impl::WriteSecondaryIndex(const std::string_view table_name,
-                                            const std::string_view index_name,
-                                            const std::any& key,
-                                            const std::string_view primary_key,
-                                            const std::byte* primary_key_ptr,
-                                            const size_t primary_key_size) {
+void Transaction::Impl::WriteSecondaryIndex(
+    const std::string_view table_name, const std::string_view index_name,
+    const std::any& key, const std::byte primary_key_buffer[],
+    const size_t primary_key_size) {
   if (IsAborted()) return;
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
 
+  std::string_view primary_key_view;
+  std::memcpy(&primary_key_view, primary_key_buffer, primary_key_size);
+
   Table& table = db_pimpl_->GetTable(table_name);
   Index::ISecondaryIndex* index = table.GetSecondaryIndex(index_name);
   auto primary_leaf =
-      db_pimpl_->GetTable(table_name).GetPrimaryIndex().Get(primary_key);
+      db_pimpl_->GetTable(table_name).GetPrimaryIndex().Get(primary_key_view);
 
   if (primary_leaf == nullptr) {
     Abort();
@@ -295,25 +296,14 @@ void Transaction::Impl::WriteSecondaryIndex(const std::string_view table_name,
                               std::string(index_name) + "#" +
                               std::string(serialized_key);
   // existing key
-  DataItem* index_leaf = index->GetOrInsert(serialized_key);
-  if (index_leaf->IsInitialized()) {
+  /*   DataItem* index_leaf = index->GetOrInsert(serialized_key);
+   *//*   if (index_leaf->IsInitialized()) {
+    //TODO : reconsider UNIQUE constraint check and separate GetOrInsert into Get and Insert
     if (index->IsUnique()) {
       Abort();
       return;
     }
-  }
-
-  std::vector<std::string> pklist =
-      Util::DecodePKList(index_leaf->value(), index_leaf->size());
-
-  std::string_view new_pk(reinterpret_cast<const char*>(primary_key_ptr),
-                          primary_key_size);
-
-  std::string encoded_value = Util::EncodePKList(pklist, new_pk);
-
-  const std::byte* value_ptr =
-      reinterpret_cast<const std::byte*>(encoded_value.data());
-  size_t value_size = encoded_value.size();
+  } */
 
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
@@ -325,11 +315,40 @@ void Transaction::Impl::WriteSecondaryIndex(const std::string_view table_name,
   }
 
   for (auto& snapshot : write_set_) {
+
     if (snapshot.key != qualified_key) continue;
+
+    std::vector<std::string> new_pklist = Util::DecodePKList(
+        snapshot.data_item_copy.value(), snapshot.data_item_copy.size());
+    for (auto p : new_pklist) {
+      if (p == primary_key_view) {
+        return;
+      }
+    }
+
+    std::string_view new_pk;
+    std::memcpy(&new_pk, primary_key_buffer, primary_key_size);
+
+    std::string encoded_value = Util::EncodePKList(new_pklist, new_pk);
+    const std::byte* value_ptr =
+        reinterpret_cast<const std::byte*>(encoded_value.data());
+    size_t value_size = encoded_value.size();
     snapshot.data_item_copy.Reset(value_ptr, value_size);
     if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }
+
+  auto* index_leaf = index->GetOrInsert(serialized_key);
+
+  std::vector<std::string> existing_pklist =
+      Util::DecodePKList(index_leaf->value(), index_leaf->size());
+
+  std::string encoded_value =
+      Util::EncodePKList(existing_pklist, primary_key_view);
+
+  const std::byte* value_ptr =
+      reinterpret_cast<const std::byte*>(encoded_value.data());
+  size_t value_size = encoded_value.size();
 
   concurrency_control_->Write(qualified_key, value_ptr, value_size, index_leaf);
 
@@ -346,6 +365,35 @@ const std::optional<size_t> Transaction::Impl::Scan(
   auto result =
       db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
         const auto read_result = Read(key);
+        if (IsAborted()) return true;
+        return operation(key, read_result);
+      });
+  if (!result.has_value()) {
+    Abort();
+  }
+  return result;
+};
+
+const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
+    const std::string_view table_name, const std::string_view index_name,
+    const std::any& begin, const std::any& end,
+    std::function<bool(std::string_view, const std::vector<std::string>)>
+        operation) {
+  Table& table = db_pimpl_->GetTable(table_name);
+  Index::ISecondaryIndex* index = table.GetSecondaryIndex(index_name);
+
+  if (index == nullptr) {
+    Abort();
+    return {};
+  }
+
+  std::string serialized_begin = Util::SerializeKey(begin);
+  std::string serialized_end = Util::SerializeKey(end);
+
+  auto result =
+      index->Scan(serialized_begin, serialized_end, [&](std::string_view key) {
+        const auto read_result =
+            ReadSecondaryIndex(table_name, index_name, key);
         if (IsAborted()) return true;
         return operation(key, read_result);
       });
@@ -413,11 +461,10 @@ void Transaction::WritePrimaryIndex(const std::string_view table_name,
 void Transaction::WriteSecondaryIndex(const std::string_view table_name,
                                       const std::string_view index_name,
                                       const std::any& key,
-                                      const std::string_view primary_key,
-                                      const std::byte* primary_key_ptr,
+                                      const std::byte primary_key_buffer[],
                                       const size_t primary_key_size) {
-  tx_pimpl_->WriteSecondaryIndex(table_name, index_name, key, primary_key,
-                                 primary_key_ptr, primary_key_size);
+  tx_pimpl_->WriteSecondaryIndex(table_name, index_name, key,
+                                 primary_key_buffer, primary_key_size);
 }
 
 const std::optional<size_t> Transaction::Scan(
@@ -427,6 +474,16 @@ const std::optional<size_t> Transaction::Scan(
         operation) {
   return tx_pimpl_->Scan(begin, end, operation);
 };
+
+const std::optional<size_t> Transaction::ScanSecondaryIndex(
+    const std::string_view table_name, const std::string_view index_name,
+    const std::any& begin, const std::any& end,
+    std::function<bool(std::string_view, const std::vector<std::string>)>
+        operation) {
+  return tx_pimpl_->ScanSecondaryIndex(table_name, index_name, begin, end,
+                                       operation);
+}
+
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 

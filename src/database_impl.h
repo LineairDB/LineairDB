@@ -227,8 +227,8 @@ class Database::Impl {
     return checkpoint_manager_.IsNeedToCheckpointing(epoch);
   }
 
-  bool CreateTable(const std::string table_name) {
-    if (tables_.find(table_name) != tables_.end()) {
+  bool CreateTable(const std::string_view table_name) {
+    if (tables_.find(std::string(table_name)) != tables_.end()) {
       return false;
     }
     auto [it, inserted] = tables_.emplace(
@@ -238,10 +238,10 @@ class Database::Impl {
   }
 
   template <typename T>
-  bool CreateSecondaryIndex(const std::string table_name,
-                            const std::string index_name,
+  bool CreateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
                             const SecondaryIndexOption::Constraint constraint) {
-    auto it = tables_.find(table_name);
+    auto it = tables_.find(std::string(table_name));
     if (it == tables_.end()) {
       return false;
     }

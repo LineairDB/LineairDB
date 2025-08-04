@@ -1,4 +1,5 @@
 #pragma once
+#include <any>
 #include <string_view>
 #include <typeinfo>
 #include <vector>
@@ -17,6 +18,10 @@ class ISecondaryIndex {
   virtual DataItem* Get(std::string_view serialized_key) = 0;
 
   virtual DataItem* GetOrInsert(std::string_view serialized_key) = 0;
+
+  virtual std::optional<size_t> Scan(
+      std::string_view begin, std::string_view end,
+      std::function<bool(std::string_view)> operation) = 0;
 
   virtual bool IsUnique() const = 0;
 };

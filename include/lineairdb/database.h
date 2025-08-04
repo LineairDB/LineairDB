@@ -152,12 +152,12 @@ class Database {
   void RequestCallbacks();
 
   //implement lock for concurrent access to the database
-  bool CreateTable(const std::string table_name);
+  bool CreateTable(const std::string_view table_name);
 
   //implement UNIQUE constraint for secondary index
   template <typename T>
-  bool CreateSecondaryIndex(const std::string table_name,
-                            const std::string index_name,
+  bool CreateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
                             const SecondaryIndexOption::Constraint constraint =
                                 SecondaryIndexOption::Constraint::NONE);
 

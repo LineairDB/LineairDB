@@ -74,14 +74,19 @@ class Transaction::Impl {
   void WriteSecondaryIndex(const std::string_view table_name,
                            const std::string_view index_name,
                            const std::any& key,
-                           const std::string_view primary_key,
-                           const std::byte* primary_key_ptr,
+                           const std::byte primary_key_buffer[],
                            const size_t primary_key_size);
 
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
+          operation);
+
+  const std::optional<size_t> ScanSecondaryIndex(
+      const std::string_view table_name, const std::string_view index_name,
+      const std::any& begin, const std::any& end,
+      std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
   void Abort();

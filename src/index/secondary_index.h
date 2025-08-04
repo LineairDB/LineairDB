@@ -65,6 +65,12 @@ class SecondaryIndex : public ISecondaryIndex {
     return item;
   }
 
+  std::optional<size_t> Scan(
+      std::string_view begin, std::string_view end,
+      std::function<bool(std::string_view)> operation) override {
+    return secondary_index_->Scan(begin, end, operation);
+  } 
+
   bool IsUnique() const override { return is_unique_; }
 
  private:

@@ -1,3 +1,6 @@
+#ifndef LINEAIRDB_KEY_SERIALIZER_H
+#define LINEAIRDB_KEY_SERIALIZER_H
+
 #include <any>
 #include <cstdint>
 #include <ctime>
@@ -47,9 +50,11 @@ inline std::string SerializeKey(const std::any& value) {
   } else if (value.type() == typeid(std::time_t)) {
     return SerializeKey(std::any_cast<std::time_t>(value));
   } else {
-    throw std::runtime_error("Unsupported key type for SerializeKey");
+    return "";
   }
 }
 
 }  // namespace Util
 }  // namespace LineairDB
+
+#endif  // LINEAIRDB_KEY_SERIALIZER_H

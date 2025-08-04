@@ -19,15 +19,15 @@ class Table {
 
   template <typename T>
   bool CreateSecondaryIndex(
-      const std::string& index_name,
+      const std::string_view index_name,
       [[maybe_unused]] const SecondaryIndexOption::Constraint constraint) {
-    if (secondary_indices_.count(index_name)) {
+    if (secondary_indices_.count(std::string(index_name))) {
       return false;
     }
     bool is_unique = constraint == SecondaryIndexOption::Constraint::UNIQUE;
     auto new_index = std::make_unique<Index::SecondaryIndex<T>>(
         epoch_framework_, config_, is_unique);
-    secondary_indices_[index_name] = std::move(new_index);
+    secondary_indices_[std::string(index_name)] = std::move(new_index);
     return true;
   }
 
