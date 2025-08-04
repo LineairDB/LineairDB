@@ -79,12 +79,12 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
     tx.Write<int>("alice", current_value);
   });
 
-  size_t committed_count = TestHelper::DoTransactionsOnMultiThreads(
+  int committed_count = TestHelper::DoTransactionsOnMultiThreads(
       db_.get(), {increment, increment, increment, increment});
   db_->Fence();
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<size_t>("alice");
+                               auto alice = tx.Read<int>("alice");
                                ASSERT_TRUE(alice.has_value());
                                auto expected_value =
                                    initial_value + committed_count;
