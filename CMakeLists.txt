@@ -64,12 +64,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   endif()
 endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -Ofast -ffast-math -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -ffast-math -DNDEBUG")
 if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-  # Apple Sillicon (m1) does not support `march=native`. use `mcpu` instead.
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -mcpu=apple-m1")
+  # Apple Silicon (m1) does not support `march=native`. use `mcpu` instead.
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mcpu=apple-m1")
 else()
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -march=native")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 endif()
 
 # Build as library
@@ -100,12 +100,17 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
   target_link_libraries(${PROJECT_NAME} pthread)
-else()
-  if(APPLE) # Use libc++
-    target_link_libraries(${PROJECT_NAME} c++ stdc++fs atomic pthread)
-  else() # Use libstdc++
-    target_link_libraries(${PROJECT_NAME} stdc++ stdc++fs atomic pthread numa)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(APPLE)
+    target_link_libraries(${PROJECT_NAME} pthread)
+  else()
+    target_link_libraries(${PROJECT_NAME} stdc++ atomic pthread numa)
   endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_link_libraries(${PROJECT_NAME} stdc++ atomic pthread numa)
+else()
+  message(WARNING "Unknown compiler: ${CMAKE_CXX_COMPILER_ID}")
+  target_link_libraries(${PROJECT_NAME} pthread)
 endif()
 
 target_include_directories(
@@ -149,6 +154,10 @@ if(IS_TOPLEVEL_PROJECT AND BUILD_TESTS)
     add_subdirectory(third_party/googletest)
   endif()
   add_subdirectory(tests)
+  if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    # Suppress warnings about NaN and Infinity in gtest
+    set_target_properties(gtest PROPERTIES COMPILE_OPTIONS "-Wno-nan-infinity-disabled")
+  endif()
 endif()
 
 # Benchmarks
