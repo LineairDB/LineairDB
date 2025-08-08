@@ -647,7 +647,7 @@ TEST_F(DatabaseTest, SecondaryIndex_TypeConsistency) {
 }
 
 // test for notnull
-// WritePrimary後にWriteSecondaryを行わない場合、abortする
+// if tx does not write all secondary indices after WritePrimary, abort
 TEST_F(DatabaseTest, SecondaryIndex_NotNull) {
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>();
@@ -684,8 +684,8 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
   }
 
-  // Case 2: email に2回書いても、name が未達のため
-  // Abort（インデックス単位で一意に減算されることの検証）
+  // Case 2: if tx writes secondary index multiple times, abort
+  // (verification of unique constraint per index)
   {
     auto& tx = db_->BeginTransaction();
     tx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
@@ -697,7 +697,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
   }
 
-  // Case 3: email と name の両方に1回ずつ書いた場合のみ Commit
+  // Case 3: if tx writes both email and name, commit
   {
     auto& tx = db_->BeginTransaction();
     tx.WritePrimaryIndex<std::string_view>("users", "user#3", "Charlie");
