@@ -78,6 +78,7 @@ class SecondaryIndex : public ISecondaryIndex {
       secondary_index_;
   LineairDB::EpochFramework& epoch_manager_ref_;
   bool is_unique_;
+  std::mutex secondary_index_lock_;
 };
 
 }  // namespace Index

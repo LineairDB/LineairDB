@@ -35,11 +35,13 @@ class Table {
 
   Index::ISecondaryIndex* GetSecondaryIndex(const std::string_view index_name);
 
+  size_t GetSecondaryIndexCount() const { return secondary_indices_.size(); }
+
  private:
   EpochFramework& epoch_framework_;
   Config config_;
   Index::ConcurrentTable primary_index_;
-
+  std::mutex table_lock_;
   std::unordered_map<std::string, std::unique_ptr<Index::ISecondaryIndex>>
       secondary_indices_;
 };

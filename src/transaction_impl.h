@@ -25,6 +25,8 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "types/definitions.h"
@@ -89,6 +91,8 @@ class Transaction::Impl {
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
+  bool ValidateSKNotNull();
+
   void Abort();
   bool Precommit();
 
@@ -108,6 +112,12 @@ class Transaction::Impl {
 
   ReadSetType read_set_;
   WriteSetType write_set_;
+  struct PendingState {
+    size_t remaining;
+    std::unordered_set<std::string> satisfied_indices;
+  };
+  std::unordered_map<std::string, std::unordered_map<std::string, PendingState>>
+      pending_;
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_IMPL_H */

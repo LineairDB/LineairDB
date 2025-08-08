@@ -21,6 +21,7 @@
 #include <lineairdb/transaction.h>
 
 #include <algorithm>
+#include <iostream>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -246,13 +247,24 @@ void Transaction::Impl::WritePrimaryIndex(const std::string_view table_name,
     return;
   }
 
-  auto* index_leaf =
-      db_pimpl_->GetTable(table_name).GetPrimaryIndex().GetOrInsert(key);
+  auto& table = db_pimpl_->GetTable(table_name);
+  auto* index_leaf = table.GetPrimaryIndex().GetOrInsert(key);
+  bool is_new_insert = !index_leaf->IsInitialized();
 
   concurrency_control_->Write(qualified_key, value, size, index_leaf);
   Snapshot sp(qualified_key, value, size, index_leaf);
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
+
+  // Initialize pending_ only for new primary insert and when table has SK(s)
+  if (is_new_insert) {
+    size_t num_secondary = table.GetSecondaryIndexCount();
+    if (num_secondary > 0) {
+      auto& state = pending_[std::string(table_name)][std::string(key)];
+      state.remaining = num_secondary;
+      state.satisfied_indices.clear();
+    }
+  }
 }
 
 void Transaction::Impl::WriteSecondaryIndex(
@@ -269,8 +281,7 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   Table& table = db_pimpl_->GetTable(table_name);
   Index::ISecondaryIndex* index = table.GetSecondaryIndex(index_name);
-  auto primary_leaf =
-      db_pimpl_->GetTable(table_name).GetPrimaryIndex().Get(primary_key_view);
+  auto primary_leaf = table.GetPrimaryIndex().Get(primary_key_view);
 
   if (primary_leaf == nullptr) {
     Abort();
@@ -296,14 +307,11 @@ void Transaction::Impl::WriteSecondaryIndex(
                               std::string(index_name) + "#" +
                               std::string(serialized_key);
   // existing key
-  /*   DataItem* index_leaf = index->GetOrInsert(serialized_key);
-   *//*   if (index_leaf->IsInitialized()) {
-    //TODO : reconsider UNIQUE constraint check and separate GetOrInsert into Get and Insert
-    if (index->IsUnique()) {
-      Abort();
-      return;
-    }
-  } */
+  DataItem* index_leaf = index->GetOrInsert(serialized_key);
+  if (index_leaf->IsInitialized() && index->IsUnique()) {
+    Abort();
+    return;
+  }
 
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
@@ -314,14 +322,16 @@ void Transaction::Impl::WriteSecondaryIndex(
     }
   }
 
-  for (auto& snapshot : write_set_) {
+  bool added = false;
 
+  for (auto& snapshot : write_set_) {
     if (snapshot.key != qualified_key) continue;
 
     std::vector<std::string> new_pklist = Util::DecodePKList(
         snapshot.data_item_copy.value(), snapshot.data_item_copy.size());
-    for (auto p : new_pklist) {
+    for (auto& p : new_pklist) {
       if (p == primary_key_view) {
+        // already exists, do not decrement pending_
         return;
       }
     }
@@ -335,26 +345,60 @@ void Transaction::Impl::WriteSecondaryIndex(
     size_t value_size = encoded_value.size();
     snapshot.data_item_copy.Reset(value_ptr, value_size);
     if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
+
+    added = true;
+    break;
   }
 
-  auto* index_leaf = index->GetOrInsert(serialized_key);
+  if (!added) {
+    std::vector<std::string> existing_pklist =
+        Util::DecodePKList(index_leaf->value(), index_leaf->size());
 
-  std::vector<std::string> existing_pklist =
-      Util::DecodePKList(index_leaf->value(), index_leaf->size());
+    bool contains = false;
+    for (auto& p : existing_pklist) {
+      if (p == primary_key_view) {
+        contains = true;
+        break;
+      }
+    }
 
-  std::string encoded_value =
-      Util::EncodePKList(existing_pklist, primary_key_view);
+    if (!contains) {
+      std::string encoded_value =
+          Util::EncodePKList(existing_pklist, primary_key_view);
 
-  const std::byte* value_ptr =
-      reinterpret_cast<const std::byte*>(encoded_value.data());
-  size_t value_size = encoded_value.size();
+      const std::byte* value_ptr =
+          reinterpret_cast<const std::byte*>(encoded_value.data());
+      size_t value_size = encoded_value.size();
 
-  concurrency_control_->Write(qualified_key, value_ptr, value_size, index_leaf);
+      concurrency_control_->Write(qualified_key, value_ptr, value_size,
+                                  index_leaf);
 
-  Snapshot sp(qualified_key, value_ptr, value_size, index_leaf);
-  if (is_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
+      Snapshot sp(qualified_key, value_ptr, value_size, index_leaf);
+      if (is_rmf) sp.is_read_modify_write = true;
+      write_set_.emplace_back(std::move(sp));
+
+      added = true;
+    }
+  }
+
+  // decrement pending_ only if we actually added pk to SK
+  if (added) {
+    auto tbl_it = pending_.find(std::string(table_name));
+    if (tbl_it != pending_.end()) {
+      auto& per_table = tbl_it->second;
+      auto pk_it = per_table.find(std::string(primary_key_view));
+      if (pk_it != per_table.end()) {
+        auto& state = pk_it->second;
+        // decrement once per index_name for this PK
+        if (state.satisfied_indices.insert(std::string(index_name)).second) {
+          if (--state.remaining == 0) {
+            per_table.erase(pk_it);
+            if (per_table.empty()) pending_.erase(tbl_it);
+          }
+        }
+      }
+    }
+  }
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -402,6 +446,11 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
   }
   return result;
 };
+
+bool Transaction::Impl::ValidateSKNotNull() {
+  // 作成済みのすべてのSecondaryindexにおいて、SK→PKのマッピングが存在するかを確認する
+  return pending_.empty();
+}
 
 void Transaction::Impl::Abort() {
   if (!IsAborted()) {
@@ -483,6 +532,8 @@ const std::optional<size_t> Transaction::ScanSecondaryIndex(
   return tx_pimpl_->ScanSecondaryIndex(table_name, index_name, begin, end,
                                        operation);
 }
+
+bool Transaction::ValidateSKNotNull() { return tx_pimpl_->ValidateSKNotNull(); }
 
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }

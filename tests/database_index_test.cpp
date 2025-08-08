@@ -645,3 +645,67 @@ TEST_F(DatabaseTest, SecondaryIndex_TypeConsistency) {
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); });
   }
 }
+
+// test for notnull
+// WritePrimary後にWriteSecondaryを行わない場合、abortする
+TEST_F(DatabaseTest, SecondaryIndex_NotNull) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
+
+  auto& tx = db_->BeginTransaction();
+  tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+  tx.WriteSecondaryIndex<std::string_view>(
+      "users", "email", std::string("alice@example.com"), "user#1");
+  ASSERT_TRUE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+
+  auto& rtx = db_->BeginTransaction();
+  rtx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
+  ASSERT_FALSE(db_->EndTransaction(
+      rtx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+}
+
+TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "name"));
+
+  // Case 1: email のみ書いた場合は、name が未達のため Abort
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"), "user#1");
+    ASSERT_FALSE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+  }
+
+  // Case 2: email に2回書いても、name が未達のため
+  // Abort（インデックス単位で一意に減算されることの検証）
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("bob@example.com"), "user#2");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("bob@example.com"), "user#2");
+    ASSERT_FALSE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+  }
+
+  // Case 3: email と name の両方に1回ずつ書いた場合のみ Commit
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#3", "Charlie");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("charlie@example.com"), "user#3");
+    tx.WriteSecondaryIndex<std::string_view>("users", "name",
+                                             std::string("Charlie"), "user#3");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+}

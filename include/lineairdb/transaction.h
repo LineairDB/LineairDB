@@ -275,6 +275,8 @@ class Transaction {
         });
   }
 
+  bool ValidateSKNotNull();
+
   /**
    * @brief
    * Abort this transaction manually.
