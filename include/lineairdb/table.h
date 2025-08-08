@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 
@@ -21,6 +22,7 @@ class Table {
   bool CreateSecondaryIndex(
       const std::string_view index_name,
       [[maybe_unused]] const SecondaryIndexOption::Constraint constraint) {
+    std::unique_lock<std::shared_mutex> lk(table_lock_);
     if (secondary_indices_.count(std::string(index_name))) {
       return false;
     }
@@ -35,13 +37,16 @@ class Table {
 
   Index::ISecondaryIndex* GetSecondaryIndex(const std::string_view index_name);
 
-  size_t GetSecondaryIndexCount() const { return secondary_indices_.size(); }
+  size_t GetSecondaryIndexCount() const {
+    std::shared_lock<std::shared_mutex> lk(table_lock_);
+    return secondary_indices_.size();
+  }
 
  private:
   EpochFramework& epoch_framework_;
   Config config_;
   Index::ConcurrentTable primary_index_;
-  std::mutex table_lock_;
+  mutable std::shared_mutex table_lock_;
   std::unordered_map<std::string, std::unique_ptr<Index::ISecondaryIndex>>
       secondary_indices_;
 };

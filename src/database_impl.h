@@ -24,6 +24,7 @@
 #include <lineairdb/tx_status.h>
 
 #include <functional>
+#include <shared_mutex>
 #include <tuple>
 #include <utility>
 
@@ -247,6 +248,7 @@ class Database::Impl {
   }
 
   bool CreateTable(const std::string_view table_name) {
+    std::unique_lock<std::shared_mutex> lk(schema_mutex_);
     if (tables_.find(std::string(table_name)) != tables_.end()) {
       return false;
     }
@@ -260,6 +262,7 @@ class Database::Impl {
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
                             const SecondaryIndexOption::Constraint constraint) {
+    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
     auto it = tables_.find(std::string(table_name));
     if (it == tables_.end()) {
       return false;
@@ -268,6 +271,7 @@ class Database::Impl {
   }
 
   Table& GetTable(const std::string_view table_name) {
+    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
     auto it = tables_.find(std::string(table_name));
     if (it == tables_.end()) {
       throw std::runtime_error("Table not found");
@@ -318,6 +322,7 @@ class Database::Impl {
   std::unordered_map<std::string, Table> tables_;
   Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
+  mutable std::shared_mutex schema_mutex_;
 };
 
 // Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
