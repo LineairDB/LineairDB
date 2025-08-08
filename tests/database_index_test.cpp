@@ -463,6 +463,50 @@ TEST_F(DatabaseTest, InsertSKWithNonExistentPKShouldAbort) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
 }
 
+// UNIQUE: if tx tries to write same SK with different PK, abort
+TEST_F(DatabaseTest, Unique_SameTransaction_SameSK_DifferentPK_ShouldAbort) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email",
+                                                     Constraint::UNIQUE));
+
+  auto& tx = db_->BeginTransaction();
+  // insert 2 PKs in the same tx
+  tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+  tx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
+  // write same SK (email) to user#1 → then try to write same SK to user#2
+  tx.WriteSecondaryIndex<std::string_view>(
+      "users", "email", std::string("dup@example.com"), "user#1");
+  tx.WriteSecondaryIndex<std::string_view>(
+      "users", "email", std::string("dup@example.com"), "user#2");
+
+  ASSERT_FALSE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+}
+
+// UNIQUE: if tx writes same SK with same PK multiple times, it is idempotent
+// and should commit
+TEST_F(DatabaseTest,
+       Unique_SameTransaction_SameSK_SamePK_Idempotent_ShouldCommit) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email",
+                                                     Constraint::UNIQUE));
+
+  auto& tx = db_->BeginTransaction();
+  tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+  tx.WriteSecondaryIndex<std::string_view>(
+      "users", "email", std::string("ok@example.com"), "user#1");
+  // write same SK with same PK multiple times (idempotent)
+  tx.WriteSecondaryIndex<std::string_view>(
+      "users", "email", std::string("ok@example.com"), "user#1");
+
+  ASSERT_TRUE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+}
+
 // Test scan order for integer secondary keys
 TEST_F(DatabaseTest, ScanSecondaryIndex_IntegerOrder) {
   db_.reset(nullptr);
