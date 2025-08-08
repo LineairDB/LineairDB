@@ -18,10 +18,15 @@
 
 #include <lineairdb/config.h>
 #include <lineairdb/database.h>
+#include <lineairdb/secondary_index_option.h>
+#include <lineairdb/table.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
 
 #include <functional>
+#include <shared_mutex>
+#include <tuple>
+#include <utility>
 
 #include "callback/callback_manager.h"
 #include "index/concurrent_table.h"
@@ -47,6 +52,7 @@ class Database::Impl {
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
         index_(epoch_framework_, config_),
+
         checkpoint_manager_(config_, index_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
@@ -100,6 +106,16 @@ class Database::Impl {
           return;
         }
 
+        // Enforce NOT NULL constraint before precommit
+        if (!tx.ValidateSKNotNull()) {
+          tx.Abort();
+          if (precommit_clbk)
+            precommit_clbk.value()(LineairDB::TxStatus::Aborted);
+          callback(LineairDB::TxStatus::Aborted);
+          epoch_framework_.MakeMeOffline();
+          return;
+        }
+
         bool committed = tx.Precommit();
         if (committed) {
           tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
@@ -139,6 +155,15 @@ class Database::Impl {
       return false;
     }
 
+    // Enforce NOT NULL: if some SK writes are missing for inserted PK(s), abort
+    if (!tx.ValidateSKNotNull()) {
+      tx.Abort();
+      clbk(TxStatus::Aborted);
+      delete &tx;
+      epoch_framework_.MakeMeOffline();
+      return false;
+    }
+
     bool committed = tx.Precommit();
     if (committed) {
       tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
@@ -150,7 +175,6 @@ class Database::Impl {
       if (config_.enable_logging) {
         logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
       }
-
     } else {
       tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
       clbk(TxStatus::Aborted);
@@ -223,6 +247,38 @@ class Database::Impl {
     return checkpoint_manager_.IsNeedToCheckpointing(epoch);
   }
 
+  bool CreateTable(const std::string_view table_name) {
+    std::unique_lock<std::shared_mutex> lk(schema_mutex_);
+    if (tables_.find(std::string(table_name)) != tables_.end()) {
+      return false;
+    }
+    auto [it, inserted] = tables_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(table_name),
+        std::forward_as_tuple(epoch_framework_, config_));
+    return inserted;
+  }
+
+  template <typename T>
+  bool CreateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
+                            const SecondaryIndexOption::Constraint constraint) {
+    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
+    auto it = tables_.find(std::string(table_name));
+    if (it == tables_.end()) {
+      return false;
+    }
+    return it->second.CreateSecondaryIndex<T>(index_name, constraint);
+  }
+
+  Table& GetTable(const std::string_view table_name) {
+    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
+    auto it = tables_.find(std::string(table_name));
+    if (it == tables_.end()) {
+      throw std::runtime_error("Table not found");
+    }
+    return it->second;
+  }
+
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
@@ -238,6 +294,7 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
+
     auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
     local_epoch = durable_epoch;
 
@@ -262,8 +319,10 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
+  std::unordered_map<std::string, Table> tables_;
   Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
+  mutable std::shared_mutex schema_mutex_;
 };
 
 // Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
