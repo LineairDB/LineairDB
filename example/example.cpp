@@ -48,10 +48,10 @@ int main() {
     auto& tx = db.BeginTransaction();
     tx.Read<int>("alice");
     tx.Write<int>("alice", 1);
-    db.EndTransaction(tx, [&](auto s) { status = s; });
+    bool committed = db.EndTransaction(tx, [&](auto s) { status = s; });
     // Fence: Block-wait until all running transactions are terminated
     db.Fence();
-    assert(status == LineairDB::TxStatus::Committed);
+    assert(committed);
   }
 
   {
