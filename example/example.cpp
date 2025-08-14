@@ -142,7 +142,7 @@ int main() {
       db.Fence();
     }
 
-    // Scan secondary index (lex order over SK)
+    // Scan secondary index
     {
       auto& tx = db.BeginTransaction();
       auto count = tx.ScanSecondaryIndex<std::string_view>(
@@ -158,7 +158,7 @@ int main() {
       db.Fence();
     }
 
-    // Scan primary index (range over PK in a table)
+    // Scan primary index
     {
       auto& tx = db.BeginTransaction();
       auto count = tx.ScanPrimaryIndex<std::string_view>(
@@ -198,6 +198,50 @@ int main() {
       assert(new_pks[0] == std::string("user#1"));
       assert(old_pks.empty());
       db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+    }
+  }
+
+  {
+    // UNIQUE constraint example for secondary index
+    LineairDB::Database db;
+    bool ok = db.CreateTable("users_unique");
+    assert(ok);
+    ok = db.CreateSecondaryIndex<std::string>(
+        "users_unique", "email",
+        LineairDB::SecondaryIndexOption::Constraint::UNIQUE);
+    assert(ok);
+
+    // First insert should commit
+    {
+      auto& tx = db.BeginTransaction();
+      tx.WritePrimaryIndex<std::string_view>("users_unique", "user#1", "Bob");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users_unique", "email", std::string("bob@example.com"), "user#1");
+      bool committed = db.EndTransaction(tx, [](auto) {});
+      db.Fence();
+      assert(committed);
+    }
+
+    // Second insert with duplicate email should abort
+    {
+      auto& tx = db.BeginTransaction();
+      tx.WritePrimaryIndex<std::string_view>("users_unique", "user#2", "Bobby");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users_unique", "email", std::string("bob@example.com"), "user#2");
+      bool committed = db.EndTransaction(tx, [](auto) {});
+      db.Fence();
+      assert(!committed);
+    }
+
+    // Verify that only the first PK is registered for the email
+    {
+      auto& tx = db.BeginTransaction();
+      auto pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users_unique", "email", std::string("bob@example.com"));
+      assert(pks.size() == 1u);
+      assert(pks[0] == std::string("user#1"));
+      db.EndTransaction(tx, [](auto) {});
       db.Fence();
     }
   }
