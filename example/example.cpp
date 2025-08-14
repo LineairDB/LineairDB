@@ -22,33 +22,26 @@
 int main() {
   {
     LineairDB::Database db;
-    LineairDB::TxStatus status;
-
-    // Execute: enqueue a transaction with an expected callback
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          if (alice.has_value()) {
-            std::cout << "alice is recovered: " << alice.value() << std::endl;
-          }
-          tx.Write<int>("alice", 1);
-        },
-        [&](LineairDB::TxStatus s) { status = s; });
-
-    // Fence: Block-wait until all running transactions are terminated
+    // tests/database_index_test.cpp の形式に合わせて同期実行
+    auto& tx = db.BeginTransaction();
+    auto alice = tx.Read<int>("alice");
+    if (alice.has_value()) {
+      std::cout << "alice is recovered: " << alice.value() << std::endl;
+    }
+    tx.Write<int>("alice", 1);
+    bool committed = db.EndTransaction(tx, [](auto) {});
     db.Fence();
-    assert(status == LineairDB::TxStatus::Committed);
+    assert(committed);
   }
 
   {
     LineairDB::Database db;
-    LineairDB::TxStatus status;
 
     // Handler interface: execute a transaction on this thread
     auto& tx = db.BeginTransaction();
     tx.Read<int>("alice");
     tx.Write<int>("alice", 1);
-    bool committed = db.EndTransaction(tx, [&](auto s) { status = s; });
+    bool committed = db.EndTransaction(tx, [](auto) {});
     // Fence: Block-wait until all running transactions are terminated
     db.Fence();
     assert(committed);
@@ -68,13 +61,12 @@ int main() {
     // Here we have instantiated and destructed LineariDB twice, and
     // we can recover stored data from durable logs.
     LineairDB::Database db;
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          assert(alice.has_value());
-          assert(alice.value() == 1);
-        },
-        [&](LineairDB::TxStatus s) {});
+    auto& tx = db.BeginTransaction();
+    auto alice = tx.Read<int>("alice");
+    assert(alice.has_value());
+    assert(alice.value() == 1);
+    db.EndTransaction(tx, [](auto) {});
+    db.Fence();
   }
 
   {
@@ -91,13 +83,14 @@ int main() {
     // this object after instantiation of LineairDB.
     //    NG: config.max_thread = 10;
 
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          // Any data item is not recovered
-          assert(!alice.has_value());
-        },
-        [&](LineairDB::TxStatus s) {});
+    {
+      auto& tx2 = db.BeginTransaction();
+      auto alice2 = tx2.Read<int>("alice");
+      // Any data item is not recovered
+      assert(!alice2.has_value());
+      db.EndTransaction(tx2, [](auto) {});
+      db.Fence();
+    }
   }
 
   {
