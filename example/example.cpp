@@ -160,7 +160,8 @@ int main() {
       auto& tx = db.BeginTransaction();
       auto count = tx.ScanSecondaryIndex<std::string_view>(
           "users", "email", std::string("a"), std::string("z"),
-          [&](std::string_view /*sk*/, const std::vector<std::string>& pks) {
+          [&](std::string_view /*sk*/,
+              const std::vector<std::string_view>& pks) {
             // Stop early if we found at least one
             return !pks.empty();
           });
