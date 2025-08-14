@@ -381,7 +381,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexTimeKey) {
 
   auto& rtx = db_->BeginTransaction();
   auto pk = rtx.ReadSecondaryIndex<std::time_t>("users", "created_at", ts);
-  auto val = rtx.ReadPrimapryIndex<int>("users", pk.at(0));
+  auto val = rtx.ReadPrimaryIndex<int>("users", pk.at(0));
   ASSERT_EQ(val.value(), 30);
   db_->EndTransaction(rtx, [](auto) {});
 }
