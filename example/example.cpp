@@ -157,19 +157,23 @@ int main() {
 
     // Scan secondary index (lex order over SK)
     {
-      auto& tx = db.BeginTransaction();
-      auto count = tx.ScanSecondaryIndex<std::string_view>(
-          "users", "email", std::string("a"), std::string("z"),
-          [&](std::string_view /*sk*/,
-              const std::vector<std::string_view>& pks) {
-            // Stop early if we found at least one
-            return !pks.empty();
-          });
-      assert(count.has_value());
-      bool committed = db.EndTransaction(tx, [&](auto s) {
-        (void)s; /* ignore */
-      });
-      db.Fence();
+      bool committed = false;
+      for (int attempt = 0; attempt < 8 && !committed; ++attempt) {
+        auto& tx = db.BeginTransaction();
+        auto count = tx.ScanSecondaryIndex<std::string_view>(
+            "users", "email", std::string("a"), std::string("z"),
+            [&](std::string_view /*sk*/,
+                const std::vector<std::string_view>& pks) {
+              // Stop early if we found at least one
+              return !pks.empty();
+            });
+        // If scan aborted due to overlap, the transaction will abort below
+        if (count.has_value()) {
+          assert(count.value() >= 1);
+        }
+        committed = db.EndTransaction(tx, [&](auto s) { (void)s; });
+        db.Fence();
+      }
       assert(committed);
     }
 
