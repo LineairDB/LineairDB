@@ -85,11 +85,24 @@ class Transaction::Impl {
                          const std::pair<const void*, const size_t>)>
           operation);
 
+  const std::optional<size_t> ScanPrimaryIndex(
+      const std::string_view table_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
+
   const std::optional<size_t> ScanSecondaryIndex(
       const std::string_view table_name, const std::string_view index_name,
       const std::any& begin, const std::any& end,
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
+
+  void UpdateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
+                            const std::any& old_key, const std::any& new_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
 
   bool ValidateSKNotNull();
 
@@ -103,6 +116,20 @@ class Transaction::Impl {
 
  private:
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
+
+  // --- helpers for secondary index operations ---
+  bool FindWriteSnapshot(const std::string& qualified_key, Snapshot** out);
+  void MarkRMFIfRead(const std::string& qualified_key);
+  std::vector<std::string> DecodeCurrentPKList(const std::string& qualified_key,
+                                               DataItem* leaf);
+  void WriteEncodedPKList(const std::string& qualified_key, DataItem* leaf,
+                          const std::string& encoded_value, bool mark_rmf);
+  void WriteEncodedPKList(Snapshot& existing_snapshot,
+                          const std::string& encoded_value, bool mark_rmf);
+  bool RemovePKFromList(std::vector<std::string>& lst, std::string_view pk);
+  bool AppendPKIfAbsent(std::vector<std::string>& lst, std::string_view pk);
+  bool IsKeyInReadSet(const std::string& qualified_key) const;
+  std::string EncodePKBytes(const std::vector<std::string>& list) const;
 
  private:
   TxStatus current_status_;

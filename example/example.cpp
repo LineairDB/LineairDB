@@ -99,4 +99,124 @@ int main() {
         },
         [&](LineairDB::TxStatus s) {});
   }
+
+  {
+    // Table and Secondary Index usage example
+    LineairDB::Database db;
+
+    // Create table and secondary index
+    bool ok = db.CreateTable("users");
+    assert(ok);
+    ok = db.CreateSecondaryIndex<std::string>("users", "email");
+    assert(ok);
+
+    // Insert rows: primary and secondary
+    {
+      auto& tx = db.BeginTransaction();
+      tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"), "user#1");
+
+      tx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users", "email", std::string("bob@example.com"), "user#2");
+
+      bool committed = db.EndTransaction(tx, [&](auto s) {
+        (void)s; /* callback not relied upon here */
+      });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Read primary index
+    {
+      auto& tx = db.BeginTransaction();
+      auto v = tx.ReadPrimaryIndex<std::string_view>("users", "user#1");
+      assert(v.has_value());
+      assert(v.value() == std::string("Alice"));
+      bool committed = db.EndTransaction(tx, [&](auto s) {
+        (void)s; /* ignore */
+      });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Read secondary index (email -> PK list)
+    {
+      auto& tx = db.BeginTransaction();
+      auto pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"));
+      assert(!pks.empty());
+      assert(pks[0] == std::string("user#1"));
+      bool committed = db.EndTransaction(tx, [&](auto s) {
+        (void)s; /* ignore */
+      });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Scan secondary index (lex order over SK)
+    {
+      auto& tx = db.BeginTransaction();
+      auto count = tx.ScanSecondaryIndex<std::string_view>(
+          "users", "email", std::string("a"), std::string("z"),
+          [&](std::string_view /*sk*/, const std::vector<std::string>& pks) {
+            // Stop early if we found at least one
+            return !pks.empty();
+          });
+      assert(count.has_value());
+      bool committed = db.EndTransaction(tx, [&](auto s) {
+        (void)s; /* ignore */
+      });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Scan primary index (range over PK in a table)
+    {
+      auto& tx = db.BeginTransaction();
+      auto count = tx.ScanPrimaryIndex<std::string_view>(
+          "users", "user#1", std::string("user#9"), [&](auto key, auto value) {
+            if (key == std::string("user#1")) {
+              assert(value == std::string("Alice"));
+            }
+            if (key == std::string("user#2")) {
+              assert(value == std::string("Bob"));
+            }
+            return false;  // continue scan
+          });
+      assert(count.has_value());
+      bool committed = db.EndTransaction(tx, [&](auto s) {
+        (void)s; /* ignore */
+      });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Update secondary index (move SK from old to new)
+    {
+      auto& tx = db.BeginTransaction();
+      tx.UpdateSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"),
+          std::string("alice@new.com"), "user#1");
+      bool committed = db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Verify update result on secondary index
+    {
+      auto& tx = db.BeginTransaction();
+      auto new_pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@new.com"));
+      auto old_pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"));
+      assert(!new_pks.empty());
+      assert(new_pks[0] == std::string("user#1"));
+      assert(old_pks.empty());
+      bool committed = db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+      assert(committed);
+    }
+  }
 }

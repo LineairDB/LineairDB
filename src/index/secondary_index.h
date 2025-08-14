@@ -69,9 +69,17 @@ class SecondaryIndex : public ISecondaryIndex {
       std::string_view begin, std::string_view end,
       std::function<bool(std::string_view)> operation) override {
     return secondary_index_->Scan(begin, end, operation);
-  } 
+  }
 
   bool IsUnique() const override { return is_unique_; }
+
+  bool DeleteKey(std::string_view serialized_key) override {
+    // Range-only deletion to hide the key from scans.
+    // Point index does not support erase currently.
+    // Implement as a method on HashTableWithPrecisionLockingIndex when
+    // available.
+    return secondary_index_->EraseRangeOnly(serialized_key);
+  }
 
  private:
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>>

@@ -70,7 +70,7 @@ inline PKListView DecodePKList(std::string_view bytes,
       throw std::runtime_error("PKList decode error: truncated payload");
     }
     storage.emplace_back(p, len);        // copy contents
-    views.emplace_back(storage.back());  // string_view 指す
+    views.emplace_back(storage.back());  // string_view points to storage
     p += len;
   }
   return views;
@@ -78,7 +78,6 @@ inline PKListView DecodePKList(std::string_view bytes,
 
 // -----------------------------------------------------------------
 // DecodePKListOwned : contiguous bytes -> vector<std::string>
-// 呼び出し側が PKList のライフタイムを気にせず済む安全版 API。
 // -----------------------------------------------------------------
 inline std::vector<std::string> DecodePKListOwned(std::string_view bytes) {
   std::vector<std::string> out;

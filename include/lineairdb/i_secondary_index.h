@@ -24,6 +24,10 @@ class ISecondaryIndex {
       std::function<bool(std::string_view)> operation) = 0;
 
   virtual bool IsUnique() const = 0;
+
+  // delete a secondary key from range index (and optionally point index)
+  // return false if rejected by phantom-avoidance
+  virtual bool DeleteKey(std::string_view serialized_key) = 0;
 };
 }  // namespace Index
 }  // namespace LineairDB

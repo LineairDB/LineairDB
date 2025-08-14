@@ -1,14 +1,8 @@
 #pragma once
 
-namespace LineairDB
-{
+namespace LineairDB {
 
-    struct SecondaryIndexOption
-    {
-        enum class Constraint
-        {
-            NONE,
-            UNIQUE
-        };
-    };
-} // namespace LineairDB
+struct SecondaryIndexOption {
+  enum class Constraint { NONE, UNIQUE };
+};
+}  // namespace LineairDB

@@ -151,10 +151,10 @@ class Database {
    */
   void RequestCallbacks();
 
-  //implement lock for concurrent access to the database
+  // implement lock for concurrent access to the database
   bool CreateTable(const std::string_view table_name);
 
-  //implement UNIQUE constraint for secondary index
+  // implement UNIQUE constraint for secondary index
   template <typename T>
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
@@ -166,7 +166,6 @@ class Database {
   const std::unique_ptr<Impl> db_pimpl_;
   friend class Transaction;
 };
-
 };  // namespace LineairDB
 
 #endif

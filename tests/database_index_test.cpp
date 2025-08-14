@@ -119,6 +119,40 @@ TEST_F(DatabaseTest, WriteAndReadPrimaryIndex) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 }
 
+// Scan test fot primary index
+TEST_F(DatabaseTest, ScanPrimaryIndex) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  int alice = 1;
+  int bob = 2;
+  int carol = 3;
+  db_->CreateTable("users");
+  auto& tx = db_->BeginTransaction();
+  tx.WritePrimaryIndex<int>("users", "Alice", alice);
+  tx.WritePrimaryIndex<int>("users", "Bob", bob);
+  tx.WritePrimaryIndex<int>("users", "Carol", carol);
+  ASSERT_TRUE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  auto& rtx = db_->BeginTransaction();
+  auto count = rtx.ScanPrimaryIndex<decltype(alice)>(
+      "users", "Alice", "Carol", [&](auto key, auto value) {
+        if (key == std::string("Alice")) {
+          EXPECT_EQ(alice, value);
+        }
+        if (key == std::string("Bob")) {
+          EXPECT_EQ(bob, value);
+        }
+        if (key == std::string("Carol")) {
+          EXPECT_EQ(carol, value);
+        }
+        return false;
+      });
+  if (count.has_value()) {
+    ASSERT_EQ(count.value(), 3);
+  }
+  db_->EndTransaction(rtx, [](auto) {});
+}
+
 // ---------------- Variant key type insertion tests ----------------
 
 TEST_F(DatabaseTest, InsertSecondaryIndexStringKey) {
@@ -229,15 +263,15 @@ TEST_F(DatabaseTest, ReadSecondaryIndexStringKey) {
   auto& tx = db_->BeginTransaction();
   int age = 42;
   tx.WritePrimaryIndex<int>("users", "user#1", age);
-  // 第三引数にstringを指定しないとエラーになる
+  // Passing std::string explicitly for the third argument avoids type mismatch
   tx.WriteSecondaryIndex<std::string_view>(
       "users", "email", std::string("alice@example.com"), "user#1");
 
-  // 先に書き込みトランザクションをコミット
+  // Commit the writing transaction first
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
   auto& rtx = db_->BeginTransaction();
-  // 第三引数にstringを指定しないとエラーになる
+  // Passing std::string explicitly for the third argument avoids type mismatch
   auto pk = rtx.ReadSecondaryIndex<std::string_view>(
       "users", "email", std::string("alice@example.com"));
   auto val = rtx.ReadPrimaryIndex<int>("users", pk.at(0));
@@ -262,7 +296,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysStringKey) {
   tx.WriteSecondaryIndex<std::string_view>(
       "users", "email", std::string("alice@example.com"), "user#2");
 
-  // 先に書き込みトランザクションをコミット
+  // Commit the writing transaction first
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
   auto& rtx = db_->BeginTransaction();
@@ -288,7 +322,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexIntKey) {
   tx.WritePrimaryIndex<int>("users", "user#2", age);
   tx.WriteSecondaryIndex<std::string_view>("users", "age", 20, "user#2");
 
-  // 書き込みトランザクションをコミット
+  // Commit the writing transaction
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 
@@ -313,7 +347,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysIntKey) {
   tx.WriteSecondaryIndex<std::string_view>("users", "age", 20, "user#2");
   tx.WriteSecondaryIndex<std::string_view>("users", "age", 20, "user#3");
 
-  // 書き込みトランザクションをコミット
+  // Commit the writing transaction
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 
@@ -341,13 +375,13 @@ TEST_F(DatabaseTest, ReadSecondaryIndexTimeKey) {
   tx.WritePrimaryIndex<int>("users", "user#3", age);
   tx.WriteSecondaryIndex<std::string_view>("users", "created_at", ts, "user#3");
 
-  // 書き込みトランザクションをコミット
+  // Commit the writing transaction
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 
   auto& rtx = db_->BeginTransaction();
   auto pk = rtx.ReadSecondaryIndex<std::time_t>("users", "created_at", ts);
-  auto val = rtx.ReadPrimaryIndex<int>("users", pk.at(0));
+  auto val = rtx.ReadPrimapryIndex<int>("users", pk.at(0));
   ASSERT_EQ(val.value(), 30);
   db_->EndTransaction(rtx, [](auto) {});
 }
@@ -368,7 +402,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysTimeKey) {
   tx.WriteSecondaryIndex<std::string_view>("users", "created_at", ts, "user#3");
   tx.WriteSecondaryIndex<std::string_view>("users", "created_at", ts, "user#4");
 
-  // 書き込みトランザクションをコミット
+  // Commit the writing transaction
   ASSERT_TRUE(db_->EndTransaction(
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 
@@ -437,7 +471,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexToUnregisteredIndexShouldAbort) {
   ASSERT_TRUE(db_->CreateTable("users"));
 
   auto& tx = db_->BeginTransaction();
-  // こっちではエラーにならない
+  // This side does not result in an error
   tx.ReadSecondaryIndex<std::string_view>("users", "email",
                                           "alice@example.com");
   db_->EndTransaction(
@@ -718,7 +752,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "name"));
 
-  // Case 1: email のみ書いた場合は、name が未達のため Abort
+  // Case 1: if tx does not write all secondary indices, abort
   {
     auto& tx = db_->BeginTransaction();
     tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
@@ -752,4 +786,185 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
     ASSERT_TRUE(db_->EndTransaction(
         tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
   }
+}
+
+// test for update SecondaryIndex
+TEST_F(DatabaseTest, SecondaryIndex_Update) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
+
+  auto& tx = db_->BeginTransaction();
+  tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+  tx.WriteSecondaryIndex<std::string_view>(
+      "users", "email", std::string("alice@example.com"), "user#1");
+  tx.UpdateSecondaryIndex<std::string_view>(
+      "users", "email", std::string("alice@example.com"),
+      std::string("alice@example.com"), "user#1");
+  ASSERT_TRUE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+}
+
+// UpdateSecondaryIndex: moving SK succeeds
+TEST_F(DatabaseTest, SecondaryIndex_Update_MoveSK) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
+
+  // Initial registration
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"), "user#1");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+
+  // Update SK: alice@example.com -> alice@new.com
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.UpdateSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"),
+        std::string("alice@new.com"), "user#1");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+
+  // Verification
+  {
+    auto& rtx = db_->BeginTransaction();
+    auto old_pk = rtx.ReadSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"));
+    auto new_pk = rtx.ReadSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@new.com"));
+    ASSERT_TRUE(db_->EndTransaction(
+        rtx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+
+    ASSERT_TRUE(old_pk.empty());
+    ASSERT_EQ(new_pk.size(), 1u);
+    EXPECT_EQ(new_pk[0], std::string("user#1"));
+  }
+}
+
+// UpdateSecondaryIndex: update to the same SK is a no-op
+TEST_F(DatabaseTest, SecondaryIndex_Update_NoOp_SameKey) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"), "user#1");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.UpdateSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"),
+        std::string("alice@example.com"), "user#1");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+
+  {
+    auto& rtx = db_->BeginTransaction();
+    auto pk = rtx.ReadSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"));
+    ASSERT_TRUE(db_->EndTransaction(
+        rtx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+    ASSERT_EQ(pk.size(), 1u);
+    EXPECT_EQ(pk[0], std::string("user#1"));
+  }
+}
+
+// UpdateSecondaryIndex: abort on UNIQUE constraint violation
+TEST_F(DatabaseTest, SecondaryIndex_Update_UniqueViolation) {
+  using Constraint = LineairDB::SecondaryIndexOption::Constraint;
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email",
+                                                     Constraint::UNIQUE));
+
+  // Register user#2 -> bob@example.com, user#1 -> alice@example.com
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("bob@example.com"), "user#2");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+    tx.WriteSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"), "user#1");
+    ASSERT_TRUE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+  }
+
+  // Updating user#1 to bob@example.com causes abort due to UNIQUE constraint
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.UpdateSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"),
+        std::string("bob@example.com"), "user#1");
+    ASSERT_FALSE(db_->EndTransaction(
+        tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+  }
+
+  // Verify: unchanged
+  {
+    auto& rtx = db_->BeginTransaction();
+    auto pk_bob = rtx.ReadSecondaryIndex<std::string_view>(
+        "users", "email", std::string("bob@example.com"));
+    auto pk_alice = rtx.ReadSecondaryIndex<std::string_view>(
+        "users", "email", std::string("alice@example.com"));
+    ASSERT_TRUE(db_->EndTransaction(
+        rtx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
+
+    ASSERT_EQ(pk_bob.size(), 1u);
+    EXPECT_EQ(pk_bob[0], std::string("user#2"));
+    ASSERT_EQ(pk_alice.size(), 1u);
+    EXPECT_EQ(pk_alice[0], std::string("user#1"));
+  }
+}
+
+// UpdateSecondaryIndex: abort when updating an unregistered index
+TEST_F(DatabaseTest, SecondaryIndex_Update_UnregisteredIndexShouldAbort) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+
+  auto& tx = db_->BeginTransaction();
+  tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+  tx.UpdateSecondaryIndex<std::string_view>(
+      "users", "email", std::string("alice@example.com"),
+      std::string("alice@new.com"), "user#1");
+  ASSERT_FALSE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
+}
+
+// UpdateSecondaryIndex: abort when updating a non-existent PK
+TEST_F(DatabaseTest, SecondaryIndex_Update_PrimaryKeyNotExistShouldAbort) {
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>();
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
+
+  auto& tx = db_->BeginTransaction();
+  tx.UpdateSecondaryIndex<std::string_view>(
+      "users", "email", std::string("alice@example.com"),
+      std::string("alice@new.com"), "user#999");
+  ASSERT_FALSE(db_->EndTransaction(
+      tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
 }

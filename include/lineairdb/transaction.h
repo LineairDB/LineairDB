@@ -250,6 +250,27 @@ class Transaction {
     });
   }
 
+  // Scan primary index in a specific table
+  const std::optional<size_t> ScanPrimaryIndex(
+      const std::string_view table_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
+
+  template <typename T>
+  const std::optional<size_t> ScanPrimaryIndex(
+      const std::string_view table_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, T)> operation) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to trivially copyable types.");
+    return ScanPrimaryIndex(table_name, begin, end, [&](auto key, auto pair) {
+      const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
+      return operation(key, copy_constructed);
+    });
+  }
+
   const std::optional<size_t> ScanSecondaryIndex(
       const std::string_view table_name, const std::string_view index_name,
       const std::any& begin, const std::any& end,
@@ -273,6 +294,25 @@ class Transaction {
           }
           return operation(key, copy_constructed_results);
         });
+  }
+
+  void UpdateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
+                            const std::any& old_key, const std::any& new_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
+
+  template <typename T>
+  void UpdateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
+                            const std::any& old_key, const std::any& new_key,
+                            const T& primary_key) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    std::byte buffer[sizeof(T)];
+    std::memcpy(buffer, &primary_key, sizeof(T));
+    UpdateSecondaryIndex(table_name, index_name, old_key, new_key, buffer,
+                         sizeof(T));
   }
 
   bool ValidateSKNotNull();
