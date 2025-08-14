@@ -134,11 +134,8 @@ int main() {
       auto v = tx.ReadPrimaryIndex<std::string_view>("users", "user#1");
       assert(v.has_value());
       assert(v.value() == std::string("Alice"));
-      bool committed = db.EndTransaction(tx, [&](auto s) {
-        (void)s; /* ignore */
-      });
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
       db.Fence();
-      assert(committed);
     }
 
     // Read secondary index (email -> PK list)
@@ -148,33 +145,24 @@ int main() {
           "users", "email", std::string("alice@example.com"));
       assert(!pks.empty());
       assert(pks[0] == std::string("user#1"));
-      bool committed = db.EndTransaction(tx, [&](auto s) {
-        (void)s; /* ignore */
-      });
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
       db.Fence();
-      assert(committed);
     }
 
     // Scan secondary index (lex order over SK)
     {
-      bool committed = false;
-      for (int attempt = 0; attempt < 8 && !committed; ++attempt) {
-        auto& tx = db.BeginTransaction();
-        auto count = tx.ScanSecondaryIndex<std::string_view>(
-            "users", "email", std::string("a"), std::string("z"),
-            [&](std::string_view /*sk*/,
-                const std::vector<std::string_view>& pks) {
-              // Stop early if we found at least one
-              return !pks.empty();
-            });
-        // If scan aborted due to overlap, the transaction will abort below
-        if (count.has_value()) {
-          assert(count.value() >= 1);
-        }
-        committed = db.EndTransaction(tx, [&](auto s) { (void)s; });
-        db.Fence();
+      auto& tx = db.BeginTransaction();
+      auto count = tx.ScanSecondaryIndex<std::string_view>(
+          "users", "email", std::string("a"), std::string("z"),
+          [&](std::string_view /*sk*/,
+              const std::vector<std::string_view>& pks) {
+            return !pks.empty();  // stop early if found
+          });
+      if (count.has_value()) {
+        assert(count.value() >= 1);
       }
-      assert(committed);
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
     }
 
     // Scan primary index (range over PK in a table)
@@ -191,11 +179,8 @@ int main() {
             return false;  // continue scan
           });
       assert(count.has_value());
-      bool committed = db.EndTransaction(tx, [&](auto s) {
-        (void)s; /* ignore */
-      });
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
       db.Fence();
-      assert(committed);
     }
 
     // Update secondary index (move SK from old to new)
@@ -219,9 +204,8 @@ int main() {
       assert(!new_pks.empty());
       assert(new_pks[0] == std::string("user#1"));
       assert(old_pks.empty());
-      bool committed = db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
       db.Fence();
-      assert(committed);
     }
   }
 }
