@@ -17,9 +17,9 @@ class Table {
   Index::ConcurrentTable& GetPrimaryIndex() { return primary_index_; }
 
  private:
-  EpochFramework& epoch_framework_;
-  Config config_;
+  // EpochFramework& epoch_framework_;
+  // Config config_;
   Index::ConcurrentTable primary_index_;
-  mutable std::shared_mutex table_lock_;
+  // mutable std::shared_mutex table_lock_;
 };
 }  // namespace LineairDB

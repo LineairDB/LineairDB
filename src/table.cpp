@@ -7,7 +7,5 @@
 
 namespace LineairDB {
 Table::Table(EpochFramework& epoch_framework, const Config& config)
-    : epoch_framework_(epoch_framework),
-      config_(config),
-      primary_index_(epoch_framework, config) {}
+    : primary_index_(epoch_framework, config) {}
 }  // namespace LineairDB
