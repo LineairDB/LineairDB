@@ -150,6 +150,8 @@ class Database {
    */
   void RequestCallbacks();
 
+  bool CreateTable(const std::string_view table_name);
+
  private:
   class Impl;
   const std::unique_ptr<Impl> db_pimpl_;
