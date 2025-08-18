@@ -20,8 +20,12 @@
 #include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
+#include <table.h>
 
 #include <functional>
+#include <shared_mutex>
+#include <tuple>
+#include <utility>
 
 #include "callback/callback_manager.h"
 #include "index/concurrent_table.h"
@@ -223,6 +227,26 @@ class Database::Impl {
     return checkpoint_manager_.IsNeedToCheckpointing(epoch);
   }
 
+  bool CreateTable(const std::string_view table_name) {
+    std::unique_lock<std::shared_mutex> lk(schema_mutex_);
+    if (tables_.find(std::string(table_name)) != tables_.end()) {
+      return false;
+    }
+    auto [it, inserted] = tables_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(table_name),
+        std::forward_as_tuple(epoch_framework_, config_));
+    return inserted;
+  }
+
+  Table& GetTable(const std::string_view table_name) {
+    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
+    auto it = tables_.find(std::string(table_name));
+    if (it == tables_.end()) {
+      throw std::runtime_error("Table not found");
+    }
+    return it->second;
+  }
+
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
@@ -262,8 +286,10 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
+  std::unordered_map<std::string, Table> tables_;
   Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
+  mutable std::shared_mutex schema_mutex_;
 };
 
 // Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
