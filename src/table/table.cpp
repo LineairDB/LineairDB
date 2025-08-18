@@ -1,4 +1,4 @@
-#include "lineairdb/table.h"
+#include "table/table.h"
 
 #include <shared_mutex>
 #include <tuple>
@@ -11,7 +11,7 @@ Table::Table(EpochFramework& epoch_framework, const Config& config)
       config_(config),
       primary_index_(epoch_framework, config) {}
 
-Index::ISecondaryIndex* Table::GetSecondaryIndex(
+Index::SecondaryIndexInterface* Table::GetSecondaryIndex(
     const std::string_view index_name) {
   std::shared_lock<std::shared_mutex> lk(table_lock_);
   auto it = secondary_indices_.find(std::string(index_name));

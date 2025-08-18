@@ -18,10 +18,9 @@
 
 #include <lineairdb/config.h>
 #include <lineairdb/database.h>
-#include <lineairdb/secondary_index_option.h>
-#include <lineairdb/table.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
+#include <table/table.h>
 
 #include <functional>
 #include <shared_mutex>

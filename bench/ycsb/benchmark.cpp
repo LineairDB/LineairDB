@@ -60,7 +60,7 @@
 namespace YCSB {
 
 void PopulateDatabase(LineairDB::Database& db, Workload& workload,
-                      size_t worker_threads) {
+                      size_t worker_threads, std::string_view table) {
   std::vector<int> failed;
   std::vector<std::thread> workers;
 
@@ -75,7 +75,7 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
           [&, from, to](LineairDB::Transaction& tx) {
             std::vector<std::byte> value(workload.payload_size);
             for (size_t idx = from; idx < to; idx++) {
-              tx.Write(std::to_string(idx), value.data(), value.size());
+              tx.Write(table, std::to_string(idx), value.data(), value.size());
             }
           },
           [](LineairDB::TxStatus status) {
@@ -102,8 +102,8 @@ ThreadKeyStorage<ThreadLocalResult> thread_local_result;
 std::atomic<bool> finish_flag{false};
 
 void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
-                     RandomGenerator* rand, void* payload,
-                     bool use_handler = true) {
+                     RandomGenerator* rand, void* payload, bool use_handler,
+                     std::string_view table) {
   std::function<void(LineairDB::Transaction&, std::string_view,
                      std::string_view, void*, size_t)>
       operation;
@@ -122,7 +122,15 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       operation = YCSB::Interface::Insert;
       is_insert = true;
     } else if (what_i_do < (proportion += workload.scan_proportion)) {
-      operation = YCSB::Interface::Scan;
+      // Use a lambda that captures table and calls tx.Scan(table, ...)
+      operation = [table](LineairDB::Transaction& tx, std::string_view begin,
+                          std::string_view end, void*, size_t) {
+        size_t hit = 0;
+        tx.Scan(table, begin, end, [&](auto, auto) {
+          ++hit;
+          return hit >= 100;  // early stop like original
+        });
+      };
       is_scan = true;
     } else if (what_i_do < (proportion += workload.rmw_proportion)) {
       operation = YCSB::Interface::ReadModifyWrite;
@@ -166,7 +174,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       operation(tx, keys.front(), keys.back(), payload, workload.payload_size);
     } else {
       for (auto& key : keys) {
-        operation(tx, key, "", payload, workload.payload_size);
+        operation(tx, key, table, payload, workload.payload_size);
       }
     }
     bool precommitted = db.EndTransaction(tx, [&](LineairDB::TxStatus) {});
@@ -180,14 +188,14 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     }
   } else {
     db.ExecuteTransaction(
-        [is_scan, operation, keys, payload,
-         workload](LineairDB::Transaction& tx) {
+        [is_scan, operation, keys, payload, workload,
+         table](LineairDB::Transaction& tx) {
           if (is_scan) {
             operation(tx, keys.front(), keys.back(), payload,
                       workload.payload_size);
           } else {
             for (auto& key : keys) {
-              operation(tx, key, "", payload, workload.payload_size);
+              operation(tx, key, table, payload, workload.payload_size);
             }
           }
         },
@@ -207,7 +215,7 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 }
 
 rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
-                                 bool use_handler = true) {
+                                 bool use_handler, std::string_view table) {
   std::vector<std::thread> clients;
   std::vector<std::array<std::byte, 512>> buffers(workload.client_thread_size);
   ThreadKeyStorage<RandomGenerator> thread_local_random;
@@ -222,7 +230,7 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
       waits_count.fetch_add(1);
 
       while (finish_flag.load() == false) {
-        ExecuteWorkload(db, workload, rand, &buffers[i][0], use_handler);
+        ExecuteWorkload(db, workload, rand, &buffers[i][0], use_handler, table);
       }
     }));
   }

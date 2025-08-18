@@ -17,7 +17,7 @@
 #ifndef LINEAIRDB_DATABASE_H
 #define LINEAIRDB_DATABASE_H
 
-#include <lineairdb/secondary_index_option.h>
+#include <lineairdb/config.h>
 #include <lineairdb/transaction.h>
 
 #include <functional>
@@ -151,7 +151,6 @@ class Database {
    */
   void RequestCallbacks();
 
-  // implement lock for concurrent access to the database
   bool CreateTable(const std::string_view table_name);
 
   // implement UNIQUE constraint for secondary index

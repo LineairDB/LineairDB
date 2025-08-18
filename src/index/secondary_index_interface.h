@@ -9,9 +9,9 @@
 namespace LineairDB {
 namespace Index {
 
-class ISecondaryIndex {
+class SecondaryIndexInterface {
  public:
-  virtual ~ISecondaryIndex() = default;
+  virtual ~SecondaryIndexInterface() = default;
 
   virtual const std::type_info& KeyTypeInfo() const = 0;
 

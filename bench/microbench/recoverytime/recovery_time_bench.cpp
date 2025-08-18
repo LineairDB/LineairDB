@@ -43,6 +43,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
 
   {  // Populate database
     LineairDB::Database db(config);
+    db.CreateTable("users");
     std::vector<std::future<void>> futures;
     const size_t thread_size = std::thread::hardware_concurrency();
     const size_t per_worker_insert_size = db_size / thread_size;
@@ -56,7 +57,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
                 const size_t from = i * per_worker_insert_size;
                 const size_t to = (i + 1) * per_worker_insert_size - 1;
                 for (size_t j = from; j < to; j++) {
-                  tx.Write(std::to_string(j), buffer.data(), buffer.size());
+                  tx.Write("users", std::to_string(j), buffer.data(), buffer.size());
                 }
               },
               []([[maybe_unused]] LineairDB::TxStatus result) {
@@ -75,6 +76,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
 
   auto begin = std::chrono::high_resolution_clock::now();
   LineairDB::Database db(config);
+  db.CreateTable("users");
   auto end = std::chrono::high_resolution_clock::now();
   auto elapsed = end - begin;
 

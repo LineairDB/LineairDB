@@ -72,7 +72,6 @@ bool Database::CreateSecondaryIndex(
   return db_pimpl_->CreateSecondaryIndex<T>(table_name, index_name, constraint);
 }
 
-// 明示的なインスタンス化
 template bool Database::CreateSecondaryIndex<std::string>(
     const std::string_view table_name, const std::string_view index_name,
     const SecondaryIndexOption::Constraint constraint);

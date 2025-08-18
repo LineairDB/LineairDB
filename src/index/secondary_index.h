@@ -18,7 +18,6 @@
 #define LINEAIRDB_SECONDARY_INDEX_H
 
 #include <lineairdb/config.h>
-#include <lineairdb/i_secondary_index.h>
 
 #include <functional>
 #include <memory>
@@ -27,6 +26,7 @@
 #include <vector>
 
 #include "index/precision_locking_index/index.hpp"
+#include "index/secondary_index_interface.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 #include "types/snapshot.hpp"
@@ -36,7 +36,7 @@ namespace LineairDB {
 namespace Index {
 
 template <typename K>
-class SecondaryIndex : public ISecondaryIndex {
+class SecondaryIndex : public SecondaryIndexInterface {
  public:
   using KeyType = K;
 

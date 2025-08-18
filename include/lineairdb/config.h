@@ -161,6 +161,36 @@ struct Config {
    */
   std::string work_dir = "./lineairdb_logs";
 };
+
+// Secondary index options (moved from secondary_index_option.h)
+struct SecondaryIndexOption {
+  enum class Constraint : unsigned {
+    NONE = 0u,
+    UNIQUE = 1u << 0,
+    NOT_NULL = 1u << 1,
+  };
+};
+
+// bitwise operators for enum class Constraint
+constexpr SecondaryIndexOption::Constraint operator|(
+    SecondaryIndexOption::Constraint a, SecondaryIndexOption::Constraint b) {
+  using U = std::underlying_type_t<SecondaryIndexOption::Constraint>;
+  return static_cast<SecondaryIndexOption::Constraint>(static_cast<U>(a) |
+                                                       static_cast<U>(b));
+}
+
+constexpr SecondaryIndexOption::Constraint operator&(
+    SecondaryIndexOption::Constraint a, SecondaryIndexOption::Constraint b) {
+  using U = std::underlying_type_t<SecondaryIndexOption::Constraint>;
+  return static_cast<SecondaryIndexOption::Constraint>(static_cast<U>(a) &
+                                                       static_cast<U>(b));
+}
+
+constexpr bool HasFlag(SecondaryIndexOption::Constraint set,
+                       SecondaryIndexOption::Constraint flag) {
+  using U = std::underlying_type_t<SecondaryIndexOption::Constraint>;
+  return (static_cast<U>(set) & static_cast<U>(flag)) != 0;
+}
 }  // namespace LineairDB
 
 #endif

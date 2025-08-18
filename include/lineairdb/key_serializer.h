@@ -17,7 +17,7 @@ inline std::string SerializeKey<std::string>(const std::string& v) {
   return v;
 }
 
-// int (64bit想定)
+// int (64bit)
 template <>
 inline std::string SerializeKey<int>(const int& v) {
   uint64_t bias = static_cast<int64_t>(v) ^ 0x8000'0000'0000'0000ULL;
