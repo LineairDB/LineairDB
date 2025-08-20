@@ -194,6 +194,9 @@ class Transaction {
    */
   void Abort();
 
+  // TODO comment
+  bool SetTable(const std::string_view table_name);
+
  private:
   Transaction(void*) noexcept;
   ~Transaction() noexcept;

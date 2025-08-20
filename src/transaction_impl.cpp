@@ -36,7 +36,8 @@ namespace LineairDB {
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
-      config_ref_(db_pimpl_->GetConfig()) {
+      config_ref_(db_pimpl_->GetConfig()),
+      current_table_(nullptr) {
   TransactionReferences&& tx = {read_set_, write_set_,
                                 db_pimpl_->epoch_framework_, current_status_};
 
@@ -171,6 +172,15 @@ void Transaction::Impl::PostProcessing(TxStatus status) {
   concurrency_control_->PostProcessing(status);
 }
 
+bool Transaction::Impl::SetTable(const std::string_view table_name) {
+  auto table = db_pimpl_->GetTable(table_name);
+  if (!table.has_value()) {
+    return false;  // Table not found
+  }
+  current_table_ = table.value();
+  return true;
+}
+
 TxStatus Transaction::GetCurrentStatus() {
   return tx_pimpl_->GetCurrentStatus();
 }
@@ -191,6 +201,10 @@ const std::optional<size_t> Transaction::Scan(
 };
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
+
+bool Transaction::SetTable(const std::string_view table_name) {
+  return tx_pimpl_->SetTable(table_name);
+}
 
 Transaction::Transaction(void* db_pimpl) noexcept
     : tx_pimpl_(

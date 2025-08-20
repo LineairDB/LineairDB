@@ -20,7 +20,6 @@
 #include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
-#include <table.h>
 
 #include <functional>
 #include <shared_mutex>
@@ -31,6 +30,7 @@
 #include "index/concurrent_table.h"
 #include "recovery/checkpoint_manager.hpp"
 #include "recovery/logger.h"
+#include "table/table.h"
 #include "thread_pool/thread_pool.h"
 #include "transaction_impl.h"
 #include "util/backoff.hpp"
@@ -238,13 +238,13 @@ class Database::Impl {
     return inserted;
   }
 
-  Table& GetTable(const std::string_view table_name) {
+  std::optional<Table*> GetTable(const std::string_view table_name) {
     std::shared_lock<std::shared_mutex> lk(schema_mutex_);
     auto it = tables_.find(std::string(table_name));
     if (it == tables_.end()) {
-      throw std::runtime_error("Table not found");
+      return std::nullopt;  // Table not found
     }
-    return it->second;
+    return &it->second;
   }
 
  private:
