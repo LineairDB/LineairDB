@@ -89,10 +89,9 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size());
     }
   }
-  if (current_table_ == nullptr) {
-    current_table_ =
-        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
-  }
+
+
+
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf};
 

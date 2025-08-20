@@ -188,7 +188,6 @@ class Database::Impl {
     callback_manager_.WaitForAllCallbacksToBeExecuted();
   }
   const Config& GetConfig() const { return config_; }
-  Index::ConcurrentTable& GetIndex() { return index_; }
 
   // NOTE: Called by a special thread managed by EpochFramework.
   std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {
@@ -291,7 +290,7 @@ class Database::Impl {
   std::unordered_map<std::string, Table> tables_;
   Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
-  mutable std::shared_mutex schema_mutex_;
+  std::shared_mutex schema_mutex_;
 };
 
 // Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
