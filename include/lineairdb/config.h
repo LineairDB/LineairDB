@@ -160,6 +160,9 @@ struct Config {
    * Default: "lineairdb_logs"
    */
   std::string work_dir = "./lineairdb_logs";
+
+  // TODO comment
+  std::string anonymous_table_name = "anonymous_table";
 };
 }  // namespace LineairDB
 
