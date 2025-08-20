@@ -89,7 +89,11 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
                             snapshot.data_item_copy.size());
     }
   }
-  auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
+  if (current_table_ == nullptr) {
+    current_table_ =
+        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
+  }
+  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
@@ -124,7 +128,11 @@ void Transaction::Impl::Write(const std::string_view key,
     return;
   }
 
-  auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
+  if (current_table_ == nullptr) {
+    current_table_ =
+        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
+  }
+  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf);
@@ -137,8 +145,12 @@ const std::optional<size_t> Transaction::Impl::Scan(
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
-  auto result =
-      db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
+  if (current_table_ == nullptr) {
+    current_table_ =
+        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
+  }
+  auto result = current_table_->GetPrimaryIndex().Scan(
+      begin, end, [&](std::string_view key) {
         const auto read_result = Read(key);
         if (IsAborted()) return true;
         return operation(key, read_result);

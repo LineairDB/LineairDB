@@ -153,7 +153,7 @@ TEST_F(DataDefinitionTest, AnonymousTable) {
   {  // Read from the anonymous table with explicit table name
     auto& tx = db_->BeginTransaction();
     bool table_exists = tx.SetTable(anonymous_table_name);
-    EXPECT_FALSE(table_exists);
+    EXPECT_TRUE(table_exists);
     auto data = tx.Read<int>("user1");
     ASSERT_TRUE(data.has_value());
     ASSERT_EQ(data.value(), 42);

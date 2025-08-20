@@ -61,6 +61,9 @@ class Database::Impl {
           "the same time.");
       exit(1);
     }
+    if (!config_.anonymous_table_name.empty()) {
+      CreateTable(config_.anonymous_table_name);
+    }
     if (config_.enable_recovery) {
       Recovery();
     }
@@ -238,13 +241,12 @@ class Database::Impl {
     return inserted;
   }
 
-  std::optional<Table*> GetTable(const std::string_view table_name) {
-    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
-    auto it = tables_.find(std::string(table_name));
-    if (it == tables_.end()) {
-      return std::nullopt;  // Table not found
+  std::optional<Table*> GetTable(std::string_view table_name) {
+    std::shared_lock lk(schema_mutex_);
+    if (auto it = tables_.find(std::string(table_name)); it != tables_.end()) {
+      return &it->second;
     }
-    return &it->second;
+    return std::nullopt;
   }
 
  private:
