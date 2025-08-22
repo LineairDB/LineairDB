@@ -20,6 +20,7 @@
 #include <lineairdb/tx_status.h>
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -188,9 +189,8 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
       filesize_is_monotonically_increasing = false;
       break;
     }
-    ASSERT_NO_THROW({
-      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
-    });
+    ASSERT_NO_THROW(
+        { TestHelper::DoTransactions(db_.get(), {Update, Update, Update}); });
 
     auto now = std::chrono::high_resolution_clock::now();
     assert(begin < now);
@@ -335,4 +335,41 @@ TEST_F(DurabilityTest,
         auto alice = tx.Read<int>("alice");
         ASSERT_TRUE(alice.has_value());
       }});
+}
+
+TEST_F(DurabilityTest, RecoveryWithNamedTable) {
+  const LineairDB::Config config = db_->GetConfig();
+  const std::string table_name = "users";
+  const std::string key = "user1";
+  const int value = 12345;
+
+  // 1. Create a table and write to it
+  db_->CreateTable(table_name);
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               bool success = tx.SetTable(table_name);
+                               ASSERT_TRUE(success);
+                               tx.Write<int>(key, value);
+                             }});
+  db_->Fence();
+
+  // 2. Restart DB to trigger recovery
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  // 3. Verify data is recovered in the correct table
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               bool success = tx.SetTable(table_name);
+                               ASSERT_TRUE(success);
+                               auto data = tx.Read<int>(key);
+                               ASSERT_TRUE(data.has_value());
+                               ASSERT_EQ(data.value(), value);
+                             }});
+
+  // 4. Verify data is NOT in the anonymous table
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               // Note: Not calling SetTable, so this reads from
+                               // the anonymous table
+                               auto data = tx.Read<int>(key);
+                               ASSERT_FALSE(data.has_value());
+                             }});
 }

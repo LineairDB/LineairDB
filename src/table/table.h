@@ -6,19 +6,23 @@
 
 #include "index/concurrent_table.h"
 #include "lineairdb/config.h"
+#include "types/definitions.h"
 #include "util/epoch_framework.hpp"
 
 namespace LineairDB {
 
 class Table {
  public:
-  Table(EpochFramework& epoch_framework, const Config& config);
+  Table(EpochFramework& epoch_framework, const Config& config,
+        std::string_view table_name);
 
-  Index::ConcurrentTable& GetPrimaryIndex() { return primary_index_; }
+  const std::string& GetTableName() const;
+  Index::ConcurrentTable& GetPrimaryIndex();
 
  private:
   // EpochFramework& epoch_framework_;
   // Config config_;
   Index::ConcurrentTable primary_index_;
+  std::string table_name_;
 };
 }  // namespace LineairDB

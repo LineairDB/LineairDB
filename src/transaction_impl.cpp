@@ -95,7 +95,8 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
         db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
   }
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
-  Snapshot snapshot = {key, nullptr, 0, index_leaf};
+  Snapshot snapshot = {key,        nullptr, 0,
+                       index_leaf, 0,       current_table_->GetTableName()};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref = read_set_.emplace_back(std::move(snapshot));
@@ -136,7 +137,7 @@ void Transaction::Impl::Write(const std::string_view key,
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf);
+  Snapshot sp(key, value, size, index_leaf, 0, current_table_->GetTableName());
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
