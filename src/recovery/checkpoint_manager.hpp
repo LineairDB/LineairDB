@@ -120,13 +120,13 @@ class CPRManager {
               Recovery::Logger::LogRecord record;
               record.epoch = checkpoint_epoch_.load() + 1;
 
-              for (auto& [table_name, table] : table_refs_) {
-                table.GetPrimaryIndex().ForEach(
+              for (auto& table : table_refs_) {
+                table.second.GetPrimaryIndex().ForEach(
                     [&](std::string_view key, LineairDB::DataItem& data_item) {
                       data_item.ExclusiveLock();
 
                       Logger::LogRecord::KeyValuePair kvp;
-                      kvp.table_name = table_name;
+                      kvp.table_name = table.second.GetTableName();
                       kvp.key = key;
                       if (data_item.checkpoint_buffer.IsEmpty()) {
                         // this data item holds version which has written before
