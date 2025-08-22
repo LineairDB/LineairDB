@@ -50,8 +50,8 @@ class Database::Impl {
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        index_(epoch_framework_, config_),
-        checkpoint_manager_(config_, index_, epoch_framework_) {
+        tables_(),
+        checkpoint_manager_(config_, tables_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -234,13 +234,15 @@ class Database::Impl {
     if (tables_.find(std::string(table_name)) != tables_.end()) {
       return false;
     }
-    auto [it, inserted] = tables_.emplace(
-        std::piecewise_construct, std::forward_as_tuple(table_name),
-        std::forward_as_tuple(epoch_framework_, config_));
+    auto [it, inserted] =
+        tables_.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(std::string(table_name)),
+                        std::forward_as_tuple(epoch_framework_, config_,
+                                              std::string(table_name)));
     return inserted;
   }
 
-  std::optional<Table*> GetTable(std::string_view table_name) {
+  std::optional<Table*> GetTable(const std::string_view table_name) {
     std::shared_lock lk(schema_mutex_);
     if (auto it = tables_.find(std::string(table_name)); it != tables_.end()) {
       return &it->second;
@@ -267,12 +269,21 @@ class Database::Impl {
     local_epoch = durable_epoch;
 
     highest_epoch = std::max(highest_epoch, durable_epoch);
-    auto&& recovery_set = logger_.GetRecoverySetFromLogs(durable_epoch);
-    for (auto& entry : recovery_set) {
-      highest_epoch = std::max(
-          highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
+    auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
 
-      index_.Put(entry.key, std::move(entry.data_item_copy));
+    for (auto& recovery_set : recovery_sets) {
+      CreateTable(recovery_set.table_name);
+      auto table = GetTable(recovery_set.table_name);
+      if (!table.has_value()) {
+        SPDLOG_ERROR("Table {0} not found", recovery_set.table_name);
+        continue;
+      }
+
+      highest_epoch =
+          std::max(highest_epoch,
+                   recovery_set.data_item_copy.transaction_id.load().epoch);
+      table.value()->GetPrimaryIndex().Put(
+          recovery_set.key, std::move(recovery_set.data_item_copy));
     }
     epoch_framework_.MakeMeOffline();
 
@@ -288,7 +299,6 @@ class Database::Impl {
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
   std::unordered_map<std::string, Table> tables_;
-  Index::ConcurrentTable index_;
   Recovery::CPRManager checkpoint_manager_;
   std::shared_mutex schema_mutex_;
 };

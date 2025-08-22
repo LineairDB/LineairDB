@@ -23,6 +23,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <fstream>
 #include <msgpack.hpp>
 #include <string_view>
 #include <thread>
@@ -48,11 +49,12 @@ class CPRManager {
   const std::string CheckpointWorkingFileName;
 
   CPRManager(const LineairDB::Config& c_ref,
-             LineairDB::Index::ConcurrentTable& t_ref, EpochFramework& e_ref)
+             std::unordered_map<std::string, Table>& t_refs,
+             EpochFramework& e_ref)
       : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
         CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
         config_ref_(c_ref),
-        table_ref_(t_ref),
+        table_refs_(t_refs),
         epoch_manager_ref_(e_ref),
         current_phase_(Phase::REST),
         checkpoint_epoch_(0),
@@ -118,27 +120,30 @@ class CPRManager {
               Recovery::Logger::LogRecord record;
               record.epoch = checkpoint_epoch_.load() + 1;
 
-              table_ref_.ForEach(
-                  [&](std::string_view key, LineairDB::DataItem& data_item) {
-                    data_item.ExclusiveLock();
+              for (auto& [table_name, table] : table_refs_) {
+                table.GetPrimaryIndex().ForEach(
+                    [&](std::string_view key, LineairDB::DataItem& data_item) {
+                      data_item.ExclusiveLock();
 
-                    Logger::LogRecord::KeyValuePair kvp;
-                    kvp.key = key;
-                    if (data_item.checkpoint_buffer.IsEmpty()) {
-                      // this data item holds version which has written before
-                      // the point of consistency.
-                      kvp.buffer = data_item.buffer.toString();
-                    } else {
-                      kvp.buffer = data_item.checkpoint_buffer.toString();
-                      data_item.checkpoint_buffer.Reset(nullptr, 0);
-                    }
-                    kvp.tid.epoch = record.epoch;
-                    kvp.tid.tid = 0;
-                    record.key_value_pairs.emplace_back(std::move(kvp));
+                      Logger::LogRecord::KeyValuePair kvp;
+                      kvp.table_name = table_name;
+                      kvp.key = key;
+                      if (data_item.checkpoint_buffer.IsEmpty()) {
+                        // this data item holds version which has written before
+                        // the point of consistency.
+                        kvp.buffer = data_item.buffer.toString();
+                      } else {
+                        kvp.buffer = data_item.checkpoint_buffer.toString();
+                        data_item.checkpoint_buffer.Reset(nullptr, 0);
+                      }
+                      kvp.tid.epoch = record.epoch;
+                      kvp.tid.tid = 0;
+                      record.key_value_pairs.emplace_back(std::move(kvp));
 
-                    data_item.ExclusiveUnlock();
-                    return true;
-                  });
+                      data_item.ExclusiveUnlock();
+                      return true;
+                    });
+              }
               records.emplace_back(std::move(record));
 
               std::ofstream new_file(
@@ -187,7 +192,7 @@ class CPRManager {
 
  private:
   const LineairDB::Config& config_ref_;
-  LineairDB::Index::ConcurrentTable& table_ref_;
+  std::unordered_map<std::string, Table>& table_refs_;
   LineairDB::EpochFramework& epoch_manager_ref_;
   Logger::LogRecords log_records;
   std::atomic<Phase> current_phase_;
@@ -196,7 +201,6 @@ class CPRManager {
   // BloomFilter bloom_filter_for_recent_updates_;
   std::atomic<bool> stop_;
   std::thread manager_thread_;
-  MSGPACK_DEFINE(log_records);
 };
 
 }  // namespace Recovery
