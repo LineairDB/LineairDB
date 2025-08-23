@@ -112,22 +112,18 @@ void Transaction::Impl::Write(const std::string_view key,
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
 
-  const bool is_rmf = std::any_of(
-      read_set_.begin(), read_set_.end(),
-      [&](const Snapshot& snapshot) { return snapshot.key == key; });
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key) continue;
-    snapshot.data_item_copy.Reset(value, size);
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
+  auto read_it = std::find_if(read_set_.begin(), read_set_.end(),
+                              [&](Snapshot& s) { return s.key == key; });
+  const bool is_rmw = (read_it != read_set_.end());
+  if (is_rmw) {
+    read_it->is_read_modify_write = true;  // 修正前と同じ挙動を維持
   }
 
-  if (auto it = std::find_if(write_set_.begin(), write_set_.end(),
-                             [&](const Snapshot& s) { return s.key == key; });
-      it != write_set_.end()) {
-    it->data_item_copy.Reset(value, size);
-    if (is_rmf) it->is_read_modify_write = true;
+  auto write_it = std::find_if(write_set_.begin(), write_set_.end(),
+                               [&](Snapshot& s) { return s.key == key; });
+  if (write_it != write_set_.end()) {
+    write_it->data_item_copy.Reset(value, size);
+    if (is_rmw) write_it->is_read_modify_write = true;
     return;
   }
 
