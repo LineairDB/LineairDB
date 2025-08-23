@@ -62,7 +62,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
         std::pair<EpochNumber, LineairDB::Database::CallbackType> pair;
         auto dequeued = queue.try_dequeue(pair);
         if (!dequeued) break;
-        if (pair.first < stable_epoch) {
+        if (pair.first <= stable_epoch) {
           pair.second(TxStatus::Committed);
         } else {
           queue.enqueue(std::move(pair));
