@@ -76,18 +76,16 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
   if (IsAborted()) return {nullptr, 0};
 
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value(),
-                            snapshot.data_item_copy.size());
-    }
+  auto match_by_key = [&](const Snapshot& s) { return s.key == key; };
+  if (auto it =
+          std::find_if(write_set_.begin(), write_set_.end(), match_by_key);
+      it != write_set_.end()) {
+    return {it->data_item_copy.value(), it->data_item_copy.size()};
   }
 
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
-      return std::make_pair(snapshot.data_item_copy.value(),
-                            snapshot.data_item_copy.size());
-    }
+  if (auto it = std::find_if(read_set_.begin(), read_set_.end(), match_by_key);
+      it != read_set_.end()) {
+    return {it->data_item_copy.value(), it->data_item_copy.size()};
   }
 
   if (current_table_ == nullptr) {
@@ -114,19 +112,22 @@ void Transaction::Impl::Write(const std::string_view key,
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
 
-  bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
+  const bool is_rmf = std::any_of(
+      read_set_.begin(), read_set_.end(),
+      [&](const Snapshot& snapshot) { return snapshot.key == key; });
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key != key) continue;
     snapshot.data_item_copy.Reset(value, size);
     if (is_rmf) snapshot.is_read_modify_write = true;
+    return;
+  }
+
+  if (auto it = std::find_if(write_set_.begin(), write_set_.end(),
+                             [&](const Snapshot& s) { return s.key == key; });
+      it != write_set_.end()) {
+    it->data_item_copy.Reset(value, size);
+    if (is_rmf) it->is_read_modify_write = true;
     return;
   }
 
