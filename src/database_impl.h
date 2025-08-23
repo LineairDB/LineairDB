@@ -182,10 +182,29 @@ class Database::Impl {
     return epoch_framework_.GetMyThreadLocalEpoch();
   }
 
+  /**
+   * Ensures that all pending operations are completed and all callbacks have
+   * been executed.
+   *
+   * Note: Due to the dependency on the implementation of
+   * moodycamel::concurrentqueue, callbacks are executed **after**
+   * try_dequeue(). This means the queue size can become zero even if some
+   * callbacks have not yet been executed. As a result, the current
+   * `WaitForAllCallbacksToBeExecuted()` does not strictly behave as its name
+   * suggests (since it only checks if the queue length is zero).
+   *
+   * To address this problem, an atomic variable `latest_callbacked_epoch_` is
+   * used as a workaround to ensure proper waiting.
+   */
   void Fence() {
+    const auto current_epoch = epoch_framework_.GetGlobalEpoch();
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
     callback_manager_.WaitForAllCallbacksToBeExecuted();
+    // Spin-wait with yield for better performance in the critical path
+    while (latest_callbacked_epoch_.load() < current_epoch) {
+      std::this_thread::yield();
+    }
   }
   const Config& GetConfig() const { return config_; }
 
@@ -203,8 +222,10 @@ class Database::Impl {
       }
 
       // Execute Callbacks
-      thread_pool_.EnqueueForAllThreads(
-          [&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
+      thread_pool_.EnqueueForAllThreads([&, old_epoch]() {
+        callback_manager_.ExecuteCallbacks(old_epoch);
+        latest_callbacked_epoch_.store(old_epoch);
+      });
 
       if (config_.enable_checkpointing) {
         auto checkpoint_completed =
@@ -299,11 +320,10 @@ class Database::Impl {
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
   std::unordered_map<std::string, Table> tables_;
+  std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
   std::shared_mutex schema_mutex_;
 };
-
-// Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
 
 }  // namespace LineairDB
 #endif /** LINEAIRDB_DATABASE_IMPL_H **/
