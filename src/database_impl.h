@@ -194,9 +194,8 @@ class Database::Impl {
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
     callback_manager_.WaitForAllCallbacksToBeExecuted();
-    Util::RetryWithExponentialBackoff([&]() {
-      return latest_callbacked_epoch_.load() >= current_epoch;
-    });
+    Util::RetryWithExponentialBackoff(
+        [&]() { return latest_callbacked_epoch_.load() >= current_epoch; });
   }
   const Config& GetConfig() const { return config_; }
   Index::ConcurrentTable& GetIndex() { return index_; }
@@ -286,8 +285,6 @@ class Database::Impl {
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
 };
-
-// Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
 
 }  // namespace LineairDB
 #endif /** LINEAIRDB_DATABASE_IMPL_H **/

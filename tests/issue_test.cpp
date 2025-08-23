@@ -22,6 +22,7 @@ class IssueTest : public ::testing::Test {
 
 TEST_F(IssueTest, FenceShouldWaitForAllCallbacks_ExecuteInterface) {
   int value_of_alice = 1;
+  std::atomic<bool> callback_executed{false};
   for (size_t i = 0; i < 30; i++) {
     callback_executed.store(false);
     db_->ExecuteTransaction(
