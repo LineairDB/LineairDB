@@ -114,8 +114,8 @@ void Transaction::Impl::Write(const std::string_view key,
 
   auto read_it = std::find_if(read_set_.begin(), read_set_.end(),
                               [&](Snapshot& s) { return s.key == key; });
-  const bool is_rmw = (read_it != read_set_.end());
-  if (is_rmw) {
+  const bool is_rmf = (read_it != read_set_.end());
+  if (is_rmf) {
     read_it->is_read_modify_write = true;  // 修正前と同じ挙動を維持
   }
 
@@ -123,7 +123,7 @@ void Transaction::Impl::Write(const std::string_view key,
                                [&](Snapshot& s) { return s.key == key; });
   if (write_it != write_set_.end()) {
     write_it->data_item_copy.Reset(value, size);
-    if (is_rmw) write_it->is_read_modify_write = true;
+    if (is_rmf) write_it->is_read_modify_write = true;
     return;
   }
 
