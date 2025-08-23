@@ -40,6 +40,7 @@ TEST_F(IssueTest, FenceShouldWaitForAllCallbacks_HandlerInterface) {
   std::atomic<bool> callback_executed{false};
 
   for (size_t i = 0; i < 30; i++) {
+    callback_executed.store(false);
     auto& tx = db_->BeginTransaction();
     tx.Write<int>("alice", value_of_alice);
     db_->EndTransaction(
