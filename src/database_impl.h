@@ -194,8 +194,10 @@ class Database::Impl {
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
     callback_manager_.WaitForAllCallbacksToBeExecuted();
-    Util::RetryWithExponentialBackoff(
-        [&]() { return latest_callbacked_epoch_.load() >= current_epoch; });
+    // Spin-wait with yield for better performance in the critical path
+    while (latest_callbacked_epoch_.load() < current_epoch) {
+      std::this_thread::yield();
+    }
   }
   const Config& GetConfig() const { return config_; }
   Index::ConcurrentTable& GetIndex() { return index_; }
