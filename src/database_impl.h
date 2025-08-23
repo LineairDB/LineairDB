@@ -194,11 +194,9 @@ class Database::Impl {
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
     callback_manager_.WaitForAllCallbacksToBeExecuted();
-    for (;;) {
-      const auto latest_callbacked_epoch = latest_callbacked_epoch_.load();
-      if (latest_callbacked_epoch >= current_epoch) break;
-      std::this_thread::yield();
-    }
+    Util::RetryWithExponentialBackoff([&]() {
+      return latest_callbacked_epoch_.load() >= current_epoch;
+    });
   }
   const Config& GetConfig() const { return config_; }
   Index::ConcurrentTable& GetIndex() { return index_; }
