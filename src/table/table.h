@@ -20,8 +20,6 @@ class Table {
   Index::ConcurrentTable& GetPrimaryIndex();
 
  private:
-  // EpochFramework& epoch_framework_;
-  // Config config_;
   Index::ConcurrentTable primary_index_;
   std::string table_name_;
 };

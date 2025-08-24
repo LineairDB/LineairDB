@@ -76,16 +76,18 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
   if (IsAborted()) return {nullptr, 0};
 
-  auto match_by_key = [&](const Snapshot& s) { return s.key == key; };
-  if (auto it =
-          std::find_if(write_set_.begin(), write_set_.end(), match_by_key);
-      it != write_set_.end()) {
-    return {it->data_item_copy.value(), it->data_item_copy.size()};
+  if (auto write_it =
+          std::find_if(write_set_.begin(), write_set_.end(),
+                       [&](const Snapshot& s) { return s.key == key; });
+      write_it != write_set_.end()) {
+    return {write_it->data_item_copy.value(), write_it->data_item_copy.size()};
   }
 
-  if (auto it = std::find_if(read_set_.begin(), read_set_.end(), match_by_key);
-      it != read_set_.end()) {
-    return {it->data_item_copy.value(), it->data_item_copy.size()};
+  if (auto read_it =
+          std::find_if(read_set_.begin(), read_set_.end(),
+                       [&](const Snapshot& s) { return s.key == key; });
+      read_it != read_set_.end()) {
+    return {read_it->data_item_copy.value(), read_it->data_item_copy.size()};
   }
 
   if (current_table_ == nullptr) {
@@ -116,7 +118,7 @@ void Transaction::Impl::Write(const std::string_view key,
                               [&](Snapshot& s) { return s.key == key; });
   const bool is_rmf = (read_it != read_set_.end());
   if (is_rmf) {
-    read_it->is_read_modify_write = true;  // 修正前と同じ挙動を維持
+    read_it->is_read_modify_write = true;
   }
 
   auto write_it = std::find_if(write_set_.begin(), write_set_.end(),

@@ -279,9 +279,6 @@ class Database::Impl {
     const auto durable_epoch = logger_.GetDurableEpochFromLog();
     SPDLOG_DEBUG("  Durable epoch is resumed from {0}", highest_epoch);
     logger_.SetDurableEpoch(durable_epoch);
-    [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(
-        [&]() { logger_.RememberMe(durable_epoch); });
-    assert(enqueued);
 
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
