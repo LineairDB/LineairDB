@@ -150,6 +150,13 @@ class Database {
    */
   void RequestCallbacks();
 
+  /**
+   * @brief
+   * Creates a new table.
+   * @param[in] table_name The name of the table to create.
+   * @return true if the table is created successfully.
+   * @return false if the table is not created successfully.
+   */
   bool CreateTable(const std::string_view table_name);
 
  private:

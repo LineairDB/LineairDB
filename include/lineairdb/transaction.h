@@ -194,7 +194,15 @@ class Transaction {
    */
   void Abort();
 
-  // TODO comment
+  /**
+   * @brief
+   * Sets the table for the transaction.
+   * If the table is not set, the transaction will be executed on the anonymous
+   * table.
+   * @param[in] table_name The name of the table to set.
+   * @return true if the table is set successfully.
+   * @return false if the table is not set successfully.
+   */
   bool SetTable(const std::string_view table_name);
 
  private:

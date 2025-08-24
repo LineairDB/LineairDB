@@ -161,7 +161,14 @@ struct Config {
    */
   std::string work_dir = "./lineairdb_logs";
 
-  // TODO comment
+  /**
+   * @brief
+   * The name of the anonymous table.
+   * Anonymous table is used to store the data that is not associated with any
+   * table.
+   *
+   * Default: "anonymous_table"
+   */
   std::string anonymous_table_name = "anonymous_table";
 };
 }  // namespace LineairDB
