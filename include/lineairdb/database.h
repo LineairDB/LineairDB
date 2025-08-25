@@ -154,8 +154,10 @@ class Database {
    * @brief
    * Creates a new table.
    * @param[in] table_name The name of the table to create.
-   * @return true if the table is created successfully.
-   * @return false if the table is not created successfully.
+   * @return true when a new table is created (the name was not previously
+   * used).
+   * @return false when no table is created because the table name already
+   * exists.
    */
   bool CreateTable(const std::string_view table_name);
 

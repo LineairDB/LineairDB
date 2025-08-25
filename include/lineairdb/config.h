@@ -167,9 +167,9 @@ struct Config {
    * Anonymous table is used to store the data that is not associated with any
    * table.
    *
-   * Default: "anonymous_table"
+   * Default: "__anonymous_table"
    */
-  std::string anonymous_table_name = "anonymous_table";
+  std::string anonymous_table_name = "__anonymous_table";
 };
 }  // namespace LineairDB
 

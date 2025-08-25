@@ -25,6 +25,7 @@
 #include <chrono>
 #include <fstream>
 #include <msgpack.hpp>
+#include <shared_mutex>
 #include <string_view>
 #include <thread>
 
@@ -50,12 +51,13 @@ class CPRManager {
 
   CPRManager(const LineairDB::Config& c_ref,
              std::unordered_map<std::string, Table>& t_refs,
-             EpochFramework& e_ref)
+             EpochFramework& e_ref, std::shared_mutex& schema_mutex_ref)
       : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
         CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
         config_ref_(c_ref),
         table_refs_(t_refs),
         epoch_manager_ref_(e_ref),
+        schema_mutex_ref_(schema_mutex_ref),
         current_phase_(Phase::REST),
         checkpoint_epoch_(0),
         checkpoint_completed_epoch_(0),
@@ -120,6 +122,7 @@ class CPRManager {
               Recovery::Logger::LogRecord record;
               record.epoch = checkpoint_epoch_.load() + 1;
 
+              std::shared_lock lk(schema_mutex_ref_);
               for (auto& table : table_refs_) {
                 table.second.GetPrimaryIndex().ForEach(
                     [&](std::string_view key, LineairDB::DataItem& data_item) {
@@ -194,6 +197,7 @@ class CPRManager {
   const LineairDB::Config& config_ref_;
   std::unordered_map<std::string, Table>& table_refs_;
   LineairDB::EpochFramework& epoch_manager_ref_;
+  std::shared_mutex& schema_mutex_ref_;
   Logger::LogRecords log_records;
   std::atomic<Phase> current_phase_;
   std::atomic<EpochNumber> checkpoint_epoch_;  // 'v' in the CPR paper
@@ -201,6 +205,7 @@ class CPRManager {
   // BloomFilter bloom_filter_for_recent_updates_;
   std::atomic<bool> stop_;
   std::thread manager_thread_;
+  MSGPACK_DEFINE(log_records);
 };
 
 }  // namespace Recovery

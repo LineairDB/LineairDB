@@ -50,8 +50,7 @@ class Database::Impl {
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        tables_(),
-        checkpoint_manager_(config_, tables_, epoch_framework_) {
+        checkpoint_manager_(config_, tables_, epoch_framework_, schema_mutex_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -321,8 +320,8 @@ class Database::Impl {
   EpochFramework epoch_framework_;
   std::unordered_map<std::string, Table> tables_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
-  Recovery::CPRManager checkpoint_manager_;
   std::shared_mutex schema_mutex_;
+  Recovery::CPRManager checkpoint_manager_;
 };
 
 }  // namespace LineairDB
