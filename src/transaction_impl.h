@@ -80,6 +80,7 @@ class Transaction::Impl {
   bool SetTable(const std::string_view table_name);
 
  private:
+  void EnsureCurrentTable();
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
  private:

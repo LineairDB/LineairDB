@@ -75,11 +75,7 @@ TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
   if (IsAborted()) return {nullptr, 0};
-
-  if (current_table_ == nullptr) {
-    current_table_ =
-        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
-  }
+  EnsureCurrentTable();
 
   auto table_write_set_it = write_set_.find(current_table_->GetTableName());
   if (table_write_set_it != write_set_.end()) {
@@ -122,10 +118,7 @@ void Transaction::Impl::Write(const std::string_view key,
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
-  if (current_table_ == nullptr) {
-    current_table_ =
-        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
-  }
+  EnsureCurrentTable();
   auto table_read_set_it = read_set_.find(current_table_->GetTableName());
   bool is_rmf = false;
   if (table_read_set_it != read_set_.end()) {
@@ -163,10 +156,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
-  if (current_table_ == nullptr) {
-    current_table_ =
-        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
-  }
+  EnsureCurrentTable();
   auto result = current_table_->GetPrimaryIndex().Scan(
       begin, end, [&](std::string_view key) {
         const auto read_result = Read(key);
@@ -200,6 +190,13 @@ bool Transaction::Impl::Precommit() {
 void Transaction::Impl::PostProcessing(TxStatus status) {
   if (status == TxStatus::Aborted) current_status_ = TxStatus::Aborted;
   concurrency_control_->PostProcessing(status);
+}
+
+void Transaction::Impl::EnsureCurrentTable() {
+  if (current_table_ == nullptr) {
+    current_table_ =
+        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
+  }
 }
 
 bool Transaction::Impl::SetTable(const std::string_view table_name) {
