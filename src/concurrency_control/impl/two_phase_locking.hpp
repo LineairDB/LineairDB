@@ -75,10 +75,10 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
 
     auto& rw_lock = index_leaf->GetRWLockRef();
     bool is_read_modify_write = false;
-    
-    for(auto& pair : tx_ref_.read_set_ref_) {
-      for(auto& snapshot : pair.second) {
-        if(snapshot.key == key) {
+
+    for (auto& pair : tx_ref_.read_set_ref_) {
+      for (auto& snapshot : pair.second) {
+        if (snapshot.key == key) {
           is_read_modify_write = true;
           break;
         }
