@@ -41,8 +41,10 @@ ConcurrentTable::ConcurrentTable(EpochFramework& epoch_framework, Config config,
   }
 
   if (recovery_set.empty()) return;
-  for (auto& entry : recovery_set) {
-    index_->Put(entry.key, *entry.index_cache);
+  for (auto& pair : recovery_set) {
+    for (auto& snapshot : pair.second) {
+      index_->Put(snapshot.key, std::move(snapshot.data_item_copy));
+    }
   }
 }
 

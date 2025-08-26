@@ -291,20 +291,21 @@ class Database::Impl {
     highest_epoch = std::max(highest_epoch, durable_epoch);
     auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
 
-    for (auto& recovery_set : recovery_sets) {
-      CreateTable(recovery_set.table_name);
-      auto table = GetTable(recovery_set.table_name);
+    for (auto& pair : recovery_sets) {
+      CreateTable(pair.first);
+      auto table = GetTable(pair.first);
       if (!table.has_value()) {
-        SPDLOG_ERROR("Table {0} not found", recovery_set.table_name);
+        SPDLOG_ERROR("Table {0} not found", pair.first);
         continue;
       }
-
-      highest_epoch =
-          std::max(highest_epoch,
-                   recovery_set.data_item_copy.transaction_id.load().epoch);
-      table.value()->GetPrimaryIndex().Put(
-          recovery_set.key, std::move(recovery_set.data_item_copy));
+      for (auto& snapshot : pair.second) {
+        highest_epoch = std::max(
+            highest_epoch, snapshot.data_item_copy.transaction_id.load().epoch);
+        table.value()->GetPrimaryIndex().Put(
+            snapshot.key, std::move(snapshot.data_item_copy));
+      }
     }
+
     epoch_framework_.MakeMeOffline();
 
     SPDLOG_DEBUG("  Global epoch is resumed from {0}", highest_epoch);

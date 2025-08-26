@@ -58,8 +58,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
  public:
   SiloNWRTyped(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)),
-        nwr_validation_result_(NWRValidationResult::NOT_YET_VALIDATED){};
-  ~SiloNWRTyped() final override{};
+        nwr_validation_result_(NWRValidationResult::NOT_YET_VALIDATED) {};
+  ~SiloNWRTyped() final override {};
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {
@@ -85,12 +85,30 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
   };
   void Write(const std::string_view, const std::byte* const, const size_t,
-             DataItem*) final override{};
-  void Abort() final override{};
+             DataItem*) final override {};
+  void Abort() final override {};
   bool Precommit(bool need_to_checkpoint) final override {
     /** Sorting write set to prevent deadlock **/
-    std::sort(tx_ref_.write_set_ref_.begin(), tx_ref_.write_set_ref_.end(),
-              Snapshot::Compare);
+    /*     std::sort(tx_ref_.write_set_ref_.begin(),
+       tx_ref_.write_set_ref_.end(), Snapshot::Compare); */
+    std::vector<std::reference_wrapper<Snapshot>> sorted_write_set_ref_;
+    size_t total_size = 0;
+    for (const auto& pair : tx_ref_.write_set_ref_) {
+      total_size += pair.second.size();
+    }
+    sorted_write_set_ref_.reserve(total_size);
+
+    for (auto& pair : tx_ref_.write_set_ref_) {
+      for (auto& snapshot : pair.second) {
+        sorted_write_set_ref_.emplace_back(snapshot);
+      }
+    }
+
+    std::sort(sorted_write_set_ref_.begin(), sorted_write_set_ref_.end(),
+              [](const Snapshot& a, const Snapshot& b) {
+                return Snapshot::Compare(const_cast<Snapshot&>(a),
+                                         const_cast<Snapshot&>(b));
+              });
 
     if constexpr (EnableNWR) {
       if (!IsReadOnly() && IsOmittable()) {
@@ -110,8 +128,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     }
 
     /** Acquire Lock **/
-    for (auto& snapshot : tx_ref_.write_set_ref_) {
-      auto* item = snapshot.index_cache;
+    for (auto& snapshot : sorted_write_set_ref_) {
+      auto* item = snapshot.get().index_cache;
       assert(item != nullptr);
       __builtin_prefetch(item, 1, 3);
 
@@ -128,7 +146,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         bool lock_acquired =
             item->transaction_id.compare_exchange_weak(current, desired);
         if (lock_acquired) {
-          snapshot.data_item_copy.transaction_id.store(desired);
+          snapshot.get().data_item_copy.transaction_id.store(desired);
           // If this item is in readset, add 1 (lockflag) into snapshot for
           // validation
           for (auto& read_item : validation_set_) {
@@ -142,8 +160,8 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       }
     }
     if (need_to_checkpoint) {
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        snapshot.index_cache->CopyLiveVersionToStableVersion();
+      for (auto& snapshot : sorted_write_set_ref_) {
+        snapshot.get().index_cache->CopyLiveVersionToStableVersion();
       }
     }
 
@@ -160,17 +178,17 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     /** Validation Phase **/
     if (!AntiDependencyValidation()) {
       // if validation failed, unlock all objects
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        auto current = snapshot.index_cache->transaction_id.load();
+      for (auto& snapshot : sorted_write_set_ref_) {
+        auto current = snapshot.get().index_cache->transaction_id.load();
         current.tid--;
-        snapshot.index_cache->transaction_id.store(current);
+        snapshot.get().index_cache->transaction_id.store(current);
       }
       return false;
     }
 
     /** Buffer Update **/
-    for (auto& snapshot : tx_ref_.write_set_ref_) {
-      *snapshot.index_cache = snapshot.data_item_copy;
+    for (auto& snapshot : sorted_write_set_ref_) {
+      *snapshot.get().index_cache = snapshot.get().data_item_copy;
     }
 
     return true;
@@ -188,19 +206,21 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
           tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
 
       /** Unlock **/
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        auto* item = snapshot.index_cache;
-        auto current_tid = snapshot.data_item_copy.transaction_id.load();
-        EpochNumber written_in_epoch = current_tid.epoch;
+      for (auto& pair : tx_ref_.write_set_ref_) {
+        for (auto& snapshot : pair.second) {
+          auto* item = snapshot.index_cache;
+          auto current_tid = snapshot.data_item_copy.transaction_id.load();
+          EpochNumber written_in_epoch = current_tid.epoch;
 
-        TransactionId unlocked_id;
-        if (current_epoch != written_in_epoch) {
-          unlocked_id = {current_epoch, 2};
-        } else {
-          unlocked_id = {current_epoch, current_tid.tid + 1};
+          TransactionId unlocked_id;
+          if (current_epoch != written_in_epoch) {
+            unlocked_id = {current_epoch, 2};
+          } else {
+            unlocked_id = {current_epoch, current_tid.tid + 1};
+          }
+          item->transaction_id.store(unlocked_id);
+          snapshot.data_item_copy.transaction_id.store(unlocked_id);
         }
-        item->transaction_id.store(unlocked_id);
-        snapshot.data_item_copy.transaction_id.store(unlocked_id);
       }
     }
   }
@@ -230,25 +250,30 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     // x_pv < x_j by using exclusive locking.
 
     {  // snapshot the pivot version objects from write_set
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        auto* value_ptr = snapshot.index_cache;
-        assert(value_ptr != nullptr);
+      for (auto& pair : tx_ref_.write_set_ref_) {
+        for (auto& snapshot : pair.second) {
+          auto* value_ptr = snapshot.index_cache;
+          assert(value_ptr != nullptr);
 
-        const auto pivot_object = value_ptr->pivot_object.load();
-        const PivotObjectSnapshot pv_snapshot = {value_ptr, pivot_object,
-                                                 PivotObjectSnapshot::WRITESET};
-        pivot_object_snapshots_.emplace_back(pv_snapshot);
+          const auto pivot_object = value_ptr->pivot_object.load();
+          const PivotObjectSnapshot pv_snapshot = {
+              value_ptr, pivot_object, PivotObjectSnapshot::WRITESET};
+          pivot_object_snapshots_.emplace_back(pv_snapshot);
+        }
       }
     }
     {  // snapshot the pivot version objects
       // from read_set
-      for (auto& snapshot : tx_ref_.read_set_ref_) {
-        auto* value_ptr = snapshot.index_cache;
-        assert(value_ptr != nullptr);
-        const auto pivot_object = value_ptr->pivot_object.load();
-        const PivotObjectSnapshot pv_snapshot = {value_ptr, pivot_object,
-                                                 PivotObjectSnapshot::READSET};
-        pivot_object_snapshots_.emplace_back(pv_snapshot);
+
+      for (auto& pair : tx_ref_.read_set_ref_) {
+        for (auto& snapshot : pair.second) {
+          auto* value_ptr = snapshot.index_cache;
+          assert(value_ptr != nullptr);
+          const auto pivot_object = value_ptr->pivot_object.load();
+          const PivotObjectSnapshot pv_snapshot = {
+              value_ptr, pivot_object, PivotObjectSnapshot::READSET};
+          pivot_object_snapshots_.emplace_back(pv_snapshot);
+        }
       }
     }
 
@@ -278,21 +303,23 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     {  // make t_j's squashed read/write set
 
       // MergedRS
-      for (auto& snapshot : tx_ref_.read_set_ref_) {
-        const auto value_ptr = snapshot.index_cache;
-        auto tid = snapshot.data_item_copy.transaction_id.load();
-        assert(value_ptr != nullptr);
+      for (auto& pair : tx_ref_.read_set_ref_) {
+        for (auto& snapshot : pair.second) {
+          const auto value_ptr = snapshot.index_cache;
+          auto tid = snapshot.data_item_copy.transaction_id.load();
+          assert(value_ptr != nullptr);
 
-        // Store the version number x_k read by t_j.
-        // When x_k has written in the different (not the current) epoch,
-        // version x_k in this merged RS must be less than all versions
-        // written in the current epoch, and thus we store 1 as the oldest
-        // version for all epochs, instead of actual value of 64-bits version
-        // representation.
-        if (tid.epoch == current_epoch) {
-          my_pivot_object_.msets.rset.PutHigherside(value_ptr, tid.tid);
-        } else {
-          my_pivot_object_.msets.rset.PutHigherside(value_ptr, 1);
+          // Store the version number x_k read by t_j.
+          // When x_k has written in the different (not the current) epoch,
+          // version x_k in this merged RS must be less than all versions
+          // written in the current epoch, and thus we store 1 as the oldest
+          // version for all epochs, instead of actual value of 64-bits version
+          // representation.
+          if (tid.epoch == current_epoch) {
+            my_pivot_object_.msets.rset.PutHigherside(value_ptr, tid.tid);
+          } else {
+            my_pivot_object_.msets.rset.PutHigherside(value_ptr, 1);
+          }
         }
       }
 
@@ -426,32 +453,36 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
     {  // make t_j's squashed read/write set
 
       // MergedRS
-      for (auto& snapshot : tx_ref_.read_set_ref_) {
-        const auto* value_ptr = snapshot.index_cache;
-        auto tid = snapshot.data_item_copy.transaction_id.load();
-        assert(value_ptr != nullptr);
-        if (tid.epoch == current_epoch) {
-          my_pivot_object_.msets.rset.PutLowerside(value_ptr, tid.tid);
-        } else {
-          my_pivot_object_.msets.rset.PutLowerside(value_ptr, 1);
+      for (auto& pair : tx_ref_.read_set_ref_) {
+        for (auto& snapshot : pair.second) {
+          const auto* value_ptr = snapshot.index_cache;
+          auto tid = snapshot.data_item_copy.transaction_id.load();
+          assert(value_ptr != nullptr);
+          if (tid.epoch == current_epoch) {
+            my_pivot_object_.msets.rset.PutLowerside(value_ptr, tid.tid);
+          } else {
+            my_pivot_object_.msets.rset.PutLowerside(value_ptr, 1);
+          }
         }
       }
 
       // MergedWS
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        const auto* value_ptr = snapshot.index_cache;
-        assert(value_ptr != nullptr);
-        auto tid = snapshot.data_item_copy.transaction_id.load();
-        assert(tid.tid & 1llu);  // is locked
+      for (auto& pair : tx_ref_.write_set_ref_) {
+        for (auto& snapshot : pair.second) {
+          const auto* value_ptr = snapshot.index_cache;
+          assert(value_ptr != nullptr);
+          auto tid = snapshot.data_item_copy.transaction_id.load();
+          assert(tid.tid & 1llu);  // is locked
 
-        auto new_version = tid.tid;
-        if (tid.epoch == current_epoch) {
-          new_version += 1;  // unlocked version
-        } else {
-          new_version = 2;  // the first unlocked version in this epoch
+          auto new_version = tid.tid;
+          if (tid.epoch == current_epoch) {
+            new_version += 1;  // unlocked version
+          } else {
+            new_version = 2;  // the first unlocked version in this epoch
+          }
+
+          my_pivot_object_.msets.wset.PutHigherside(value_ptr, new_version);
         }
-
-        my_pivot_object_.msets.wset.PutHigherside(value_ptr, new_version);
       }
     }
 
@@ -466,11 +497,13 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
       if (old_snapshot.versions.epoch != current_epoch &&
           snapshot.set_type == PivotObjectSnapshot::WRITESET) {
         Snapshot* ws_entry_for_this_snapshot = nullptr;
-        for (auto& ws_entry : tx_ref_.write_set_ref_) {
-          if (ws_entry.index_cache != snapshot.item_p_cache) continue;
-          if (ws_entry.is_read_modify_write) break;
+        for (auto& pair : tx_ref_.write_set_ref_) {
+          for (auto& ws_entry : pair.second) {
+            if (ws_entry.index_cache != snapshot.item_p_cache) continue;
+            if (ws_entry.is_read_modify_write) break;
 
-          ws_entry_for_this_snapshot = &ws_entry;
+            ws_entry_for_this_snapshot = &ws_entry;
+          }
         }
         if (ws_entry_for_this_snapshot != nullptr) {
           // It is the first blind write into the data item in this epoch

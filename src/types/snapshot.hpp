@@ -30,12 +30,10 @@ struct Snapshot {
   DataItem data_item_copy;
   DataItem* index_cache;
   bool is_read_modify_write;
-  std::string table_name;
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
-           DataItem* const i, const TransactionId ver = 0,
-           const std::string_view tn = "")
-      : key(k), index_cache(i), is_read_modify_write(false), table_name(tn) {
+           DataItem* const i, const TransactionId ver = 0)
+      : key(k), index_cache(i), is_read_modify_write(false) {
     if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
   Snapshot(const Snapshot&) = default;
@@ -44,10 +42,11 @@ struct Snapshot {
   static bool Compare(Snapshot& left, Snapshot& right) {
     return left.key < right.key;
   }
+  
 };
 
-using ReadSetType = std::vector<Snapshot>;
-using WriteSetType = std::vector<Snapshot>;
+using ReadSetType = std::unordered_map<std::string, std::vector<Snapshot>>;
+using WriteSetType = std::unordered_map<std::string, std::vector<Snapshot>>;
 
 }  // namespace LineairDB
 
