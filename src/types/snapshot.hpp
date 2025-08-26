@@ -42,7 +42,6 @@ struct Snapshot {
   static bool Compare(Snapshot& left, Snapshot& right) {
     return left.key < right.key;
   }
-  
 };
 
 using ReadSetType = std::unordered_map<std::string, std::vector<Snapshot>>;

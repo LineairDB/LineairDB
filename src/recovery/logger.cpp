@@ -207,11 +207,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                   "    insert-> key {0}, version {1} in epoch {2} in table {3}",
                   kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
               Snapshot snapshot = {
-                  kvp.key,
-                  reinterpret_cast<std::byte*>(kvp.buffer.data()),
-                  kvp.buffer.size(),
-                  nullptr,
-                  kvp.tid};
+                  kvp.key, reinterpret_cast<std::byte*>(kvp.buffer.data()),
+                  kvp.buffer.size(), nullptr, kvp.tid};
               recovery_vector_for_table.emplace_back(std::move(snapshot));
             }
           }
