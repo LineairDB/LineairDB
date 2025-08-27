@@ -67,7 +67,7 @@ TEST_F(ConcurrentCreateTableTest, RepeatedlyCreateTable) {
 }
 
 TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
-  constexpr size_t kMaxTables = 1000; 
+  constexpr size_t kMaxTables = 1000;
   std::thread worker([&]() {
     for (size_t i = 0; i < kMaxTables; ++i) {
       const std::string table_name = "table_" + std::to_string(i);
