@@ -89,8 +89,6 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
   void Abort() final override{};
   bool Precommit(bool need_to_checkpoint) final override {
     /** Sorting write set to prevent deadlock **/
-    /*     std::sort(tx_ref_.write_set_ref_.begin(),
-       tx_ref_.write_set_ref_.end(), Snapshot::Compare); */
     std::vector<std::reference_wrapper<Snapshot>> sorted_write_set_ref_;
     size_t total_size = 0;
     for (const auto& pair : tx_ref_.write_set_ref_) {
