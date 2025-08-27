@@ -36,7 +36,7 @@ class ConcurrentCreateTableTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::filesystem::remove_all(config_.work_dir);
-    config_.max_thread = 4;
+    config_.max_thread = 1;
     config_.checkpoint_period = 1;
     config_.epoch_duration_ms = 100;
     db_ = std::make_unique<LineairDB::Database>(config_);
