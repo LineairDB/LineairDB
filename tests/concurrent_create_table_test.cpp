@@ -67,7 +67,7 @@ TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
     });
   }
 
-  // すべての worker が走り始めた状態で 2 回 checkpoint を待つ
+  // Wait for two checkpoints after all workers have started running
   db_->WaitForCheckpoint();
   db_->WaitForCheckpoint();
 
