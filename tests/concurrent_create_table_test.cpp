@@ -74,7 +74,7 @@ TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
 
   std::vector<std::thread> workers;
   for (size_t t = 0; t < kNumWorkers; ++t) {
-    workers.emplace_back([&, t]() {
+    workers.emplace_back([&]() {
       size_t i = 0;
       while (!stop.load()) {
         const std::string table_name =
