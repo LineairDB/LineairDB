@@ -67,16 +67,35 @@ TEST_F(ConcurrentCreateTableTest, RepeatedlyCreateTable) {
 }
 
 TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
-  constexpr size_t kMaxTables = 500;
-  std::thread worker([&]() {
-    for (size_t i = 0; i < kMaxTables; ++i) {
-      const std::string table_name = "table_" + std::to_string(i);
-      (void)db_->CreateTable(table_name);
-      if (i % 16 == 0) std::this_thread::yield();
-    }
-  });
+  constexpr size_t kNumWorkers = 4;
+  constexpr size_t kTablesPerSec = 500;
 
+  std::atomic<bool> stop{false};
+
+  std::vector<std::thread> workers;
+  for (size_t t = 0; t < kNumWorkers; ++t) {
+    workers.emplace_back([&, t]() {
+      size_t i = 0;
+      while (!stop.load()) {
+        const std::string table_name =
+            "table_" + std::to_string(i % kTablesPerSec);
+        const bool created = db_->CreateTable(table_name);
+        if (created) {
+        } else {
+          EXPECT_FALSE(created);
+        }
+        ++i;
+        if (i % 128 == 0) std::this_thread::yield();
+      }
+    });
+  }
+
+  // すべての worker が走り始めた状態で 2 回 checkpoint を待つ
+  db_->WaitForCheckpoint();
   db_->WaitForCheckpoint();
 
-  worker.join();
+  stop.store(true);
+  for (auto& w : workers) {
+    w.join();
+  }
 }
