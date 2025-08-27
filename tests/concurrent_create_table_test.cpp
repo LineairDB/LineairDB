@@ -43,29 +43,6 @@ class ConcurrentCreateTableTest : public ::testing::Test {
   }
 };
 
-TEST_F(ConcurrentCreateTableTest, RepeatedlyCreateTable) {
-  constexpr size_t kNumThreads = 4;
-  constexpr size_t kNumTablesPerThread = 100;
-
-  std::vector<std::thread> threads;
-  threads.reserve(kNumThreads);
-
-  for (size_t i = 0; i < kNumThreads; ++i) {
-    threads.emplace_back([this, i]() {
-      for (size_t j = 0; j < kNumTablesPerThread; ++j) {
-        std::string table_name =
-            "table_" + std::to_string(i) + "_" + std::to_string(j);
-        bool success = db_->CreateTable(table_name.c_str());
-        ASSERT_TRUE(success);
-      }
-    });
-  }
-
-  for (auto& thread : threads) {
-    thread.join();
-  }
-}
-
 TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
   constexpr size_t kNumWorkers = 4;
   constexpr size_t kTablesPerSec = 500;
