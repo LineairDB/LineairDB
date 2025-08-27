@@ -56,18 +56,13 @@ TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
       while (!stop.load()) {
         const std::string table_name =
             "table_" + std::to_string(i % kTablesPerSec);
-        const bool created = db_->CreateTable(table_name);
-        if (created) {
-        } else {
-          EXPECT_FALSE(created);
-        }
+        db_->CreateTable(table_name);
         ++i;
         if (i % 128 == 0) std::this_thread::yield();
       }
     });
   }
 
-  // Wait for two checkpoints after all workers have started running
   db_->WaitForCheckpoint();
   db_->WaitForCheckpoint();
 
