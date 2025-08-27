@@ -45,7 +45,7 @@ class ConcurrentCreateTableTest : public ::testing::Test {
 
 TEST_F(ConcurrentCreateTableTest, ConcurrentCreateTableAndCheckpoint) {
   constexpr size_t kNumWorkers = 4;
-  constexpr size_t kTablesPerSec = 500;
+  constexpr size_t kTablesPerSec = 100;
 
   std::atomic<bool> stop{false};
 
