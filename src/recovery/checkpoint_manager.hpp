@@ -50,7 +50,7 @@ class CPRManager {
   const std::string CheckpointWorkingFileName;
 
   CPRManager(const LineairDB::Config& c_ref,
-             std::unordered_map<std::string, Table>& t_refs,
+             std::unordered_map<std::string, std::unique_ptr<Table>>& t_refs,
              EpochFramework& e_ref, std::shared_mutex& schema_mutex_ref)
       : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
         CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
@@ -124,12 +124,12 @@ class CPRManager {
 
               std::shared_lock lk(schema_mutex_ref_);
               for (auto& table : table_refs_) {
-                table.second.GetPrimaryIndex().ForEach(
+                table.second->GetPrimaryIndex().ForEach(
                     [&](std::string_view key, LineairDB::DataItem& data_item) {
                       data_item.ExclusiveLock();
 
                       Logger::LogRecord::KeyValuePair kvp;
-                      kvp.table_name = table.second.GetTableName();
+                      kvp.table_name = table.second->GetTableName();
                       kvp.key = key;
                       if (data_item.checkpoint_buffer.IsEmpty()) {
                         // this data item holds version which has written before
@@ -195,7 +195,7 @@ class CPRManager {
 
  private:
   const LineairDB::Config& config_ref_;
-  std::unordered_map<std::string, Table>& table_refs_;
+  std::unordered_map<std::string, std::unique_ptr<Table>>& table_refs_;
   LineairDB::EpochFramework& epoch_manager_ref_;
   std::shared_mutex& schema_mutex_ref_;
   Logger::LogRecords log_records;

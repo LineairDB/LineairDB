@@ -62,6 +62,9 @@ class Database::Impl {
     }
     if (!config_.anonymous_table_name.empty()) {
       CreateTable(config_.anonymous_table_name);
+    } else {
+      SPDLOG_ERROR("Anonymous table name is not set.");
+      exit(1);
     }
     if (config_.enable_recovery) {
       Recovery();
@@ -254,18 +257,17 @@ class Database::Impl {
     if (tables_.find(std::string(table_name)) != tables_.end()) {
       return false;
     }
+    auto table = std::make_unique<Table>(epoch_framework_, config_,
+                                         std::string(table_name));
     auto [it, inserted] =
-        tables_.emplace(std::piecewise_construct,
-                        std::forward_as_tuple(std::string(table_name)),
-                        std::forward_as_tuple(epoch_framework_, config_,
-                                              std::string(table_name)));
+        tables_.emplace(std::string(table_name), std::move(table));
     return inserted;
   }
 
   std::optional<Table*> GetTable(const std::string_view table_name) {
     std::shared_lock lk(schema_mutex_);
     if (auto it = tables_.find(std::string(table_name)); it != tables_.end()) {
-      return &it->second;
+      return it->second.get();
     }
     return std::nullopt;
   }
@@ -295,8 +297,10 @@ class Database::Impl {
       CreateTable(pair.first);
       auto table = GetTable(pair.first);
       if (!table.has_value()) {
-        SPDLOG_ERROR("Table {0} not found", pair.first);
-        continue;
+        SPDLOG_CRITICAL(
+            "Recovery failed: Table {0} could not be found or created.",
+            pair.first);
+        exit(1);
       }
       for (auto& snapshot : pair.second) {
         highest_epoch = std::max(
@@ -319,7 +323,7 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
-  std::unordered_map<std::string, Table> tables_;
+  std::unordered_map<std::string, std::unique_ptr<Table>> tables_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   std::shared_mutex schema_mutex_;
   Recovery::CPRManager checkpoint_manager_;
