@@ -58,16 +58,14 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
   {
     record.epoch = epoch;
 
-    for (auto& pair : ws_ref) {
-      for (auto& snapshot : pair.second) {
-        Logger::LogRecord::KeyValuePair kvp;
-        kvp.key = snapshot.key;
-        kvp.buffer = snapshot.data_item_copy.buffer.toString();
-        kvp.tid = snapshot.data_item_copy.transaction_id.load();
-        kvp.table_name = pair.first;
+    for (auto& snapshot : ws_ref) {
+      Logger::LogRecord::KeyValuePair kvp;
+      kvp.key = snapshot.key;
+      kvp.buffer = snapshot.data_item_copy.buffer.toString();
+      kvp.tid = snapshot.data_item_copy.transaction_id.load();
+      kvp.table_name = snapshot.table_name;
 
-        record.key_value_pairs.emplace_back(std::move(kvp));
-      }
+      record.key_value_pairs.emplace_back(std::move(kvp));
     }
   }
   auto* my_storage = thread_key_storage_.Get();

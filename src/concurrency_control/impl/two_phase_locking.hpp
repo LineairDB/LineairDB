@@ -44,7 +44,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
   TwoPhaseLockingImpl(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)) {}
 
-  ~TwoPhaseLockingImpl() final override{};
+  ~TwoPhaseLockingImpl() final override {};
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {
@@ -75,13 +75,10 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
 
     auto& rw_lock = index_leaf->GetRWLockRef();
     bool is_read_modify_write = false;
-
-    for (auto& pair : tx_ref_.read_set_ref_) {
-      for (auto& snapshot : pair.second) {
-        if (snapshot.key == key) {
-          is_read_modify_write = true;
-          break;
-        }
+    for (auto& item : tx_ref_.read_set_ref_) {
+      if (item.key == key) {
+        is_read_modify_write = true;
+        break;
       }
     }
 
@@ -126,10 +123,8 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
   };
   bool Precommit(bool need_to_checkpoint) final override {
     if (need_to_checkpoint) {
-      for (auto& pair : tx_ref_.write_set_ref_) {
-        for (auto& snapshot : pair.second) {
-          snapshot.index_cache->CopyLiveVersionToStableVersion();
-        }
+      for (auto& snapshot : tx_ref_.write_set_ref_) {
+        snapshot.index_cache->CopyLiveVersionToStableVersion();
       }
     }
 

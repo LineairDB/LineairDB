@@ -187,29 +187,33 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
         if (filename == checkpoint_filename ||
             log_record.epoch <= durable_epoch) {
           for (auto& kvp : log_record.key_value_pairs) {
-            auto& recovery_vector_for_table = recovery_set[kvp.table_name];
-            auto it = std::find_if(
-                recovery_vector_for_table.begin(),
-                recovery_vector_for_table.end(),
-                [&](const Snapshot& s) { return s.key == kvp.key; });
+            bool not_found = true;
+            for (auto& item : recovery_set) {
+              if (item.key == kvp.key) {
+                not_found = false;
+                if (item.data_item_copy.transaction_id.load() < kvp.tid) {
+                  item.data_item_copy.buffer.Reset(kvp.buffer);
+                  item.data_item_copy.transaction_id = kvp.tid;
+                  item.table_name = kvp.table_name;
 
-            if (it != recovery_vector_for_table.end()) {
-              if (it->data_item_copy.transaction_id.load() < kvp.tid) {
-                it->data_item_copy.buffer.Reset(kvp.buffer);
-                it->data_item_copy.transaction_id = kvp.tid;
-                SPDLOG_DEBUG(
-                    "    update-> key {0}, version {1} in epoch {2} in table "
-                    "{3}",
-                    kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
+                  SPDLOG_DEBUG(
+                      "    update-> key {0}, version {1} in epoch {2} in table "
+                      "{3}",
+                      kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
+                }
               }
-            } else {
-              SPDLOG_DEBUG(
-                  "    insert-> key {0}, version {1} in epoch {2} in table {3}",
-                  kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
+            }
+            if (not_found) {
+              SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
+                           kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
               Snapshot snapshot = {
-                  kvp.key, reinterpret_cast<std::byte*>(kvp.buffer.data()),
-                  kvp.buffer.size(), nullptr, kvp.tid};
-              recovery_vector_for_table.emplace_back(std::move(snapshot));
+                  kvp.key,
+                  reinterpret_cast<std::byte*>(kvp.buffer.data()),
+                  kvp.buffer.size(),
+                  nullptr,
+                  kvp.tid,
+                  kvp.table_name};
+              recovery_set.emplace_back(std::move(snapshot));
             }
           }
         }
