@@ -123,7 +123,7 @@ class CPRManager {
               record.epoch = checkpoint_epoch_.load() + 1;
 
               std::shared_lock lk(schema_mutex_ref_);
-              for (auto& table : table_refs_) {
+              for (auto& table : table_refs_)
                 table.second->GetPrimaryIndex().ForEach(
                     [&](std::string_view key, LineairDB::DataItem& data_item) {
                       data_item.ExclusiveLock();
@@ -146,7 +146,6 @@ class CPRManager {
                       data_item.ExclusiveUnlock();
                       return true;
                     });
-              }
               records.emplace_back(std::move(record));
 
               std::ofstream new_file(

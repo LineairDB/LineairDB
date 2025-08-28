@@ -204,15 +204,17 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
               }
             }
             if (not_found) {
-              SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
-                           kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
+              SPDLOG_DEBUG(
+                  "    insert-> key {0}, version {1} in epoch {2} in table {3}",
+                  kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
               Snapshot snapshot = {
                   kvp.key,
                   reinterpret_cast<std::byte*>(kvp.buffer.data()),
                   kvp.buffer.size(),
                   nullptr,
+                  kvp.table_name,
                   kvp.tid,
-                  kvp.table_name};
+              };
               recovery_set.emplace_back(std::move(snapshot));
             }
           }

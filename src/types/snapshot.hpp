@@ -33,8 +33,7 @@ struct Snapshot {
   std::string table_name;
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
-           DataItem* const i, const TransactionId ver = 0,
-           const std::string_view tn = "")
+           DataItem* const i, std::string_view tn, const TransactionId ver = 0)
       : key(k), index_cache(i), is_read_modify_write(false), table_name(tn) {
     if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }

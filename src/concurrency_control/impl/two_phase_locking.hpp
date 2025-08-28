@@ -44,7 +44,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
   TwoPhaseLockingImpl(TransactionReferences&& tx)
       : ConcurrencyControlBase(std::forward<TransactionReferences&&>(tx)) {}
 
-  ~TwoPhaseLockingImpl() final override {};
+  ~TwoPhaseLockingImpl() final override{};
 
   const DataItem Read(const std::string_view,
                       DataItem* index_leaf) final override {

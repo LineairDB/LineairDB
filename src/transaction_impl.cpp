@@ -76,29 +76,24 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
   if (IsAborted()) return {nullptr, 0};
 
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == key) {
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
+    }
+  }
+
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == key) {
+      return std::make_pair(snapshot.data_item_copy.value(),
+                            snapshot.data_item_copy.size());
+    }
+  }
+
   EnsureCurrentTable();
-
-  if (auto write_it =
-          std::find_if(write_set_.begin(), write_set_.end(),
-                       [&](const Snapshot& s) { return s.key == key; });
-      write_it != write_set_.end()) {
-    return {write_it->data_item_copy.value(), write_it->data_item_copy.size()};
-  }
-
-  if (auto read_it =
-          std::find_if(read_set_.begin(), read_set_.end(),
-                       [&](const Snapshot& s) { return s.key == key; });
-      read_it != read_set_.end()) {
-    return {read_it->data_item_copy.value(), read_it->data_item_copy.size()};
-  }
-
-  if (current_table_ == nullptr) {
-    current_table_ =
-        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
-  }
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
-  Snapshot snapshot = {key,        nullptr, 0,
-                       index_leaf, 0,       current_table_->GetTableName()};
+  Snapshot snapshot = {key, nullptr, 0, index_leaf,
+                       current_table_->GetTableName()};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref = read_set_.emplace_back(std::move(snapshot));
@@ -116,29 +111,27 @@ void Transaction::Impl::Write(const std::string_view key,
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
 
-  auto read_it = std::find_if(read_set_.begin(), read_set_.end(),
-                              [&](Snapshot& s) { return s.key == key; });
-  const bool is_rmf = (read_it != read_set_.end());
-  if (is_rmf) {
-    read_it->is_read_modify_write = true;
+  bool is_rmf = false;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == key) {
+      is_rmf = true;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
   }
 
-  auto write_it = std::find_if(write_set_.begin(), write_set_.end(),
-                               [&](Snapshot& s) { return s.key == key; });
-  if (write_it != write_set_.end()) {
-    write_it->data_item_copy.Reset(value, size);
-    if (is_rmf) write_it->is_read_modify_write = true;
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != key) continue;
+    snapshot.data_item_copy.Reset(value, size);
+    if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }
 
-  if (current_table_ == nullptr) {
-    current_table_ =
-        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
-  }
+  EnsureCurrentTable();
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf, 0, current_table_->GetTableName());
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
@@ -219,11 +212,10 @@ const std::optional<size_t> Transaction::Scan(
   return tx_pimpl_->Scan(begin, end, operation);
 };
 void Transaction::Abort() { tx_pimpl_->Abort(); }
-bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
-
 bool Transaction::SetTable(const std::string_view table_name) {
   return tx_pimpl_->SetTable(table_name);
 }
+bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
 Transaction::Transaction(void* db_pimpl) noexcept
     : tx_pimpl_(

@@ -299,8 +299,8 @@ class Database::Impl {
       if (!table.has_value()) {
         SPDLOG_CRITICAL(
             "Recovery failed: Table {0} could not be found or created.",
-            pair.first);
-        exit(1);
+            recovery_set.table_name);
+        exit(EXIT_FAILURE);
       }
 
       highest_epoch =
