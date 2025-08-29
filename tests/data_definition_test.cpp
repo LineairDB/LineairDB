@@ -108,10 +108,11 @@ TEST_F(DataDefinitionTest, ConcurrencyControlBetweenMultipleTables) {
     ASSERT_TRUE(tx1.SetTable("users"));
 
     tx1.Write<int>("user1", 42);
+    tx1.Write<int>("user1_only_users", 42);
     tx1_ready = true;
     while (!tx2_ready) std::this_thread::yield();  // Wait for tx2 to be ready
     db_->EndTransaction(tx1, [](auto status) {
-      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
     });
   });
 
@@ -122,8 +123,10 @@ TEST_F(DataDefinitionTest, ConcurrencyControlBetweenMultipleTables) {
     tx2.Write<int>("user1", 100);
     tx2_ready = true;
     while (!tx1_ready) std::this_thread::yield();  // Wait for tx1 to be ready
+    auto data = tx2.Read<int>("user1_only_users");
+    ASSERT_FALSE(data.has_value());
     db_->EndTransaction(tx2, [](auto status) {
-      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
     });
   });
 
@@ -145,7 +148,7 @@ TEST_F(DataDefinitionTest, ConcurrencyControlBetweenMultipleTables) {
     ASSERT_TRUE(data.has_value());
     ASSERT_EQ(data.value(), 100);
     db_->EndTransaction(tx, [](auto status) {
-      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
     });
   }
 }
