@@ -76,21 +76,22 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     const std::string_view key) {
   if (IsAborted()) return {nullptr, 0};
 
+  EnsureCurrentTable();
+
   for (auto& snapshot : write_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key && snapshot.table_name == current_table_->GetTableName()) {
       return std::make_pair(snapshot.data_item_copy.value(),
                             snapshot.data_item_copy.size());
     }
   }
 
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key && snapshot.table_name == current_table_->GetTableName()) {
       return std::make_pair(snapshot.data_item_copy.value(),
                             snapshot.data_item_copy.size());
     }
   }
 
-  EnsureCurrentTable();
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf,
                        current_table_->GetTableName()};
@@ -110,10 +111,11 @@ void Transaction::Impl::Write(const std::string_view key,
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
+  EnsureCurrentTable();
 
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key && snapshot.table_name == current_table_->GetTableName()) {
       is_rmf = true;
       snapshot.is_read_modify_write = true;
       break;
@@ -121,13 +123,13 @@ void Transaction::Impl::Write(const std::string_view key,
   }
 
   for (auto& snapshot : write_set_) {
-    if (snapshot.key != key) continue;
+    if (snapshot.key != key || snapshot.table_name != current_table_->GetTableName())
+      continue;
     snapshot.data_item_copy.Reset(value, size);
     if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }
 
-  EnsureCurrentTable();
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
