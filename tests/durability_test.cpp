@@ -20,7 +20,6 @@
 #include <lineairdb/tx_status.h>
 
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <filesystem>
 #include <memory>

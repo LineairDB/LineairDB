@@ -23,7 +23,6 @@
 
 #include <functional>
 #include <shared_mutex>
-#include <tuple>
 #include <utility>
 
 #include "callback/callback_manager.h"
@@ -31,6 +30,7 @@
 #include "recovery/checkpoint_manager.hpp"
 #include "recovery/logger.h"
 #include "table/table.h"
+#include "table/table_dictionary.hpp"
 #include "thread_pool/thread_pool.h"
 #include "transaction_impl.h"
 #include "util/backoff.hpp"
@@ -50,7 +50,7 @@ class Database::Impl {
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        checkpoint_manager_(config_, tables_, epoch_framework_, schema_mutex_) {
+        checkpoint_manager_(config_, table_dictionary_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -58,13 +58,13 @@ class Database::Impl {
       SPDLOG_ERROR(
           "It is prohibited to allocate two LineairDB::Database instance at "
           "the same time.");
-      exit(1);
+      exit(EXIT_FAILURE);
     }
     if (!config_.anonymous_table_name.empty()) {
       CreateTable(config_.anonymous_table_name);
     } else {
       SPDLOG_ERROR("Anonymous table name is not set.");
-      exit(1);
+      exit(EXIT_FAILURE);
     }
     if (config_.enable_recovery) {
       Recovery();
@@ -253,23 +253,11 @@ class Database::Impl {
   }
 
   bool CreateTable(const std::string_view table_name) {
-    std::unique_lock<std::shared_mutex> lk(schema_mutex_);
-    if (tables_.find(std::string(table_name)) != tables_.end()) {
-      return false;
-    }
-    auto table = std::make_unique<Table>(epoch_framework_, config_,
-                                         std::string(table_name));
-    auto [it, inserted] =
-        tables_.emplace(std::string(table_name), std::move(table));
-    return inserted;
+    return table_dictionary_.CreateTable(table_name, epoch_framework_, config_);
   }
 
   std::optional<Table*> GetTable(const std::string_view table_name) {
-    std::shared_lock lk(schema_mutex_);
-    if (auto it = tables_.find(std::string(table_name)); it != tables_.end()) {
-      return it->second.get();
-    }
-    return std::nullopt;
+    return table_dictionary_.GetTable(table_name);
   }
 
  private:
@@ -322,9 +310,8 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
-  std::unordered_map<std::string, std::unique_ptr<Table>> tables_;
+  TableDictionary table_dictionary_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
-  std::shared_mutex schema_mutex_;
   Recovery::CPRManager checkpoint_manager_;
 };
 
