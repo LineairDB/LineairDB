@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <shared_mutex>
 #include <string>
 
 #include "index/concurrent_table.h"
