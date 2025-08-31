@@ -16,7 +16,6 @@
 
 #include "thread_pool/thread_pool.h"
 
-#include <mutex>
 #include <set>
 #include <thread>
 

@@ -48,6 +48,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_C_FLAGS "--std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -fPIC")
+
+# Check for and disable nan-infinity warnings early to avoid GoogleTest compilation issues
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-Wno-nan-infinity-disabled" COMPILER_SUPPORTS_NAN_INFINITY_DISABLED)
+if(COMPILER_SUPPORTS_NAN_INFINITY_DISABLED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nan-infinity-disabled")
+endif()
 if (NOT APPLE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcx16")
 endif()
@@ -56,11 +63,12 @@ if(NOT IS_TOPLEVEL_PROJECT)
 endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG
-    "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
+    "${CMAKE_CXX_FLAGS} -g3 -O0 -fno-omit-frame-pointer")
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics")
   if(IS_TOPLEVEL_PROJECT AND BUILD_SANITIZER)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+    message(STATUS "AddressSanitizer enabled")
   endif()
 endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
@@ -154,10 +162,6 @@ if(IS_TOPLEVEL_PROJECT AND BUILD_TESTS)
     add_subdirectory(third_party/googletest)
   endif()
   add_subdirectory(tests)
-  if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-    # Suppress warnings about NaN and Infinity in gtest
-    set_target_properties(gtest PROPERTIES COMPILE_OPTIONS "-Wno-nan-infinity-disabled")
-  endif()
 endif()
 
 # Benchmarks
