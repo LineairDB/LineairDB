@@ -25,6 +25,8 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "types/definitions.h"
@@ -59,14 +61,50 @@ class Transaction::Impl {
   TxStatus GetCurrentStatus();
   const std::pair<const std::byte* const, const size_t> Read(
       const std::string_view key);
+  const std::pair<const std::byte* const, const size_t> ReadPrimaryIndex(
+      const std::string_view table_name, const std::string_view key);
+
+  std::vector<std::string> ReadSecondaryIndex(const std::string_view table_name,
+                                              const std::string_view index_name,
+                                              const std::any& key);
+
   void Write(const std::string_view key, const std::byte value[],
              const size_t size);
+  void WritePrimaryIndex(const std::string_view table_name,
+                         const std::string_view key, const std::byte value[],
+                         const size_t size);
+  void WriteSecondaryIndex(const std::string_view table_name,
+                           const std::string_view index_name,
+                           const std::any& key,
+                           const std::byte primary_key_buffer[],
+                           const size_t primary_key_size);
 
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
+
+  const std::optional<size_t> ScanPrimaryIndex(
+      const std::string_view table_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
+
+  const std::optional<size_t> ScanSecondaryIndex(
+      const std::string_view table_name, const std::string_view index_name,
+      const std::any& begin, const std::any& end,
+      std::function<bool(std::string_view, const std::vector<std::string>)>
+          operation);
+
+  void UpdateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
+                            const std::any& old_key, const std::any& new_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
+
+  bool ValidateSKNotNull();
 
   void Abort();
   bool Precommit();
@@ -79,6 +117,20 @@ class Transaction::Impl {
  private:
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
+  // --- helpers for secondary index operations ---
+  bool FindWriteSnapshot(const std::string& qualified_key, Snapshot** out);
+  void MarkRMFIfRead(const std::string& qualified_key);
+  std::vector<std::string> DecodeCurrentPKList(const std::string& qualified_key,
+                                               DataItem* leaf);
+  void WriteEncodedPKList(const std::string& qualified_key, DataItem* leaf,
+                          const std::string& encoded_value, bool mark_rmf);
+  void WriteEncodedPKList(Snapshot& existing_snapshot,
+                          const std::string& encoded_value, bool mark_rmf);
+  bool RemovePKFromList(std::vector<std::string>& lst, std::string_view pk);
+  bool AppendPKIfAbsent(std::vector<std::string>& lst, std::string_view pk);
+  bool IsKeyInReadSet(const std::string& qualified_key) const;
+  std::string EncodePKBytes(const std::vector<std::string>& list) const;
+
  private:
   TxStatus current_status_;
   Database::Impl* db_pimpl_;
@@ -87,6 +139,12 @@ class Transaction::Impl {
 
   ReadSetType read_set_;
   WriteSetType write_set_;
+  struct PendingState {
+    size_t remaining;
+    std::unordered_set<std::string> satisfied_indices;
+  };
+  std::unordered_map<std::string, std::unordered_map<std::string, PendingState>>
+      pending_;
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_IMPL_H */

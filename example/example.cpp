@@ -22,36 +22,29 @@
 int main() {
   {
     LineairDB::Database db;
-    LineairDB::TxStatus status;
-
-    // Execute: enqueue a transaction with an expected callback
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          if (alice.has_value()) {
-            std::cout << "alice is recovered: " << alice.value() << std::endl;
-          }
-          tx.Write<int>("alice", 1);
-        },
-        [&](LineairDB::TxStatus s) { status = s; });
-
-    // Fence: Block-wait until all running transactions are terminated
+    // tests/database_index_test.cpp の形式に合わせて同期実行
+    auto& tx = db.BeginTransaction();
+    auto alice = tx.Read<int>("alice");
+    if (alice.has_value()) {
+      std::cout << "alice is recovered: " << alice.value() << std::endl;
+    }
+    tx.Write<int>("alice", 1);
+    bool committed = db.EndTransaction(tx, [](auto) {});
     db.Fence();
-    assert(status == LineairDB::TxStatus::Committed);
+    assert(committed);
   }
 
   {
     LineairDB::Database db;
-    LineairDB::TxStatus status;
 
     // Handler interface: execute a transaction on this thread
     auto& tx = db.BeginTransaction();
     tx.Read<int>("alice");
     tx.Write<int>("alice", 1);
-    db.EndTransaction(tx, [&](auto s) { status = s; });
+    bool committed = db.EndTransaction(tx, [](auto) {});
     // Fence: Block-wait until all running transactions are terminated
     db.Fence();
-    assert(status == LineairDB::TxStatus::Committed);
+    assert(committed);
   }
 
   {
@@ -68,13 +61,12 @@ int main() {
     // Here we have instantiated and destructed LineariDB twice, and
     // we can recover stored data from durable logs.
     LineairDB::Database db;
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          assert(alice.has_value());
-          assert(alice.value() == 1);
-        },
-        [&](LineairDB::TxStatus s) {});
+    auto& tx = db.BeginTransaction();
+    auto alice = tx.Read<int>("alice");
+    assert(alice.has_value());
+    assert(alice.value() == 1);
+    db.EndTransaction(tx, [](auto) {});
+    db.Fence();
   }
 
   {
@@ -91,12 +83,166 @@ int main() {
     // this object after instantiation of LineairDB.
     //    NG: config.max_thread = 10;
 
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          // Any data item is not recovered
-          assert(!alice.has_value());
-        },
-        [&](LineairDB::TxStatus s) {});
+    {
+      auto& tx2 = db.BeginTransaction();
+      auto alice2 = tx2.Read<int>("alice");
+      // Any data item is not recovered
+      assert(!alice2.has_value());
+      db.EndTransaction(tx2, [](auto) {});
+      db.Fence();
+    }
+  }
+
+  {
+    // Table and Secondary Index usage example
+    LineairDB::Database db;
+
+    // Create table and secondary index
+    bool ok = db.CreateTable("users");
+    assert(ok);
+    ok = db.CreateSecondaryIndex<std::string>("users", "email");
+    assert(ok);
+
+    // Insert rows: primary and secondary
+    {
+      auto& tx = db.BeginTransaction();
+      tx.WritePrimaryIndex<std::string_view>("users", "user#1", "Alice");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"), "user#1");
+
+      tx.WritePrimaryIndex<std::string_view>("users", "user#2", "Bob");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users", "email", std::string("bob@example.com"), "user#2");
+
+      bool committed = db.EndTransaction(tx, [&](auto s) {
+        (void)s; /* callback not relied upon here */
+      });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Read primary index
+    {
+      auto& tx = db.BeginTransaction();
+      auto v = tx.ReadPrimaryIndex<std::string_view>("users", "user#1");
+      assert(v.has_value());
+      assert(v.value() == std::string("Alice"));
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+    }
+
+    // Read secondary index (email -> PK list)
+    {
+      auto& tx = db.BeginTransaction();
+      auto pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"));
+      assert(!pks.empty());
+      assert(pks[0] == std::string("user#1"));
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+    }
+
+    // Scan secondary index
+    {
+      auto& tx = db.BeginTransaction();
+      auto count = tx.ScanSecondaryIndex<std::string_view>(
+          "users", "email", std::string("a"), std::string("z"),
+          [&](std::string_view /*sk*/,
+              const std::vector<std::string_view>& pks) {
+            return !pks.empty();  // stop early if found
+          });
+      if (count.has_value()) {
+        assert(count.value() >= 1);
+      }
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+    }
+
+    // Scan primary index
+    {
+      auto& tx = db.BeginTransaction();
+      auto count = tx.ScanPrimaryIndex<std::string_view>(
+          "users", "user#1", std::string("user#9"), [&](auto key, auto value) {
+            if (key == std::string("user#1")) {
+              assert(value == std::string("Alice"));
+            }
+            if (key == std::string("user#2")) {
+              assert(value == std::string("Bob"));
+            }
+            return false;  // continue scan
+          });
+      assert(count.has_value());
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+    }
+
+    // Update secondary index (move SK from old to new)
+    {
+      auto& tx = db.BeginTransaction();
+      tx.UpdateSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"),
+          std::string("alice@new.com"), "user#1");
+      bool committed = db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+      assert(committed);
+    }
+
+    // Verify update result on secondary index
+    {
+      auto& tx = db.BeginTransaction();
+      auto new_pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@new.com"));
+      auto old_pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users", "email", std::string("alice@example.com"));
+      assert(!new_pks.empty());
+      assert(new_pks[0] == std::string("user#1"));
+      assert(old_pks.empty());
+      db.EndTransaction(tx, [&](auto s) { (void)s; });
+      db.Fence();
+    }
+  }
+
+  {
+    // UNIQUE constraint example for secondary index
+    LineairDB::Database db;
+    bool ok = db.CreateTable("users_unique");
+    assert(ok);
+    ok = db.CreateSecondaryIndex<std::string>(
+        "users_unique", "email",
+        LineairDB::SecondaryIndexOption::Constraint::UNIQUE);
+    assert(ok);
+
+    // First insert should commit
+    {
+      auto& tx = db.BeginTransaction();
+      tx.WritePrimaryIndex<std::string_view>("users_unique", "user#1", "Bob");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users_unique", "email", std::string("bob@example.com"), "user#1");
+      bool committed = db.EndTransaction(tx, [](auto) {});
+      db.Fence();
+      assert(committed);
+    }
+
+    // Second insert with duplicate email should abort
+    {
+      auto& tx = db.BeginTransaction();
+      tx.WritePrimaryIndex<std::string_view>("users_unique", "user#2", "Bobby");
+      tx.WriteSecondaryIndex<std::string_view>(
+          "users_unique", "email", std::string("bob@example.com"), "user#2");
+      bool committed = db.EndTransaction(tx, [](auto) {});
+      db.Fence();
+      assert(!committed);
+    }
+
+    // Verify that only the first PK is registered for the email
+    {
+      auto& tx = db.BeginTransaction();
+      auto pks = tx.ReadSecondaryIndex<std::string_view>(
+          "users_unique", "email", std::string("bob@example.com"));
+      assert(pks.size() == 1u);
+      assert(pks[0] == std::string("user#1"));
+      db.EndTransaction(tx, [](auto) {});
+      db.Fence();
+    }
   }
 }
