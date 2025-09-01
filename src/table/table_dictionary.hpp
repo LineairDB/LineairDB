@@ -18,8 +18,9 @@ class TableDictionary {
     if (tables_.Get(table_name) != nullptr) {
       return false;
     }
-    tables_.Put(table_name,
-                new Table(epoch_framework, config, std::string(table_name)));
+    auto* tbl = new Table(epoch_framework, config, std::string(table_name));
+    auto inserted = tables_.Put(table_name, tbl);
+    if (!inserted) delete tbl;
     return true;
   }
 
