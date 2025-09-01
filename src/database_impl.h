@@ -72,20 +72,18 @@ class Database::Impl {
   }
 
   ~Impl() {
-    Fence();
     thread_pool_.StopAcceptingTransactions();
-    epoch_framework_.Sync();
     checkpoint_manager_.Stop();
     epoch_framework_.Stop();
-    while (!thread_pool_.IsEmpty()) {
-      std::this_thread::yield();
-    }
     thread_pool_.Shutdown();
+    thread_pool_.JoinAll();  
+    epoch_framework_.Sync();
     SPDLOG_DEBUG(
         "Epoch number and Durable epoch number are ended at {0}, and {1}, "
         "respectively.",
         epoch_framework_.GetGlobalEpoch(), logger_.GetDurableEpoch());
     SPDLOG_INFO("LineairDB instance has been destructed.");
+
     assert(Database::Impl::CurrentDBInstance == this);
     Database::Impl::CurrentDBInstance = nullptr;
   }
