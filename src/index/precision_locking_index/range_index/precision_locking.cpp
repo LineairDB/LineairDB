@@ -20,7 +20,6 @@
 #include <atomic>
 #include <cassert>
 #include <functional>
-#include <mutex>
 #include <string_view>
 #include <vector>
 

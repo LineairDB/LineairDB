@@ -24,7 +24,6 @@
 #include <atomic>
 #include <chrono>
 #include <msgpack.hpp>
-#include <shared_mutex>
 #include <string_view>
 #include <thread>
 

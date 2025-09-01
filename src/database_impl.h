@@ -22,7 +22,6 @@
 #include <lineairdb/tx_status.h>
 
 #include <functional>
-#include <shared_mutex>
 #include <utility>
 
 #include "callback/callback_manager.h"
