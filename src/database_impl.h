@@ -76,7 +76,7 @@ class Database::Impl {
     checkpoint_manager_.Stop();
     epoch_framework_.Stop();
     thread_pool_.Shutdown();
-    thread_pool_.JoinAll();  
+    thread_pool_.JoinAll();
     epoch_framework_.Sync();
     SPDLOG_DEBUG(
         "Epoch number and Durable epoch number are ended at {0}, and {1}, "
