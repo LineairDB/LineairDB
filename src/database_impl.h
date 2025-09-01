@@ -45,11 +45,11 @@ class Database::Impl {
 
   Impl(const Config& c = Config())
       : config_(c),
+        thread_pool_(c.max_thread),
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        checkpoint_manager_(config_, table_dictionary_, epoch_framework_),
-        thread_pool_(c.max_thread) {
+        checkpoint_manager_(config_, table_dictionary_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -302,13 +302,13 @@ class Database::Impl {
 
  private:
   Config config_;
+  ThreadPool thread_pool_;
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
   TableDictionary table_dictionary_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
-  ThreadPool thread_pool_;
 };
 
 }  // namespace LineairDB
