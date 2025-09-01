@@ -71,21 +71,15 @@ ThreadPool::ThreadPool(size_t pool_size)
 ThreadPool::~ThreadPool() {
   stop_ = true;
   shutdown_ = true;
-  JoinAll();
+  for (auto& thread : worker_threads_) {
+    thread.join();
+  }
 }
 
 size_t ThreadPool::GetPoolSize() const { return worker_threads_.size(); }
 void ThreadPool::StopAcceptingTransactions() { stop_ = true; }
 void ThreadPool::ResumeAcceptingTransactions() { stop_ = false; }
 void ThreadPool::Shutdown() { shutdown_ = true; }
-
-void ThreadPool::JoinAll() {
-  for (auto& thread : worker_threads_) {
-    if (thread.joinable()) {
-      thread.join();
-    }
-  }
-}
 
 bool ThreadPool::Enqueue(std::function<void()>&& job) {
   if (stop_) return false;

@@ -58,10 +58,10 @@ class ThreadKeyStorage {
       delete ptr;
       ptr = prev;
     }
-    int err = ::pthread_key_delete(key_);
-    if (err != 0) {
-      std::cerr << "::pthread_key_delete failed: " << err << std::endl;
-    }
+    // int err = ::pthread_key_delete(key_);
+    // if (err != 0) {
+    //   std::cerr << "::pthread_key_delete failed: " << err << std::endl;
+    // }
   }
 
   /**
