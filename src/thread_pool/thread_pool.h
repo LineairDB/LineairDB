@@ -39,7 +39,6 @@ class ThreadPool {
   void StopAcceptingTransactions();
   void ResumeAcceptingTransactions();
   void Shutdown();
-  void JoinAll();
   void WaitForQueuesToBecomeEmpty();
   bool IsEmpty();
   size_t GetPoolSize() const;
