@@ -32,10 +32,8 @@
 #include <atomic>
 #include <functional>
 #include <mutex>
-#include <queue>
 #include <random>
 #include <thread>
-#include <vector>
 
 namespace LineairDB {
 ThreadPool::ThreadPool(size_t pool_size)

@@ -25,7 +25,6 @@
 #include <utility>
 
 #include "callback/callback_manager.h"
-#include "index/concurrent_table.h"
 #include "recovery/checkpoint_manager.hpp"
 #include "recovery/logger.h"
 #include "table/table.h"

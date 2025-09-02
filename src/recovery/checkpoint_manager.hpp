@@ -27,16 +27,12 @@
 #include <string_view>
 #include <thread>
 
-#include "index/concurrent_table.h"
 #include "recovery/logger.h"
 #include "table/table_dictionary.hpp"
-#include "transaction_impl.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
-#include "types/snapshot.hpp"
 #include "util/epoch_framework.hpp"
 #include "util/logger.hpp"
-#include "util/thread_key_storage.h"
 
 namespace LineairDB {
 

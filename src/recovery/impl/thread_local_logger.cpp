@@ -20,15 +20,12 @@
 #include <lineairdb/database.h>
 #include <lineairdb/tx_status.h>
 
+#include <atomic>
 #include <cassert>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <functional>
-#include <iostream>
 #include <msgpack.hpp>
 #include <util/logger.hpp>
-#include <vector>
 
 #include "recovery/logger.h"
 #include "types/definitions.h"

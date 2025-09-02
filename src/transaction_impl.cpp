@@ -16,13 +16,9 @@
 
 #include "transaction_impl.h"
 
-#include <lineairdb/config.h>
-#include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
 
-#include <algorithm>
 #include <memory>
-#include <type_traits>
 #include <utility>
 
 #include "concurrency_control/concurrency_control_base.h"

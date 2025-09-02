@@ -16,12 +16,10 @@
 
 #include "precision_locking.h"
 
-#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <functional>
 #include <string_view>
-#include <vector>
 
 #include "types/data_item.hpp"
 #include "types/definitions.h"
@@ -75,7 +73,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
             }
           }
         }
-      }){};
+      }) {};
 
 PrecisionLockingIndex::~PrecisionLockingIndex() {
   manager_stop_flag_.store(true);

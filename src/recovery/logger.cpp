@@ -18,8 +18,6 @@
 
 #include <glob.h>
 #include <lineairdb/config.h>
-#include <lineairdb/database.h>
-#include <lineairdb/tx_status.h>
 
 #include <cstring>
 #include <filesystem>

@@ -1,8 +1,6 @@
 #pragma once
 
-#include <memory>
 #include <string>
-#include <utility>
 
 #include "index/precision_locking_index/point_index/mpmc_concurrent_set_impl.hpp"
 #include "table/table.h"
