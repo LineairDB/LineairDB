@@ -130,16 +130,15 @@ class MPMCConcurrentSetImpl {
   const double rehash_threshold_;
   std::atomic<TableType*> table_;
   std::atomic<size_t> populated_count_;
+  EpochFramework epoch_framework_;
 
   std::mutex table_lock_;
   std::atomic<bool> stop_flag_{false};
 
   std::mutex rehash_flag_;
   std::condition_variable rehash_cv_;
-  std::thread rehash_thread_;
   std::atomic<bool> force_rehash_flag_{false};
-
-  EpochFramework epoch_framework_;
+  std::thread rehash_thread_;
 };
 
 /** the followings are implementation **/
