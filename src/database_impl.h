@@ -81,7 +81,7 @@ class Database::Impl {
       std::this_thread::yield();
     }
     thread_pool_.Shutdown();
-        SPDLOG_DEBUG(
+    SPDLOG_DEBUG(
         "Epoch number and Durable epoch number are ended at {0}, and {1}, "
         "respectively.",
         epoch_framework_.GetGlobalEpoch(), logger_.GetDurableEpoch());
