@@ -18,7 +18,6 @@
 #define LINEAIRDB_TYPES_H
 
 #include <cstdint>
-#include <vector>
 
 namespace LineairDB {
 

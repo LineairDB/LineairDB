@@ -16,13 +16,10 @@
 
 #include "precision_locking.h"
 
-#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <functional>
-#include <mutex>
 #include <string_view>
-#include <vector>
 
 #include "types/data_item.hpp"
 #include "types/definitions.h"

@@ -19,7 +19,6 @@
 #include <lineairdb/database.h>
 
 #include "types/definitions.h"
-#include "util/backoff.hpp"
 
 namespace LineairDB {
 

@@ -150,6 +150,17 @@ class Database {
    */
   void RequestCallbacks();
 
+  /**
+   * @brief
+   * Creates a new table.
+   * @param[in] table_name The name of the table to create.
+   * @return true when a new table is created (the name was not previously
+   * used).
+   * @return false when no table is created because the table name already
+   * exists.
+   */
+  bool CreateTable(const std::string_view table_name);
+
  private:
   class Impl;
   const std::unique_ptr<Impl> db_pimpl_;
