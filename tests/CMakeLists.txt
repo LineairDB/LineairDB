@@ -16,13 +16,20 @@
 
 macro(register_test testfile testfilepath)
   add_executable(${testfile} ${CMAKE_CURRENT_LIST_DIR}/${testfilepath})
-  target_link_libraries(${testfile} ${PROJECT_NAME} gtest_main)
+  target_link_libraries(${testfile} gtest_main gtest ${PROJECT_NAME})
   target_include_directories(${testfile} PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/concurrentqueue>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/spdlog/include>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/msgpack/include>
   )
+
+  # Add compiler definitions and linker options for Apple Silicon compatibility
+  if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+    target_compile_definitions(${testfile} PRIVATE GTEST_HAS_STD_WSTRING=0)
+    target_link_options(${testfile} PRIVATE -Wl,-undefined,dynamic_lookup)
+  endif()
+
   add_test(
     NAME ${testfile}
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${testfile})

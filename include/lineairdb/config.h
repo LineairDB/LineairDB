@@ -160,6 +160,16 @@ struct Config {
    * Default: "lineairdb_logs"
    */
   std::string work_dir = "./lineairdb_logs";
+
+  /**
+   * @brief
+   * The name of the anonymous table.
+   * Anonymous table is used to store the data that is not associated with any
+   * table.
+   *
+   * Default: "__anonymous_table"
+   */
+  std::string anonymous_table_name = "__anonymous_table";
 };
 
 // Secondary index options (moved from secondary_index_option.h)

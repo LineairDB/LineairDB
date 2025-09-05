@@ -29,6 +29,7 @@
 #include <unordered_set>
 
 #include "concurrency_control/concurrency_control_base.h"
+#include "table/table.h"
 #include "types/definitions.h"
 
 namespace LineairDB {
@@ -113,7 +114,10 @@ class Transaction::Impl {
    */
   void PostProcessing(TxStatus);
 
+  bool SetTable(const std::string_view table_name);
+
  private:
+  void EnsureCurrentTable();
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
   // --- helpers for secondary index operations ---
@@ -144,6 +148,8 @@ class Transaction::Impl {
   std::unordered_map<std::string,
                      std::unordered_map<std::string, NotNullProgress>>
       remainingNotNullSkWrites_;
+
+  Table* current_table_;
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_IMPL_H */

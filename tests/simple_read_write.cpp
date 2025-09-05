@@ -14,8 +14,6 @@
  *   limitations under the License.
  */
 
-#include "lineairdb/database.h"
-
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -26,6 +24,7 @@
 
 #include "gtest/gtest.h"
 #include "lineairdb/config.h"
+#include "lineairdb/database.h"
 #include "lineairdb/transaction.h"
 #include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
@@ -63,7 +62,7 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
          auto alice = tx.Read("users", "alice");
          ASSERT_NE(alice.first, nullptr);
          ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
-         ASSERT_EQ(0, tx.Read("users", "bob").second);
+         ASSERT_EQ(size_t(0), tx.Read("bob").second);
        }});
 }
 
@@ -127,7 +126,7 @@ TEST_F(DatabaseTest, Scan) {
                           return false;
                         });
                     if (count.has_value()) {
-                      ASSERT_EQ(count.value(), 3);
+                      ASSERT_EQ(count.value(), size_t(3));
                     }
                   },
                   [&](LineairDB::Transaction& tx) {
@@ -140,20 +139,21 @@ TEST_F(DatabaseTest, Scan) {
                           return true;
                         });
                     if (count.has_value()) {
-                      ASSERT_EQ(count.value(), 1);
+                      ASSERT_EQ(count.value(), size_t(1));
                     };
                   }});
 }
 
 TEST_F(DatabaseTest, SaveAsString) {
-  TestHelper::DoTransactions(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-                    tx.Write<std::string_view>("users", "alice", "value");
-                  },
-                  [&](LineairDB::Transaction& tx) {
-                    auto alice = tx.Read<std::string_view>("users", "alice");
-                    ASSERT_EQ("value", alice.value());
-                  }});
+  TestHelper::DoTransactions(db_.get(),
+                             {[&](LineairDB::Transaction& tx) {
+                                tx.Write<std::string_view>("alice", "value");
+                              },
+                              [&](LineairDB::Transaction& tx) {
+                                auto alice = tx.Read<std::string_view>("alice");
+                                ASSERT_TRUE(alice.has_value());
+                                ASSERT_TRUE(alice.value() == "value");
+                              }});
 }
 
 TEST_F(DatabaseTest, UserAbort) {
@@ -218,6 +218,6 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
          auto alice = tx.Read("users", "alice");
          ASSERT_NE(alice.first, nullptr);
          ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
-         ASSERT_EQ(0, tx.Read("users", "bob").second);
+         ASSERT_EQ(size_t(0), tx.Read("bob").second);
        }});
 }

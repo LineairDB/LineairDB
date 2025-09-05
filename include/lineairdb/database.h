@@ -151,14 +151,23 @@ class Database {
    */
   void RequestCallbacks();
 
-  bool CreateTable(const std::string_view table_name);
-
   // implement UNIQUE constraint for secondary index
   template <typename T>
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
                             const SecondaryIndexOption::Constraint constraint =
                                 SecondaryIndexOption::Constraint::NONE);
+
+  /**
+   * @brief
+   * Creates a new table.
+   * @param[in] table_name The name of the table to create.
+   * @return true when a new table is created (the name was not previously
+   * used).
+   * @return false when no table is created because the table name already
+   * exists.
+   */
+  bool CreateTable(const std::string_view table_name);
 
  private:
   class Impl;

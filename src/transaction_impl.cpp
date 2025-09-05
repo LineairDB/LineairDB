@@ -16,14 +16,11 @@
 
 #include "transaction_impl.h"
 
-#include <lineairdb/config.h>
-#include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
 
 #include <algorithm>
 #include <iostream>
 #include <memory>
-#include <type_traits>
 #include <utility>
 
 #include "concurrency_control/concurrency_control_base.h"
@@ -55,7 +52,8 @@ namespace LineairDB {
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
-      config_ref_(db_pimpl_->GetConfig()) {
+      config_ref_(db_pimpl_->GetConfig()),
+      current_table_(nullptr) {
   TransactionReferences&& tx = {read_set_, write_set_,
                                 db_pimpl_->epoch_framework_, current_status_};
 
@@ -94,21 +92,27 @@ TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 Transaction::Impl::Read( const std::string_view key) { if (IsAborted()) return
 {nullptr, 0};
 
+  EnsureCurrentTable();
+
   for (auto& snapshot : write_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
       return std::make_pair(snapshot.data_item_copy.value(),
                             snapshot.data_item_copy.size());
     }
   }
 
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
       return std::make_pair(snapshot.data_item_copy.value(),
                             snapshot.data_item_copy.size());
     }
   }
-  auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
-  Snapshot snapshot = {key, nullptr, 0, index_leaf};
+
+  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
+  Snapshot snapshot = {key, nullptr, 0, index_leaf,
+                       current_table_->GetTableName()};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref = read_set_.emplace_back(std::move(snapshot));
@@ -208,10 +212,12 @@ std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
+  EnsureCurrentTable();
 
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
       is_rmf = true;
       snapshot.is_read_modify_write = true;
       break;
@@ -219,16 +225,18 @@ std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
   }
 
   for (auto& snapshot : write_set_) {
-    if (snapshot.key != key) continue;
+    if (snapshot.key != key ||
+        snapshot.table_name != current_table_->GetTableName())
+      continue;
     snapshot.data_item_copy.Reset(value, size);
     if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }
 
-  auto* index_leaf = db_pimpl_->GetIndex().GetOrInsert(key);
+  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf);
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 } */
@@ -485,8 +493,9 @@ void Transaction::Impl::WriteSecondaryIndex(
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
-  auto result =
-      db_pimpl_->GetIndex().Scan(begin, end, [&](std::string_view key) {
+  EnsureCurrentTable();
+  auto result = current_table_->GetPrimaryIndex().Scan(
+      begin, end, [&](std::string_view key) {
         const auto read_result = Read(key);
         if (IsAborted()) return true;
         return operation(key, read_result);
@@ -770,6 +779,22 @@ void Transaction::Impl::PostProcessing(TxStatus status) {
   concurrency_control_->PostProcessing(status);
 }
 
+void Transaction::Impl::EnsureCurrentTable() {
+  if (current_table_ == nullptr) {
+    current_table_ =
+        db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
+  }
+}
+
+bool Transaction::Impl::SetTable(const std::string_view table_name) {
+  auto table = db_pimpl_->GetTable(table_name);
+  if (!table.has_value()) {
+    return false;  // Table not found
+  }
+  current_table_ = table.value();
+  return true;
+}
+
 TxStatus Transaction::GetCurrentStatus() {
   return tx_pimpl_->GetCurrentStatus();
 }
@@ -848,6 +873,9 @@ const std::optional<size_t> Transaction::ScanSecondaryIndex(
 bool Transaction::ValidateSKNotNull() { return tx_pimpl_->ValidateSKNotNull(); }
 
 void Transaction::Abort() { tx_pimpl_->Abort(); }
+bool Transaction::SetTable(const std::string_view table_name) {
+  return tx_pimpl_->SetTable(table_name);
+}
 bool Transaction::Precommit() { return tx_pimpl_->Precommit(); }
 
 Transaction::Transaction(void* db_pimpl) noexcept

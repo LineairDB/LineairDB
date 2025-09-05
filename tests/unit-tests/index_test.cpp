@@ -55,7 +55,7 @@ TEST_F(IndexTest, Scan) {
     return false;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(2, count.value());  // #Scan is not inclusive
+  ASSERT_EQ(size_t(2), count.value());  // #Scan is not inclusive
   db_->EndTransaction(tx, [](auto) {});
 }
 
@@ -66,7 +66,7 @@ TEST_F(IndexTest, AlphabeticalOrdering) {
 
   count = tx.Scan("users", "carol", "zzz", [&](auto, auto) { return false; });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(1, count.value());
+  ASSERT_EQ(size_t(1), count.value());
   db_->EndTransaction(tx, [](auto) {});
 }
 
@@ -77,7 +77,7 @@ TEST_F(IndexTest, ScanViaTemplate) {
     return false;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(2, count.value());
+  ASSERT_EQ(size_t(2), count.value());
   db_->EndTransaction(tx, [](auto) {});
 }
 
@@ -89,7 +89,7 @@ TEST_F(IndexTest, StopScanning) {
     return true;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(1, count.value());
+  ASSERT_EQ(size_t(1), count.value());
   db_->EndTransaction(tx, [](auto) {});
 }
 
@@ -100,7 +100,7 @@ TEST_F(IndexTest, ScanWithoutEnd) {
     return false;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(3, count.value());
+  ASSERT_EQ(size_t(3), count.value());
   db_->EndTransaction(tx, [](auto) {});
 }
 

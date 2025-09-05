@@ -82,4 +82,5 @@ template bool Database::CreateSecondaryIndex<time_t>(
     const std::string_view table_name, const std::string_view index_name,
     const SecondaryIndexOption::Constraint constraint);
 
+
 }  // namespace LineairDB

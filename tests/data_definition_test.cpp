@@ -26,12 +26,11 @@
 #include "gtest/gtest.h"
 #include "lineairdb/config.h"
 #include "lineairdb/database.h"
-#include "lineairdb/key_serializer.h"
 #include "lineairdb/transaction.h"
 #include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
 
-class DatabaseTest : public ::testing::Test {
+class DataDefinitionTest : public ::testing::Test {
  protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
@@ -45,7 +44,7 @@ class DatabaseTest : public ::testing::Test {
   }
 };
 
-TEST_F(DatabaseTest, CreateTable) {
+TEST_F(DataDefinitionTest, CreateTable) {
   bool success = db_->CreateTable("users");
   ASSERT_TRUE(success);
   bool duplicated = db_->CreateTable("users");
@@ -89,4 +88,142 @@ TEST_F(DatabaseTest, CreateSecondaryIndexUniqueOnlyTimeKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::time_t>("users", "created_at",
                                                      Constraint::UNIQUE));
+}
+TEST_F(DataDefinitionTest, SetTable) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  {
+    auto& tx = db_->BeginTransaction();
+    bool table_exists = tx.SetTable("users");
+    ASSERT_TRUE(table_exists);
+
+    bool non_existent_table = tx.SetTable("non_existent");
+    ASSERT_FALSE(non_existent_table);
+    db_->EndTransaction(tx, [](auto status) {
+      // Table not found is not a fatal error, so we expect the transaction to
+      // commit
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(DataDefinitionTest, ReadWrite) {
+  db_->CreateTable("users");
+
+  {
+    auto& tx = db_->BeginTransaction();
+    bool table_exists = tx.SetTable("users");
+    ASSERT_TRUE(table_exists);
+    tx.Write<int>("user1", 42);
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+  db_->Fence();
+
+  {
+    auto& tx = db_->BeginTransaction();
+    bool table_exists = tx.SetTable("users");
+    ASSERT_TRUE(table_exists);
+    auto data = tx.Read<int>("user1");
+    ASSERT_TRUE(data.has_value());
+    ASSERT_EQ(data.value(), 42);
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+  db_->Fence();
+}
+
+TEST_F(DataDefinitionTest, ConcurrencyControlBetweenMultipleTables) {
+  db_->CreateTable("users");
+  db_->CreateTable("accounts");
+
+  std::atomic<bool> tx1_ready = false;
+  std::atomic<bool> tx2_ready = false;
+
+  std::thread thread1([&]() {
+    auto& tx1 = db_->BeginTransaction();
+    ASSERT_TRUE(tx1.SetTable("users"));
+
+    tx1.Write<int>("user1", 42);
+    tx1.Write<int>("user1_only_users", 42);
+    tx1_ready = true;
+    while (!tx2_ready) std::this_thread::yield();  // Wait for tx2 to be ready
+    db_->EndTransaction(tx1, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  });
+
+  std::thread thread2([&]() {
+    auto& tx2 = db_->BeginTransaction();
+    ASSERT_TRUE(tx2.SetTable("accounts"));
+
+    tx2.Write<int>("user1", 100);
+    tx2_ready = true;
+    while (!tx1_ready) std::this_thread::yield();  // Wait for tx1 to be ready
+    auto data = tx2.Read<int>("user1_only_users");
+    ASSERT_FALSE(data.has_value());
+    db_->EndTransaction(tx2, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  });
+
+  thread1.join();
+  thread2.join();
+
+  db_->Fence();
+
+  // Check Results
+  {
+    auto& tx = db_->BeginTransaction();
+    ASSERT_TRUE(tx.SetTable("users"));
+    auto data = tx.Read<int>("user1");
+    ASSERT_TRUE(data.has_value());
+    ASSERT_EQ(data.value(), 42);
+
+    ASSERT_TRUE(tx.SetTable("accounts"));
+    data = tx.Read<int>("user1");
+    ASSERT_TRUE(data.has_value());
+    ASSERT_EQ(data.value(), 100);
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(DataDefinitionTest, SetTableAfterWrite) {
+  db_->CreateTable("users");
+  db_->CreateTable("accounts");
+
+  {
+    auto& tx = db_->BeginTransaction();
+    ASSERT_TRUE(tx.SetTable("users"));
+    tx.Write<int>("user1", 42);
+
+    // Now switch to another table
+    ASSERT_TRUE(tx.SetTable("accounts"));
+    tx.Write<int>("user1", 100);
+
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+  db_->Fence();
+
+  // Check Results
+  {
+    auto& tx = db_->BeginTransaction();
+    ASSERT_TRUE(tx.SetTable("users"));
+    auto data = tx.Read<int>("user1");
+    ASSERT_TRUE(data.has_value());
+    ASSERT_EQ(data.value(), 42);
+
+    ASSERT_TRUE(tx.SetTable("accounts"));
+    data = tx.Read<int>("user1");
+    ASSERT_TRUE(data.has_value());
+    ASSERT_EQ(data.value(), 100);
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
 }

@@ -26,7 +26,6 @@
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/pivot_object.hpp"
-#include "index/concurrent_table.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 

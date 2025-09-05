@@ -22,9 +22,7 @@
 #include <cstddef>
 #include <cstring>
 #include <msgpack.hpp>
-#include <string>
 #include <type_traits>
-#include <vector>
 
 #include "concurrency_control/pivot_object.hpp"
 #include "data_buffer.hpp"

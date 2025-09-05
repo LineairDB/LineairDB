@@ -48,6 +48,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_C_FLAGS "--std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -fPIC")
+
+# Check for and disable nan-infinity warnings early to avoid GoogleTest compilation issues
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-Wno-nan-infinity-disabled" COMPILER_SUPPORTS_NAN_INFINITY_DISABLED)
+if(COMPILER_SUPPORTS_NAN_INFINITY_DISABLED)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nan-infinity-disabled")
+endif()
 if (NOT APPLE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcx16")
 endif()
@@ -56,20 +63,21 @@ if(NOT IS_TOPLEVEL_PROJECT)
 endif()
 
 set(CMAKE_CXX_FLAGS_DEBUG
-    "${CMAKE_CXX_FLAGS} -g -O0 --save-temps -fno-omit-frame-pointer")
+    "${CMAKE_CXX_FLAGS} -g3 -O0 -fno-omit-frame-pointer")
 if(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fcolor-diagnostics")
   if(IS_TOPLEVEL_PROJECT AND BUILD_SANITIZER)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+    message(STATUS "AddressSanitizer enabled")
   endif()
 endif()
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_DEBUG} -Ofast")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -Ofast -ffast-math -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -ffast-math -DNDEBUG")
 if(APPLE AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-  # Apple Sillicon (m1) does not support `march=native`. use `mcpu` instead.
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -mcpu=apple-m1")
+  # Apple Silicon (m1) does not support `march=native`. use `mcpu` instead.
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -mcpu=apple-m1")
 else()
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -march=native")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
 endif()
 
 # Build as library
@@ -100,12 +108,17 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
   target_link_libraries(${PROJECT_NAME} pthread)
-else()
-  if(APPLE) # Use libc++
-    target_link_libraries(${PROJECT_NAME} c++ stdc++fs atomic pthread)
-  else() # Use libstdc++
-    target_link_libraries(${PROJECT_NAME} stdc++ stdc++fs atomic pthread numa)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(APPLE)
+    target_link_libraries(${PROJECT_NAME} pthread)
+  else()
+    target_link_libraries(${PROJECT_NAME} stdc++ atomic pthread numa)
   endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_link_libraries(${PROJECT_NAME} stdc++ atomic pthread numa)
+else()
+  message(WARNING "Unknown compiler: ${CMAKE_CXX_COMPILER_ID}")
+  target_link_libraries(${PROJECT_NAME} pthread)
 endif()
 
 target_include_directories(
