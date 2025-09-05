@@ -47,7 +47,8 @@ TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
-    tx.Write("users", "alice", reinterpret_cast<std::byte*>(&value_of_alice),
+    tx.SetTable("users");
+    tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
              sizeof(int));
     db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
@@ -56,7 +57,8 @@ TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   db->Fence();
   {
     auto& tx = db->BeginTransaction();
-    auto alice = tx.Read("users", "alice");
+    tx.SetTable("users");
+    auto alice = tx.Read("alice");
     ASSERT_NE(alice.first, nullptr);
     ASSERT_EQ(value_of_alice, *reinterpret_cast<const int*>(alice.first));
 
@@ -71,7 +73,8 @@ TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
   auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
-    tx.Write<int>("users", "alice", value_of_alice);
+    tx.SetTable("users");
+    tx.Write<int>("alice", value_of_alice);
     db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
     });
@@ -79,7 +82,8 @@ TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
   db->Fence();
   {
     auto& tx = db->BeginTransaction();
-    auto alice = tx.Read<int>("users", "alice");
+    tx.SetTable("users");
+    auto alice = tx.Read<int>("alice");
     ASSERT_TRUE(alice.has_value());
     ASSERT_EQ(value_of_alice, alice.value());
     db->EndTransaction(tx, [](auto status) {

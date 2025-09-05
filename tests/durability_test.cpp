@@ -53,11 +53,11 @@ TEST_F(DurabilityTest, Recovery) {
 
   int initial_value = 1;
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                                           tx.Write<int>("users", "alice",
+                                           tx.Write<int>( "alice",
                                                          initial_value);
                                          },
                                          [&](LineairDB::Transaction& tx) {
-                                           tx.Write<int>("users", "bob", initial_value);
+                                           tx.Write<int>("bob", initial_value);
                                          }});
   db_->Fence();
 
@@ -67,11 +67,11 @@ TEST_F(DurabilityTest, Recovery) {
     db_ = std::make_unique<LineairDB::Database>(config);
 
     TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                                 auto alice = tx.Read<int>("users", "alice");
+                                 auto alice = tx.Read<int>("alice");
                                  ASSERT_TRUE(alice.has_value());
                                  auto current_value = alice.value();
                                  ASSERT_EQ(initial_value, current_value);
-                                 auto bob = tx.Read<int>("users", "bob");
+                                 auto bob = tx.Read<int>("bob");
                                  ASSERT_TRUE(bob.has_value());
                                  current_value = bob.value();
                                  ASSERT_EQ(initial_value, current_value);
@@ -83,14 +83,14 @@ TEST_F(DurabilityTest, RecoveryLargeObject) {
   std::string initial_value(4096, 'a');
   TestHelper::DoTransactions(
       db_.get(), {[&](LineairDB::Transaction& tx) {
-        tx.Write("users", "alice", reinterpret_cast<std::byte*>(initial_value.data()),
+        tx.Write("alice", reinterpret_cast<std::byte*>(initial_value.data()),
                  initial_value.size());
       }});
   db_->Fence();
 
   for (size_t i = 0; i < 3; i++) {
     TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                                 auto alice = tx.Read("users", "alice");
+                                 auto alice = tx.Read("alice");
                                  ASSERT_TRUE(alice.first != nullptr);
                                  std::string current_value(
                                      reinterpret_cast<const char*>(alice.first),
@@ -107,7 +107,7 @@ TEST_F(DurabilityTest, RecoveryInContendedWorkload) {
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
-    tx.Write<int>("users", "alice", value);
+    tx.Write<int>("alice", value);
   });
 
   ASSERT_NO_THROW({
@@ -120,7 +120,7 @@ TEST_F(DurabilityTest, RecoveryInContendedWorkload) {
   db_ = std::make_unique<LineairDB::Database>(config);
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("users", "alice");
+                               auto alice = tx.Read<int>("alice");
                                ASSERT_TRUE(alice.has_value());
                                auto current_value = alice.value();
                                ASSERT_EQ(0xBEEF, current_value);
@@ -133,7 +133,7 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
-    tx.Write<int>("users", "alice", value);
+    tx.Write<int>("alice", value);
   });
 
   ASSERT_NO_THROW({
@@ -146,7 +146,7 @@ TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
   db_ = std::make_unique<LineairDB::Database>(config);
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("users", "alice");
+                               auto alice = tx.Read<int>("alice");
                                ASSERT_TRUE(alice.has_value());
                                auto current_value = alice.value();
                                ASSERT_EQ(0xBEEF, current_value);
@@ -172,7 +172,7 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
-    tx.Write<int>("users", "alice", value);
+    tx.Write<int>("alice", value);
   });
 
   size_t filesize = 0;
@@ -210,7 +210,7 @@ TEST_F(DurabilityTest,
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
-    tx.Write<int>("users", "alice", value);
+    tx.Write<int>("alice", value);
   });
 
   size_t filesize = 0;
@@ -223,9 +223,9 @@ TEST_F(DurabilityTest,
   std::thread worker_thread([&]() {
     for (;;) {
       auto& tx = db_->BeginTransaction();
-      [[maybe_unused]] auto alice = tx.Read<int>("users", "alice");
+        [[maybe_unused]] auto alice = tx.Read<int>("alice");
       int value = 0xBEEF;
-      tx.Write<int>("users", "alice", value);
+      tx.Write<int>("alice", value);
       db_->EndTransaction(tx, [](auto) {});
       if (stop.load()) return;
       std::this_thread::yield();
@@ -273,7 +273,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0;
-    tx.Write<int>("users", "alice", value);
+    tx.Write<int>("alice", value);
   });
 
   TestHelper::DoTransactions(db_.get(), {Update});
@@ -283,7 +283,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
   // We assume that DB has been destructed within 5 seconds and there are no
   // consisntent snapshot
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("users", "alice");
+                               auto alice = tx.Read<int>("alice");
                                ASSERT_FALSE(alice.has_value());
                              }});
 
@@ -294,7 +294,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("users", "alice");
+                               auto alice = tx.Read<int>("alice");
                                ASSERT_TRUE(alice.has_value());
                              }});
 }
@@ -310,7 +310,7 @@ TEST_F(DurabilityTest,
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0;
-    tx.Write<int>("users", "alice", value);
+    tx.Write<int>("alice", value);
   });
 
   TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
@@ -321,7 +321,7 @@ TEST_F(DurabilityTest,
   // consisntent snapshot
   TestHelper::DoHandlerTransactionsOnMultiThreads(
       db_.get(), {[&](LineairDB::Transaction& tx) {
-        auto alice = tx.Read<int>("users", "alice");
+        auto alice = tx.Read<int>("alice");
         ASSERT_FALSE(alice.has_value());
       }});
 
@@ -333,7 +333,7 @@ TEST_F(DurabilityTest,
   db_ = std::make_unique<LineairDB::Database>(config);
   TestHelper::DoHandlerTransactionsOnMultiThreads(
       db_.get(), {[&](LineairDB::Transaction& tx) {
-        auto alice = tx.Read<int>("users", "alice");
+        auto alice = tx.Read<int>("alice");
         ASSERT_TRUE(alice.has_value());
       }});
 }
