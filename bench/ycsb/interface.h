@@ -24,20 +24,19 @@
 namespace YCSB {
 namespace Interface {
 
-void Read(LineairDB::Transaction& tx, std::string_view key,
-          std::string_view table, void*, size_t) {
-  tx.Read(table, key);
+void Read(LineairDB::Transaction& tx, std::string_view key, void*, size_t) {
+  tx.Read(key);
 }
 
-void Update(LineairDB::Transaction& tx, std::string_view key,
-            std::string_view table, void* payload, size_t size) {
-  tx.Write(table, key, reinterpret_cast<std::byte*>(payload), size);
+void Update(LineairDB::Transaction& tx, std::string_view key, void* payload,
+            size_t size) {
+  tx.Write(key, reinterpret_cast<std::byte*>(payload), size);
 }
 
 // FIXME discriminate update and insert
-void Insert(LineairDB::Transaction& tx, std::string_view key,
-            std::string_view table, void* payload, size_t size) {
-  Update(tx, key, table, payload, size);
+void Insert(LineairDB::Transaction& tx, std::string_view key, void* payload,
+            size_t size) {
+  Update(tx, key, payload, size);
 }
 
 void Scan(LineairDB::Transaction& tx, std::string_view begin,
@@ -48,9 +47,9 @@ void Scan(LineairDB::Transaction& tx, std::string_view begin,
   (void)end;
 }
 void ReadModifyWrite(LineairDB::Transaction& tx, std::string_view key,
-                     std::string_view table, void* payload, size_t size) {
-  Read(tx, key, table, payload, size);
-  Update(tx, key, table, payload, size);
+                     void* payload, size_t size) {
+  Read(tx, key, payload, size);
+  Update(tx, key, payload, size);
 }
 
 }  // namespace Interface

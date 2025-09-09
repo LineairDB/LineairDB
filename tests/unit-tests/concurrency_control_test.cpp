@@ -67,17 +67,19 @@ TEST_P(ConcurrencyControlTest, Instantiate) {}
 TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   int initial_value = 1;
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               tx.Write<int>("users", "alice", initial_value);
+                               tx.SetTable("users");
+                               tx.Write<int>("alice", initial_value);
                              }});
   db_->Fence();
 
   TransactionProcedure increment([](LineairDB::Transaction& tx) {
-    auto alice = tx.Read<int>("users", "alice");
+    tx.SetTable("users");
+    auto alice = tx.Read<int>("alice");
     if (!alice.has_value()) return tx.Abort();
     int current_value = alice.value();
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
     current_value++;
-    tx.Write<int>("users", "alice", current_value);
+    tx.Write<int>("alice", current_value);
   });
 
   int committed_count = TestHelper::DoTransactionsOnMultiThreads(
@@ -85,7 +87,8 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   db_->Fence();
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("users", "alice");
+                               tx.SetTable("users");
+                               auto alice = tx.Read<int>("alice");
                                ASSERT_TRUE(alice.has_value());
                                auto expected_value =
                                    initial_value + committed_count;
@@ -96,12 +99,14 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
 
 TEST_P(ConcurrencyControlTest, AvoidingDeadLock) {
   TransactionProcedure readX_writeY([](LineairDB::Transaction& tx) {
-    tx.Read<int>("users", "x");
-    tx.Write<int>("users", "y", 0xDEADBEEF);
+    tx.SetTable("users");
+    tx.Read<int>("x");
+    tx.Write<int>("y", 0xDEADBEEF);
   });
   TransactionProcedure readY_writeX([](LineairDB::Transaction& tx) {
-    tx.Read<int>("users", "y");
-    tx.Write<int>("users", "x", 0xDEADBEEF);
+    tx.SetTable("users");
+    tx.Read<int>("y");
+    tx.Write<int>("x", 0xDEADBEEF);
   });
 
   TestHelper::DoTransactionsOnMultiThreads(
@@ -112,14 +117,16 @@ TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
-      tx.Write<int>("users", "alice" + std::to_string(idx), value);
+      tx.SetTable("users");
+      tx.Write<int>("alice" + std::to_string(idx), value);
     }
     tx.Abort();
   });
 
   TransactionProcedure readTenTimes([](LineairDB::Transaction& tx) {
     for (size_t idx = 0; idx <= 10; idx++) {
-      auto result = tx.Read<int>("users", "alice" + std::to_string(idx));
+      tx.SetTable("users");
+      auto result = tx.Read<int>("alice" + std::to_string(idx));
       ASSERT_FALSE(result.has_value());
     }
   });
@@ -134,15 +141,17 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
   TransactionProcedure updateTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
-      tx.Write<int>("users", "alice", value + idx);
+      tx.SetTable("users");
+      tx.Write<int>("alice", value + idx);
     }
   });
   TransactionProcedure repeatableRead([](LineairDB::Transaction& tx) {
-    auto first_result = tx.Read<int>("users", "alice");
+    tx.SetTable("users");
+    auto first_result = tx.Read<int>("alice");
     if (first_result.has_value()) {
       auto first_value = first_result.value();
       for (size_t idx = 0; idx <= 10; idx++) {
-        auto result = tx.Read<int>("users", "alice");
+        auto result = tx.Read<int>("alice");
         if (!result.has_value()) return tx.Abort();
         ASSERT_EQ(result.value(), first_value);
       }
@@ -158,19 +167,22 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
 TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** initialize **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
-                               tx.Write<int>("users", "alice", 0);
-                               tx.Write<int>("users", "bob", 1);
+                               tx.SetTable("users");
+                               tx.Write<int>("alice", 0);
+                               tx.Write<int>("bob", 1);
                              }});
 
   TransactionProcedure readAliceWriteBob([](LineairDB::Transaction& tx) {
-    auto result = tx.Read<int>("users", "alice");
+    tx.SetTable("users");
+    auto result = tx.Read<int>("alice");
     if (!result.has_value()) return tx.Abort();
-    tx.Write<int>("users", "bob", result.value() += 1);
+    tx.Write<int>("bob", result.value() += 1);
   });
   TransactionProcedure readBobWriteAlice([](LineairDB::Transaction& tx) {
-    auto result = tx.Read<int>("users", "bob");
+    tx.SetTable("users");
+    auto result = tx.Read<int>("bob");
     if (!result.has_value()) return tx.Abort();
-    tx.Write<int>("users", "alice", result.value() += 1);
+    tx.Write<int>("alice", result.value() += 1);
   });
 
   TestHelper::DoTransactionsOnMultiThreads(
@@ -182,8 +194,9 @@ TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
 
   /** validation **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("users", "alice");
-                               auto bob = tx.Read<int>("users", "bob");
+                               tx.SetTable("users");
+                               auto alice = tx.Read<int>("alice");
+                               auto bob = tx.Read<int>("bob");
                                ASSERT_TRUE(alice.has_value());
                                ASSERT_TRUE(bob.has_value());
                                ASSERT_EQ(1,
@@ -199,7 +212,8 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
 
   /** T1: r1(y0) w1(y1) **/
   TransactionProcedure T1([&](LineairDB::Transaction& tx) {
-    auto y = tx.Read<int>("users", "y");
+    tx.SetTable("users");
+    auto y = tx.Read<int>("y");
     if (!y.has_value()) return tx.Abort();
     EXPECT_TRUE(y.has_value());
     EXPECT_EQ(0, y.value());
@@ -208,19 +222,20 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
       std::this_thread::yield();
     }
 
-    tx.Write<int>("users", "y", 20);
+    tx.Write<int>("y", 20);
   });
   /** T2: r2(x0) r2(y0) w2(x2) **/
   TransactionProcedure T2([&](LineairDB::Transaction& tx) {
-    auto x = tx.Read<int>("users", "x");
-    auto y = tx.Read<int>("users", "y");
+    tx.SetTable("users");
+    auto x = tx.Read<int>("x");
+    auto y = tx.Read<int>("y");
     if (!(x.has_value() && y.has_value())) return tx.Abort();
     EXPECT_EQ(0, x.value());
     EXPECT_EQ(0, y.value());
 
     waits.store(false);
     std::this_thread::yield();
-    tx.Write<int>("users", "x", -11);
+    tx.Write<int>("x", -11);
   });
 
   /** T3: r3(x0) r3(y1) **/
@@ -231,8 +246,9 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
       std::this_thread::yield();
     }
     std::this_thread::yield();
-    auto x = tx.Read<int>("users", "x");
-    auto y = tx.Read<int>("users", "y");
+    tx.SetTable("users");
+    auto x = tx.Read<int>("x");
+    auto y = tx.Read<int>("y");
     if (!(x.has_value() && y.has_value())) return tx.Abort();
     if (y.value() != 20) return tx.Abort();
     x_value_read_by_t3.store(x.value());
@@ -245,8 +261,9 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
     waits.store(true);
     /** initialize **/
     TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
-                                 tx.Write<int>("users", "x", 0);
-                                 tx.Write<int>("users", "y", 0);
+                                 tx.SetTable("users");
+                                 tx.Write<int>("x", 0);
+                                 tx.Write<int>("y", 0);
                                }});
 
     committed =
@@ -302,7 +319,8 @@ TEST_P(ConcurrencyControlTest, Recoverability) {
     // writer
     db_->ExecuteTransaction(
         [&, my_tid](LineairDB::Transaction& tx) {
-          tx.Write<size_t>("users", "alice", my_tid);
+          tx.SetTable("users");
+          tx.Write<size_t>("alice", my_tid);
           {
             std::lock_guard<std::mutex> global_latch(v_latch);
             committed_values.push_back(std::make_pair(UNCOMMITTED, my_tid));
@@ -325,7 +343,8 @@ TEST_P(ConcurrencyControlTest, Recoverability) {
     // reader
     db_->ExecuteTransaction(
         [&, my_tid](auto& tx) {
-          auto result = tx.template Read<size_t>("users", "alice");
+          tx.SetTable("users");
+          auto result = tx.template Read<size_t>("alice");
           if (result.has_value()) {
             {
               std::lock_guard<std::mutex> global_latch(v_latch);

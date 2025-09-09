@@ -101,14 +101,13 @@ class Transaction {
     } */
 
   const std::pair<const std::byte* const, const size_t> Read(
-      const std::string_view table_name, const std::string_view key);
+      const std::string_view key);
 
   template <typename T>
-  const std::optional<T> Read(const std::string_view table_name,
-                              const std::string_view key) {
+  const std::optional<T> Read(const std::string_view key) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
-    auto result = Read(table_name, key);
+    auto result = Read(key);
     if (result.second != 0) {
       const T copy_constructed_result =
           *reinterpret_cast<const T*>(result.first);
@@ -118,15 +117,13 @@ class Transaction {
     }
   }
 
-  std::vector<std::string> ReadSecondaryIndex(const std::string_view table_name,
-                                              const std::string_view index_name,
+  std::vector<std::string> ReadSecondaryIndex(const std::string_view index_name,
                                               const std::any& key);
 
   template <typename T>
-  std::vector<std::string> ReadSecondaryIndex(const std::string_view table_name,
-                                              const std::string_view index_name,
+  std::vector<std::string> ReadSecondaryIndex(const std::string_view index_name,
                                               const std::any& key) {
-    auto result = ReadSecondaryIndex(table_name, index_name, key);
+    auto result = ReadSecondaryIndex(index_name, key);
     return result;
   }
 
@@ -159,34 +156,31 @@ class Transaction {
     sizeof(T)); Write(key, buffer, sizeof(T));
     }; */
 
-  void Write(const std::string_view table_name, const std::string_view key,
-             const std::byte value[], const size_t size);
+  void Write(const std::string_view key, const std::byte value[],
+             const size_t size);
 
   template <typename T>
-  void Write(const std::string_view table_name, const std::string_view key,
-             const T& value) {
+  void Write(const std::string_view key, const T& value) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     std::byte buffer[sizeof(T)];
     std::memcpy(buffer, &value, sizeof(T));
-    Write(table_name, key, buffer, sizeof(T));
+    Write(key, buffer, sizeof(T));
   }
 
-  void WriteSecondaryIndex(const std::string_view table_name,
-                           const std::string_view index_name,
+  void WriteSecondaryIndex(const std::string_view index_name,
                            const std::any& key,
                            const std::byte primary_key_buffer[],
                            const size_t primary_key_size);
 
   template <typename T>
-  void WriteSecondaryIndex(const std::string_view table_name,
-                           const std::string_view index_name,
+  void WriteSecondaryIndex(const std::string_view index_name,
                            const std::any& key, const T& primary_key) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     std::byte buffer[sizeof(T)];
     std::memcpy(buffer, &primary_key, sizeof(T));
-    WriteSecondaryIndex(table_name, index_name, key, buffer, sizeof(T));
+    WriteSecondaryIndex(index_name, key, buffer, sizeof(T));
   }
   /**
    * @brief
@@ -246,40 +240,38 @@ class Transaction {
 
   // Scan primary index in a specific table
   const std::optional<size_t> Scan(
-      const std::string_view table_name, const std::string_view begin,
-      const std::optional<std::string_view> end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
 
   template <typename T>
   const std::optional<size_t> Scan(
-      const std::string_view table_name, const std::string_view begin,
-      const std::optional<std::string_view> end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view, T)> operation) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
-    return Scan(table_name, begin, end, [&](auto key, auto pair) {
+    return Scan(begin, end, [&](auto key, auto pair) {
       const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
       return operation(key, copy_constructed);
     });
   }
 
   const std::optional<size_t> ScanSecondaryIndex(
-      const std::string_view table_name, const std::string_view index_name,
-      const std::any& begin, const std::any& end,
+      const std::string_view index_name, const std::any& begin,
+      const std::any& end,
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
   template <typename T>
   const std::optional<size_t> ScanSecondaryIndex(
-      const std::string_view table_name, const std::string_view index_name,
-      const std::any& begin, const std::any& end,
+      const std::string_view index_name, const std::any& begin,
+      const std::any& end,
       std::function<bool(std::string_view, const std::vector<T>)> operation) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
     return ScanSecondaryIndex(
-        table_name, index_name, begin, end,
+        index_name, begin, end,
         [&](auto key, std::vector<std::string> primary_keys) {
           std::vector<T> copy_constructed_results;
           for (auto& primary_key : primary_keys) {
@@ -290,23 +282,20 @@ class Transaction {
         });
   }
 
-  void UpdateSecondaryIndex(const std::string_view table_name,
-                            const std::string_view index_name,
+  void UpdateSecondaryIndex(const std::string_view index_name,
                             const std::any& old_key, const std::any& new_key,
                             const std::byte primary_key_buffer[],
                             const size_t primary_key_size);
 
   template <typename T>
-  void UpdateSecondaryIndex(const std::string_view table_name,
-                            const std::string_view index_name,
+  void UpdateSecondaryIndex(const std::string_view index_name,
                             const std::any& old_key, const std::any& new_key,
                             const T& primary_key) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     std::byte buffer[sizeof(T)];
     std::memcpy(buffer, &primary_key, sizeof(T));
-    UpdateSecondaryIndex(table_name, index_name, old_key, new_key, buffer,
-                         sizeof(T));
+    UpdateSecondaryIndex(index_name, old_key, new_key, buffer, sizeof(T));
   }
 
   bool ValidateSKNotNull();

@@ -56,35 +56,35 @@ TEST_F(DataDefinitionTest, CreateTable) {
 // constraints in the future, so we will use enum class Constraint.
 using Constraint = LineairDB::SecondaryIndexOption::Constraint;
 
-TEST_F(DatabaseTest, CreateSecondaryIndexWithoutConstraints) {
+TEST_F(DataDefinitionTest, CreateSecondaryIndexWithoutConstraints) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "nickname"));
 }
 
-TEST_F(DatabaseTest, CreateSecondaryIndexWithoutConstraintsTimeKey) {
+TEST_F(DataDefinitionTest, CreateSecondaryIndexWithoutConstraintsTimeKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::time_t>("users", "created_at"));
 }
 
-TEST_F(DatabaseTest, CreateSecondaryIndexWithoutConstraintsStringKey) {
+TEST_F(DataDefinitionTest, CreateSecondaryIndexWithoutConstraintsStringKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "name"));
 }
 
 // UNIQUE only
-TEST_F(DatabaseTest, CreateSecondaryIndexUniqueOnlyIntKey) {
+TEST_F(DataDefinitionTest, CreateSecondaryIndexUniqueOnlyIntKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(
       db_->CreateSecondaryIndex<int>("users", "age", Constraint::UNIQUE));
 }
 
-TEST_F(DatabaseTest, CreateSecondaryIndexUniqueOnlyStringKey) {
+TEST_F(DataDefinitionTest, CreateSecondaryIndexUniqueOnlyStringKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "name",
                                                      Constraint::UNIQUE));
 }
 
-TEST_F(DatabaseTest, CreateSecondaryIndexUniqueOnlyTimeKey) {
+TEST_F(DataDefinitionTest, CreateSecondaryIndexUniqueOnlyTimeKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::time_t>("users", "created_at",
                                                      Constraint::UNIQUE));

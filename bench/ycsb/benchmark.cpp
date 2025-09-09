@@ -73,9 +73,10 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
     workers.emplace_back([&, from, to]() {
       db.ExecuteTransaction(
           [&, from, to](LineairDB::Transaction& tx) {
+            tx.SetTable(table);
             std::vector<std::byte> value(workload.payload_size);
             for (size_t idx = from; idx < to; idx++) {
-              tx.Write(table, std::to_string(idx), value.data(), value.size());
+              tx.Write(std::to_string(idx), value.data(), value.size());
             }
           },
           [](LineairDB::TxStatus status) {
@@ -104,8 +105,7 @@ std::atomic<bool> finish_flag{false};
 void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
                      RandomGenerator* rand, void* payload, bool use_handler,
                      std::string_view table) {
-  std::function<void(LineairDB::Transaction&, std::string_view,
-                     std::string_view, void*, size_t)>
+  std::function<void(LineairDB::Transaction&, std::string_view, void*, size_t)>
       operation;
 
   bool is_scan = false;
@@ -122,15 +122,6 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
       operation = YCSB::Interface::Insert;
       is_insert = true;
     } else if (what_i_do < (proportion += workload.scan_proportion)) {
-      // Use a lambda that captures table and calls tx.Scan(table, ...)
-      operation = [table](LineairDB::Transaction& tx, std::string_view begin,
-                          std::string_view end, void*, size_t) {
-        size_t hit = 0;
-        tx.Scan(table, begin, end, [&](auto, auto) {
-          ++hit;
-          return hit >= 100;  // early stop like original
-        });
-      };
       is_scan = true;
     } else if (what_i_do < (proportion += workload.rmw_proportion)) {
       operation = YCSB::Interface::ReadModifyWrite;
@@ -140,7 +131,8 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     }
   }
 
-  std::vector<std::string> keys(workload.reps_per_txn);
+  std::vector<std::string> keys;
+  keys.reserve(workload.reps_per_txn);
 
   // choose target key
   for (size_t i = 0; i < workload.reps_per_txn; i++) {
@@ -170,11 +162,16 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
 
   if (use_handler) {
     auto& tx = db.BeginTransaction();
+    tx.SetTable(table);
     if (is_scan) {
-      operation(tx, keys.front(), keys.back(), payload, workload.payload_size);
+      size_t hit = 0;
+      tx.Scan(keys.front(), keys.back(), [&](auto, auto) {
+        ++hit;
+        return hit >= 100;
+      });
     } else {
       for (auto& key : keys) {
-        operation(tx, key, table, payload, workload.payload_size);
+        operation(tx, key, payload, workload.payload_size);
       }
     }
     bool precommitted = db.EndTransaction(tx, [&](LineairDB::TxStatus) {});
@@ -190,12 +187,16 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
     db.ExecuteTransaction(
         [is_scan, operation, keys, payload, workload,
          table](LineairDB::Transaction& tx) {
+          tx.SetTable(table);
           if (is_scan) {
-            operation(tx, keys.front(), keys.back(), payload,
-                      workload.payload_size);
+            size_t hit = 0;
+            tx.Scan(keys.front(), keys.back(), [&](auto, auto) {
+              ++hit;
+              return hit >= 100;
+            });
           } else {
             for (auto& key : keys) {
-              operation(tx, key, table, payload, workload.payload_size);
+              operation(tx, key, payload, workload.payload_size);
             }
           }
         },

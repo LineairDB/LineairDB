@@ -88,9 +88,9 @@ Transaction::Impl::~Impl() noexcept = default;
 
 TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 
-/* const std::pair<const std::byte* const, const size_t>
-Transaction::Impl::Read( const std::string_view key) { if (IsAborted()) return
-{nullptr, 0};
+const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
+    const std::string_view key) {
+  if (IsAborted()) return {nullptr, 0};
 
   EnsureCurrentTable();
 
@@ -121,11 +121,11 @@ Transaction::Impl::Read( const std::string_view key) { if (IsAborted()) return
   } else {
     return {nullptr, 0};
   }
-} */
+}
 
-const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
-    const std::string_view table_name, const std::string_view key) {
-  if (IsAborted()) return {nullptr, 0};
+/* const std::pair<const std::byte* const, const size_t>
+Transaction::Impl::Read( const std::string_view table_name, const
+std::string_view key) { if (IsAborted()) return {nullptr, 0};
 
   std::string qualified_key = std::string(table_name) + "#" + std::string(key);
   for (auto& snapshot : write_set_) {
@@ -152,15 +152,14 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   } else {
     return {nullptr, 0};
   }
-}
+} */
 
 std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
-    const std::string_view table_name, const std::string_view index_name,
-    const std::any& key) {
+    const std::string_view index_name, const std::any& key) {
   if (IsAborted()) return {};
 
-  Table& table = db_pimpl_->GetTable(table_name);
-  Index::SecondaryIndexInterface* index = table.GetSecondaryIndex(index_name);
+  Index::SecondaryIndexInterface* index =
+      current_table_->GetSecondaryIndex(index_name);
 
   if (index == nullptr) {
     Abort();
@@ -174,8 +173,8 @@ std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
   }
 
   std::string serialized_key = Util::SerializeKey(key);
-  std::string qualified_key =
-      BuildQualifiedSKKey(table_name, index_name, serialized_key);
+  std::string qualified_key = BuildQualifiedSKKey(
+      current_table_->GetTableName(), index_name, serialized_key);
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == qualified_key) {
@@ -193,7 +192,8 @@ std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
 
   DataItem* index_leaf = index->GetOrInsert(serialized_key);
 
-  Snapshot snapshot = {qualified_key, nullptr, 0, index_leaf};
+  Snapshot snapshot = {qualified_key, nullptr, 0, index_leaf,
+                       current_table_->GetTableName()};
 
   snapshot.data_item_copy =
       concurrency_control_->Read(serialized_key, index_leaf);
@@ -206,7 +206,7 @@ std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
   }
 }
 
-/* void Transaction::Impl::Write(const std::string_view key,
+void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {
   if (IsAborted()) return;
 
@@ -239,9 +239,9 @@ std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
   Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
-} */
+}
 
-void Transaction::Impl::Write(const std::string_view table_name,
+/* void Transaction::Impl::Write(const std::string_view table_name,
                               const std::string_view key,
                               const std::byte value[], const size_t size) {
   if (IsAborted()) return;
@@ -286,7 +286,7 @@ void Transaction::Impl::Write(const std::string_view table_name,
       state.satisfiedIndexNames.clear();
     }
   }
-}
+} */
 
 // ---- Private helpers for SecondaryIndex operations ----
 namespace {
@@ -340,7 +340,8 @@ void Transaction::Impl::WriteEncodedPKList(const std::string& qualified_key,
     return;
   }
   concurrency_control_->Write(qualified_key, value_ptr, value_size, leaf);
-  Snapshot sp(qualified_key, value_ptr, value_size, leaf);
+  Snapshot sp(qualified_key, value_ptr, value_size, leaf,
+              current_table_->GetTableName());
   if (mark_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
@@ -374,9 +375,8 @@ std::string Transaction::Impl::EncodePKBytes(
 }
 
 void Transaction::Impl::WriteSecondaryIndex(
-    const std::string_view table_name, const std::string_view index_name,
-    const std::any& key, const std::byte primary_key_buffer[],
-    const size_t primary_key_size) {
+    const std::string_view index_name, const std::any& key,
+    const std::byte primary_key_buffer[], const size_t primary_key_size) {
   if (IsAborted()) return;
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
@@ -385,9 +385,9 @@ void Transaction::Impl::WriteSecondaryIndex(
   std::string_view primary_key_view;
   std::memcpy(&primary_key_view, primary_key_buffer, primary_key_size);
 
-  Table& table = db_pimpl_->GetTable(table_name);
-  Index::SecondaryIndexInterface* index = table.GetSecondaryIndex(index_name);
-  auto primary_leaf = table.GetPrimaryIndex().Get(primary_key_view);
+  Index::SecondaryIndexInterface* index =
+      current_table_->GetSecondaryIndex(index_name);
+  auto primary_leaf = current_table_->GetPrimaryIndex().Get(primary_key_view);
 
   if (primary_leaf == nullptr) {
     Abort();
@@ -409,8 +409,8 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   std::string serialized_key = Util::SerializeKey(key);
 
-  std::string qualified_key =
-      BuildQualifiedSKKey(table_name, index_name, serialized_key);
+  std::string qualified_key = BuildQualifiedSKKey(
+      current_table_->GetTableName(), index_name, serialized_key);
   // existing key
   DataItem* index_leaf = index->GetOrInsert(serialized_key);
   if (index_leaf->IsInitialized() && index->IsUnique()) {
@@ -470,7 +470,8 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   // decrement remainingNotNullSkWrites_ only if we actually added pk to SK
   if (added) {
-    auto tbl_it = remainingNotNullSkWrites_.find(std::string(table_name));
+    auto tbl_it = remainingNotNullSkWrites_.find(
+        std::string(current_table_->GetTableName()));
     if (tbl_it != remainingNotNullSkWrites_.end()) {
       auto& per_table = tbl_it->second;
       auto pk_it = per_table.find(std::string(primary_key_view));
@@ -488,7 +489,7 @@ void Transaction::Impl::WriteSecondaryIndex(
   }
 }
 
-/* const std::optional<size_t> Transaction::Impl::Scan(
+const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
@@ -504,9 +505,9 @@ void Transaction::Impl::WriteSecondaryIndex(
     Abort();
   }
   return result;
-}; */
+};
 
-const std::optional<size_t> Transaction::Impl::Scan(
+/* const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view table_name, const std::string_view begin,
     const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
@@ -522,15 +523,15 @@ const std::optional<size_t> Transaction::Impl::Scan(
     Abort();
   }
   return result;
-}
+} */
 
 const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
-    const std::string_view table_name, const std::string_view index_name,
-    const std::any& begin, const std::any& end,
+    const std::string_view index_name, const std::any& begin,
+    const std::any& end,
     std::function<bool(std::string_view, const std::vector<std::string>)>
         operation) {
-  Table& table = db_pimpl_->GetTable(table_name);
-  Index::SecondaryIndexInterface* index = table.GetSecondaryIndex(index_name);
+  Index::SecondaryIndexInterface* index =
+      current_table_->GetSecondaryIndex(index_name);
 
   if (index == nullptr) {
     Abort();
@@ -542,8 +543,7 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
 
   auto result =
       index->Scan(serialized_begin, serialized_end, [&](std::string_view key) {
-        const auto read_result =
-            ReadSecondaryIndex(table_name, index_name, key);
+        const auto read_result = ReadSecondaryIndex(index_name, key);
         if (IsAborted()) return true;
         return operation(key, read_result);
       });
@@ -557,9 +557,9 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
 // Variables: oldSK, newSK
 
 void Transaction::Impl::UpdateSecondaryIndex(
-    const std::string_view table_name, const std::string_view index_name,
-    const std::any& old_key, const std::any& new_key,
-    const std::byte primary_key_buffer[], const size_t primary_key_size) {
+    const std::string_view index_name, const std::any& old_key,
+    const std::any& new_key, const std::byte primary_key_buffer[],
+    const size_t primary_key_size) {
   if (IsAborted()) return;
 
   // 1) Preconditions
@@ -570,9 +570,9 @@ void Transaction::Impl::UpdateSecondaryIndex(
   std::string_view primary_key_view;
   std::memcpy(&primary_key_view, primary_key_buffer, primary_key_size);
 
-  Table& table = db_pimpl_->GetTable(table_name);
-  Index::SecondaryIndexInterface* index = table.GetSecondaryIndex(index_name);
-  auto primary_leaf = table.GetPrimaryIndex().Get(primary_key_view);
+  Index::SecondaryIndexInterface* index =
+      current_table_->GetSecondaryIndex(index_name);
+  auto primary_leaf = current_table_->GetPrimaryIndex().Get(primary_key_view);
   if (primary_leaf == nullptr || index == nullptr) {
     Abort();
     return;
@@ -597,10 +597,10 @@ void Transaction::Impl::UpdateSecondaryIndex(
   std::string old_serialized = Util::SerializeKey(old_key);
   std::string new_serialized = Util::SerializeKey(new_key);
 
-  std::string old_qualified =
-      BuildQualifiedSKKey(table_name, index_name, old_serialized);
-  std::string new_qualified =
-      BuildQualifiedSKKey(table_name, index_name, new_serialized);
+  std::string old_qualified = BuildQualifiedSKKey(
+      current_table_->GetTableName(), index_name, old_serialized);
+  std::string new_qualified = BuildQualifiedSKKey(
+      current_table_->GetTableName(), index_name, new_serialized);
 
   DataItem* old_leaf = index->GetOrInsert(old_serialized);
   DataItem* new_leaf = index->GetOrInsert(new_serialized);
@@ -798,76 +798,53 @@ bool Transaction::Impl::SetTable(const std::string_view table_name) {
 TxStatus Transaction::GetCurrentStatus() {
   return tx_pimpl_->GetCurrentStatus();
 }
-/* const std::pair<const std::byte* const, const size_t> Transaction::Read(
-    const std::string_view key) {
-  return tx_pimpl_->Read(key);
-} */
 
 const std::pair<const std::byte* const, const size_t> Transaction::Read(
-    const std::string_view table_name, const std::string_view key) {
-  return tx_pimpl_->Read(table_name, key);
+    const std::string_view key) {
+  return tx_pimpl_->Read(key);
 }
 
 std::vector<std::string> Transaction::ReadSecondaryIndex(
-    const std::string_view table_name, const std::string_view index_name,
-    const std::any& key) {
-  return tx_pimpl_->ReadSecondaryIndex(table_name, index_name, key);
+    const std::string_view index_name, const std::any& key) {
+  return tx_pimpl_->ReadSecondaryIndex(index_name, key);
 }
 
-/* void Transaction::Write(const std::string_view key, const std::byte value[],
+void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
-} */
-
-void Transaction::Write(const std::string_view table_name,
-                        const std::string_view key, const std::byte value[],
-                        const size_t size) {
-  tx_pimpl_->Write(table_name, key, value, size);
 }
 
-void Transaction::WriteSecondaryIndex(const std::string_view table_name,
-                                      const std::string_view index_name,
+void Transaction::WriteSecondaryIndex(const std::string_view index_name,
                                       const std::any& key,
                                       const std::byte primary_key_buffer[],
                                       const size_t primary_key_size) {
-  tx_pimpl_->WriteSecondaryIndex(table_name, index_name, key,
-                                 primary_key_buffer, primary_key_size);
+  tx_pimpl_->WriteSecondaryIndex(index_name, key, primary_key_buffer,
+                                 primary_key_size);
 }
 
-void Transaction::UpdateSecondaryIndex(const std::string_view table_name,
-                                       const std::string_view index_name,
+void Transaction::UpdateSecondaryIndex(const std::string_view index_name,
                                        const std::any& old_key,
                                        const std::any& new_key,
                                        const std::byte primary_key_buffer[],
                                        const size_t primary_key_size) {
-  tx_pimpl_->UpdateSecondaryIndex(table_name, index_name, old_key, new_key,
+  tx_pimpl_->UpdateSecondaryIndex(index_name, old_key, new_key,
                                   primary_key_buffer, primary_key_size);
 }
 
-/* const std::optional<size_t> Transaction::Scan(
+const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
   return tx_pimpl_->Scan(begin, end, operation);
-}; */
-
-const std::optional<size_t> Transaction::Scan(
-    const std::string_view table_name, const std::string_view begin,
-    const std::optional<std::string_view> end,
-    std::function<bool(std::string_view,
-                       const std::pair<const void*, const size_t>)>
-        operation) {
-  return tx_pimpl_->Scan(table_name, begin, end, operation);
-}
+};
 
 const std::optional<size_t> Transaction::ScanSecondaryIndex(
-    const std::string_view table_name, const std::string_view index_name,
-    const std::any& begin, const std::any& end,
+    const std::string_view index_name, const std::any& begin,
+    const std::any& end,
     std::function<bool(std::string_view, const std::vector<std::string>)>
         operation) {
-  return tx_pimpl_->ScanSecondaryIndex(table_name, index_name, begin, end,
-                                       operation);
+  return tx_pimpl_->ScanSecondaryIndex(index_name, begin, end, operation);
 }
 
 bool Transaction::ValidateSKNotNull() { return tx_pimpl_->ValidateSKNotNull(); }

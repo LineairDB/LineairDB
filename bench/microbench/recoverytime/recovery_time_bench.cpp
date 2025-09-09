@@ -54,10 +54,11 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
         for (size_t n = 0; n < number_of_updates_per_data_item; n++) {
           db.ExecuteTransaction(
               [&, i](LineairDB::Transaction& tx) {
+                tx.SetTable("users");
                 const size_t from = i * per_worker_insert_size;
                 const size_t to = (i + 1) * per_worker_insert_size - 1;
                 for (size_t j = from; j < to; j++) {
-                  tx.Write("users", std::to_string(j), buffer.data(), buffer.size());
+                  tx.Write(std::to_string(j), buffer.data(), buffer.size());
                 }
               },
               []([[maybe_unused]] LineairDB::TxStatus result) {

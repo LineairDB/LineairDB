@@ -281,11 +281,11 @@ class Database::Impl {
                             const std::string_view index_name,
                             const SecondaryIndexOption::Constraint constraint) {
     std::shared_lock<std::shared_mutex> lk(schema_mutex_);
-    auto it = tables_.find(std::string(table_name));
-    if (it == tables_.end()) {
+    auto it = GetTable(table_name);
+    if (!it.has_value()) {
       return false;
     }
-    return it->second.CreateSecondaryIndex<T>(index_name, constraint);
+    return it.value()->CreateSecondaryIndex<T>(index_name, constraint);
   }
 
   std::optional<Table*> GetTable(const std::string_view table_name) {

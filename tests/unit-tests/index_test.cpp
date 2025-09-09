@@ -40,9 +40,10 @@ class IndexTest : public ::testing::Test {
       int alice = 1;
       int bob = 2;
       int carol = 3;
-      tx.template Write<decltype(alice)>("users", "alice", alice);
-      tx.template Write<decltype(bob)>("users", "bob", bob);
-      tx.template Write<decltype(carol)>("users", "carol", carol);
+      tx.SetTable("users");
+      tx.template Write<decltype(alice)>("alice", alice);
+      tx.template Write<decltype(bob)>("bob", bob);
+      tx.template Write<decltype(carol)>("carol", carol);
     });
     db_->Fence();
   }
@@ -50,7 +51,8 @@ class IndexTest : public ::testing::Test {
 
 TEST_F(IndexTest, Scan) {
   auto& tx = db_->BeginTransaction();
-  auto count = tx.Scan("users", "alice", "bob", [&](auto key, auto) {
+  tx.SetTable("users");
+  auto count = tx.Scan("alice", "bob", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob");
     return false;
   });
@@ -61,10 +63,11 @@ TEST_F(IndexTest, Scan) {
 
 TEST_F(IndexTest, AlphabeticalOrdering) {
   auto& tx = db_->BeginTransaction();
-  auto count = tx.Scan("users", "carol", "alice", [&](auto, auto) { return false; });
+  tx.SetTable("users");
+  auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
   ASSERT_FALSE(count.has_value());
 
-  count = tx.Scan("users", "carol", "zzz", [&](auto, auto) { return false; });
+  count = tx.Scan("carol", "zzz", [&](auto, auto) { return false; });
   ASSERT_TRUE(count.has_value());
   ASSERT_EQ(size_t(1), count.value());
   db_->EndTransaction(tx, [](auto) {});
@@ -72,7 +75,8 @@ TEST_F(IndexTest, AlphabeticalOrdering) {
 
 TEST_F(IndexTest, ScanViaTemplate) {
   auto& tx = db_->BeginTransaction();
-  auto count = tx.Scan<int>("users", "alice", "bob", [&](auto key, auto) {
+  tx.SetTable("users");
+  auto count = tx.Scan<int>("alice", "bob", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob");
     return false;
   });
@@ -83,7 +87,8 @@ TEST_F(IndexTest, ScanViaTemplate) {
 
 TEST_F(IndexTest, StopScanning) {
   auto& tx = db_->BeginTransaction();
-  auto count = tx.Scan("users", "alice", "carol", [&](auto key, auto) {
+  tx.SetTable("users");
+  auto count = tx.Scan("alice", "carol", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice");
     EXPECT_FALSE(key == "bob");
     return true;
@@ -95,7 +100,8 @@ TEST_F(IndexTest, StopScanning) {
 
 TEST_F(IndexTest, ScanWithoutEnd) {
   auto& tx = db_->BeginTransaction();
-  auto count = tx.Scan("users", "alice", std::nullopt, [&](auto key, auto) {
+  tx.SetTable("users");
+  auto count = tx.Scan("alice", std::nullopt, [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob" || key == "carol");
     return false;
   });
@@ -109,16 +115,20 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
 
   std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Write<int>("users", "dave", dave); },
-       [&](LineairDB::Transaction& tx) {
-         auto scan = [&]() {
-           return tx.Scan("users", "alice", "dave", [&](auto, auto) { return false; });
-         };
-         first = scan();
-         std::this_thread::yield();
-         second = scan();
-       }});
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+                    tx.SetTable("users");
+                    tx.Write<int>("dave", dave);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    auto scan = [&]() {
+                      tx.SetTable("users");
+                      return tx.Scan("alice", "dave",
+                                     [&](auto, auto) { return false; });
+                    };
+                    first = scan();
+                    std::this_thread::yield();
+                    second = scan();
+                  }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
   }

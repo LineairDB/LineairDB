@@ -55,6 +55,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexStringKey) {
   // Write & Verify string secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 42;
   tx.Write<int>("user#1", age);
   tx.WriteSecondaryIndex<std::string_view>(
@@ -69,6 +70,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexStringKeyWithTypeMismatch) {
   // Write & Verify string secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 42;
   tx.Write<int>("user#1", age);
   tx.WriteSecondaryIndex<std::string_view>("email", 42, "user#1");
@@ -82,6 +84,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexIntKey) {
   // Write & Verify int secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 24;
   tx.Write<int>("user#2", age);
   tx.WriteSecondaryIndex<std::string_view>("age", 20, "user#2");
@@ -95,6 +98,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexIntKeyWithTypeMismatch) {
   // Write & Verify int secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<int>("user#2", 20);
   tx.WriteSecondaryIndex<std::string_view>(
       "age", std::string("alice@example.com"), "user#2");
@@ -110,6 +114,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexTimeKey) {
   // Write & Verify time_t secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<int>("user#3", 30);
   tx.WriteSecondaryIndex<std::string_view>("created_at", ts, "user#3");
   ASSERT_TRUE(db_->EndTransaction(
@@ -122,6 +127,7 @@ TEST_F(DatabaseTest, InsertSecondaryIndexTimeKeyWithTypeMismatch) {
   // Write & Verify time_t secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<int>("user#3", 30);
   tx.WriteSecondaryIndex<std::string_view>("created_at", 42, "user#3");
   ASSERT_FALSE(db_->EndTransaction(
@@ -134,6 +140,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexStringKey) {
 
   // Write & Verify string secondary key
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 42;
   tx.Write<int>("user#1", age);
   // Passing std::string explicitly for the third argument avoids type mismatch
@@ -145,9 +152,10 @@ TEST_F(DatabaseTest, ReadSecondaryIndexStringKey) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
   auto& rtx = db_->BeginTransaction();
   // Passing std::string explicitly for the third argument avoids type mismatch
+  rtx.SetTable("users");
   auto pk = rtx.ReadSecondaryIndex<std::string_view>(
       "email", std::string("alice@example.com"));
-  auto val = rtx.Read<int>("users", pk.at(0));
+  auto val = rtx.Read<int>(pk.at(0));
   ASSERT_EQ(val.value(), 42);
   db_->EndTransaction(rtx, [](auto) {});
 }
@@ -157,6 +165,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysStringKey) {
 
   // Write & Verify string secondary key
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 42;
   int age2 = 24;
   tx.Write<int>("user#1", age);
@@ -185,9 +194,10 @@ TEST_F(DatabaseTest, ReadSecondaryIndexIntKey) {
   // Write & Verify int secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 24;
   tx.Write<int>("user#2", age);
-  tx.WriteSecondaryIndex<std::string_view>("users", "age", 20, "user#2");
+  tx.WriteSecondaryIndex<std::string_view>("age", 20, "user#2");
 
   // Commit the writing transaction
   ASSERT_TRUE(db_->EndTransaction(
@@ -195,7 +205,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexIntKey) {
 
   auto& rtx = db_->BeginTransaction();
   auto pk = rtx.ReadSecondaryIndex<int>("age", 20);
-  auto val = rtx.Read<int>("users", pk.at(0));
+  auto val = rtx.Read<int>(pk.at(0));
   ASSERT_EQ(val.value(), 24);
   db_->EndTransaction(rtx, [](auto) {});
 }
@@ -204,6 +214,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysIntKey) {
   db_->CreateSecondaryIndex<int>("users", "age");
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 24;
   int age2 = 30;
   tx.Write<int>("user#2", age);
@@ -232,6 +243,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexTimeKey) {
   // Write & Verify time_t secondary key
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 30;
   tx.Write<int>("user#3", age);
   tx.WriteSecondaryIndex<std::string_view>("created_at", ts, "user#3");
@@ -253,6 +265,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysTimeKey) {
   auto ts = std::time(nullptr);
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 30;
   int age2 = 35;
   tx.Write<int>("user#3", age);
@@ -265,6 +278,7 @@ TEST_F(DatabaseTest, ReadSecondaryIndexMultipleKeysTimeKey) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 
   auto& rtx = db_->BeginTransaction();
+  rtx.SetTable("users");
   auto pk = rtx.ReadSecondaryIndex<std::time_t>("created_at", ts);
   auto val = rtx.Read<int>(pk.at(0));
   ASSERT_EQ(val.value(), 30);
@@ -281,6 +295,7 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
   // 1st row – this should commit.
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     int age = 42;
     tx.Write<int>("user#1", age);
     tx.WriteSecondaryIndex<std::string_view>(
@@ -292,6 +307,7 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
   // 2nd row with the same email – should abort.
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     int age = 24;
     tx.Write<int>("user#2", age);
     tx.WriteSecondaryIndex<std::string_view>("email",
@@ -305,6 +321,7 @@ TEST_F(DatabaseTest, InsertDuplicateSecondaryKeyViolatesUnique) {
 // WriteSecondaryIndex to unregistered index should abort
 TEST_F(DatabaseTest, WriteSecondaryIndexToUnregisteredIndexShouldAbort) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   int age = 22;
   tx.Write<int>("user#1", age);
   tx.WriteSecondaryIndex<std::string_view>(
@@ -316,6 +333,7 @@ TEST_F(DatabaseTest, WriteSecondaryIndexToUnregisteredIndexShouldAbort) {
 // ReadSecondaryIndex to unregistered index should abort
 TEST_F(DatabaseTest, ReadSecondaryIndexToUnregisteredIndexShouldAbort) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   // This side does not result in an error
   tx.ReadSecondaryIndex<std::string_view>("email", "alice@example.com");
   db_->EndTransaction(
@@ -327,6 +345,7 @@ TEST_F(DatabaseTest, InsertSKWithNonExistentPKShouldAbort) {
   db_->CreateSecondaryIndex<std::string>("users", "email", Constraint::UNIQUE);
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   // PK "ghost#1" does not exist yet
   tx.WriteSecondaryIndex<std::string_view>(
       "email", std::string("ghost@example.com"), "ghost#1");
@@ -341,6 +360,7 @@ TEST_F(DatabaseTest, Unique_SameTransaction_SameSK_DifferentPK_ShouldAbort) {
   db_->CreateSecondaryIndex<std::string>("users", "email", Constraint::UNIQUE);
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   // insert 2 PKs in the same tx
   tx.Write<std::string_view>("user#1", "Alice");
   tx.Write<std::string_view>("user#2", "Bob");
@@ -361,6 +381,7 @@ TEST_F(DatabaseTest,
   db_->CreateSecondaryIndex<std::string>("users", "email", Constraint::UNIQUE);
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<std::string_view>("user#1", "Alice");
   tx.WriteSecondaryIndex<std::string_view>(
       "email", std::string("ok@example.com"), "user#1");
@@ -380,6 +401,7 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_IntegerOrder) {
   // Insert items with integer secondary keys: 1, 9, 10
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("items");
     tx.Write<std::string_view>("item#1", "low");
     tx.Write<std::string_view>("item#2", "high");
     tx.Write<std::string_view>("item#3", "medium");
@@ -395,6 +417,7 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_IntegerOrder) {
   // Scan and verify order: should be 1, 9, 10 (NOT 1, 10, 9)
   {
     auto& rtx = db_->BeginTransaction();
+    rtx.SetTable("items");
     auto count = rtx.ScanSecondaryIndex<std::string_view>(
         "priority", 1, 10,
         [&](auto priority_key, std::vector<std::string_view> primary_keys) {
@@ -424,6 +447,7 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_StringOrder) {
   // Insert users with string secondary keys
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#1", "Alice");
     tx.Write<std::string_view>("user#2", "Bob");
     tx.Write<std::string_view>("user#3", "Charlie");
@@ -442,6 +466,7 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_StringOrder) {
   // Scan and verify lexicographical order
   {
     auto& rtx = db_->BeginTransaction();
+    rtx.SetTable("users");
     auto count = rtx.ScanSecondaryIndex<std::string_view>(
         "name", std::string("Alice"), std::string("Charlie"),
         [&](auto name_key, std::vector<std::string_view> primary_keys) {
@@ -473,6 +498,7 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_TimeOrder) {
   // Insert events with time_t secondary keys
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("events");
     tx.Write<std::string_view>("event#1", "start");
     tx.Write<std::string_view>("event#2", "middle");
     tx.Write<std::string_view>("event#3", "end");
@@ -492,6 +518,7 @@ TEST_F(DatabaseTest, ScanSecondaryIndex_TimeOrder) {
   // Scan and verify chronological order
   {
     auto& rtx = db_->BeginTransaction();
+    rtx.SetTable("events");
     auto count = rtx.ScanSecondaryIndex<std::string_view>(
         "timestamp", time_t(1000000000), time_t(1000000002),
         [&](auto timestamp_key, std::vector<std::string_view> primary_keys) {
@@ -526,6 +553,7 @@ TEST_F(DatabaseTest, SecondaryIndex_TypeConsistency) {
   // First insert with int type
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("mixed");
     tx.Write<std::string_view>("item#1", "data1");
     tx.WriteSecondaryIndex<std::string_view>("value", 42, "item#1");
     ASSERT_TRUE(db_->EndTransaction(
@@ -534,6 +562,7 @@ TEST_F(DatabaseTest, SecondaryIndex_TypeConsistency) {
 
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("mixed");
     tx.Write<std::string_view>("item#2", "data2");
     tx.WriteSecondaryIndex<std::string_view>("value", "hello", "item#2");
 
@@ -548,6 +577,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull) {
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<std::string_view>("user#1", "Alice");
   tx.WriteSecondaryIndex<std::string_view>(
       "email", std::string("alice@example.com"), "user#1");
@@ -555,6 +585,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull) {
       tx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Committed, s); }));
 
   auto& rtx = db_->BeginTransaction();
+  rtx.SetTable("users");
   rtx.Write<std::string_view>("user#2", "Bob");
   ASSERT_FALSE(db_->EndTransaction(
       rtx, [](auto s) { ASSERT_EQ(LineairDB::TxStatus::Aborted, s); }));
@@ -567,6 +598,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
   // Case 1: if tx does not write all secondary indices, abort
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#1", "Alice");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"), "user#1");
@@ -578,6 +610,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
   // (verification of unique constraint per index)
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#2", "Bob");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("bob@example.com"), "user#2");
@@ -590,6 +623,7 @@ TEST_F(DatabaseTest, SecondaryIndex_NotNull_MultipleSecondaryIndices) {
   // Case 3: if tx writes both email and name, commit
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#3", "Charlie");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("charlie@example.com"), "user#3");
@@ -605,6 +639,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update) {
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<std::string_view>("user#1", "Alice");
   tx.WriteSecondaryIndex<std::string_view>(
       "email", std::string("alice@example.com"), "user#1");
@@ -622,6 +657,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_MoveSK) {
   // Initial registration
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#1", "Alice");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"), "user#1");
@@ -632,6 +668,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_MoveSK) {
   // Update SK: alice@example.com -> alice@new.com
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.UpdateSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"), std::string("alice@new.com"),
         "user#1");
@@ -642,6 +679,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_MoveSK) {
   // Verification
   {
     auto& rtx = db_->BeginTransaction();
+    rtx.SetTable("users");
     auto old_pk = rtx.ReadSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"));
     auto new_pk = rtx.ReadSecondaryIndex<std::string_view>(
@@ -661,6 +699,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_NoOp_SameKey) {
 
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#1", "Alice");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"), "user#1");
@@ -670,6 +709,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_NoOp_SameKey) {
 
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.UpdateSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"),
         std::string("alice@example.com"), "user#1");
@@ -679,6 +719,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_NoOp_SameKey) {
 
   {
     auto& rtx = db_->BeginTransaction();
+    rtx.SetTable("users");
     auto pk = rtx.ReadSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"));
     ASSERT_TRUE(db_->EndTransaction(
@@ -695,6 +736,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_UniqueViolation) {
   // Register user#2 -> bob@example.com, user#1 -> alice@example.com
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#2", "Bob");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("bob@example.com"), "user#2");
@@ -703,6 +745,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_UniqueViolation) {
   }
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<std::string_view>("user#1", "Alice");
     tx.WriteSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"), "user#1");
@@ -713,6 +756,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_UniqueViolation) {
   // Updating user#1 to bob@example.com causes abort due to UNIQUE constraint
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.UpdateSecondaryIndex<std::string_view>(
         "email", std::string("alice@example.com"),
         std::string("bob@example.com"), "user#1");
@@ -723,6 +767,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_UniqueViolation) {
   // Verify: unchanged
   {
     auto& rtx = db_->BeginTransaction();
+    rtx.SetTable("users");
     auto pk_bob = rtx.ReadSecondaryIndex<std::string_view>(
         "email", std::string("bob@example.com"));
     auto pk_alice = rtx.ReadSecondaryIndex<std::string_view>(
@@ -740,6 +785,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_UniqueViolation) {
 // UpdateSecondaryIndex: abort when updating an unregistered index
 TEST_F(DatabaseTest, SecondaryIndex_Update_UnregisteredIndexShouldAbort) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.Write<std::string_view>("user#1", "Alice");
   tx.UpdateSecondaryIndex<std::string_view>(
       "email", std::string("alice@example.com"), std::string("alice@new.com"),
@@ -753,6 +799,7 @@ TEST_F(DatabaseTest, SecondaryIndex_Update_PrimaryKeyNotExistShouldAbort) {
   ASSERT_TRUE(db_->CreateSecondaryIndex<std::string>("users", "email"));
 
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   tx.UpdateSecondaryIndex<std::string_view>(
       "email", std::string("alice@example.com"), std::string("alice@new.com"),
       "user#999");

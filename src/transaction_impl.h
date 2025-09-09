@@ -63,18 +63,16 @@ class Transaction::Impl {
   /*     const std::pair<const std::byte* const, const size_t> Read(
           const std::string_view key);  */
   const std::pair<const std::byte* const, const size_t> Read(
-      const std::string_view table_name, const std::string_view key);
+      const std::string_view key);
 
-  std::vector<std::string> ReadSecondaryIndex(const std::string_view table_name,
-                                              const std::string_view index_name,
+  std::vector<std::string> ReadSecondaryIndex(const std::string_view index_name,
                                               const std::any& key);
 
   /*   void Write(const std::string_view key, const std::byte value[],
                const size_t size); */
-  void Write(const std::string_view table_name, const std::string_view key,
-             const std::byte value[], const size_t size);
-  void WriteSecondaryIndex(const std::string_view table_name,
-                           const std::string_view index_name,
+  void Write(const std::string_view key, const std::byte value[],
+             const size_t size);
+  void WriteSecondaryIndex(const std::string_view index_name,
                            const std::any& key,
                            const std::byte primary_key_buffer[],
                            const size_t primary_key_size);
@@ -86,20 +84,18 @@ class Transaction::Impl {
             operation); */
 
   const std::optional<size_t> Scan(
-      const std::string_view table_name, const std::string_view begin,
-      const std::optional<std::string_view> end,
+      const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
 
   const std::optional<size_t> ScanSecondaryIndex(
-      const std::string_view table_name, const std::string_view index_name,
-      const std::any& begin, const std::any& end,
+      const std::string_view index_name, const std::any& begin,
+      const std::any& end,
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
-  void UpdateSecondaryIndex(const std::string_view table_name,
-                            const std::string_view index_name,
+  void UpdateSecondaryIndex(const std::string_view index_name,
                             const std::any& old_key, const std::any& new_key,
                             const std::byte primary_key_buffer[],
                             const size_t primary_key_size);
@@ -133,7 +129,7 @@ class Transaction::Impl {
 
  private:
   TxStatus current_status_;
-  Database::Impl* dbpimpl_;
+  Database::Impl* db_pimpl_;
   const Config& config_ref_;
   std::unique_ptr<ConcurrencyControlBase> concurrency_control_;
 
