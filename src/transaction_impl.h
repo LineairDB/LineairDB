@@ -27,6 +27,7 @@
 #include <string_view>
 
 #include "concurrency_control/concurrency_control_base.h"
+#include "table/table.h"
 #include "types/definitions.h"
 
 namespace LineairDB {
@@ -76,7 +77,10 @@ class Transaction::Impl {
    */
   void PostProcessing(TxStatus);
 
+  bool SetTable(const std::string_view table_name);
+
  private:
+  void EnsureCurrentTable();
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
  private:
@@ -87,6 +91,7 @@ class Transaction::Impl {
 
   ReadSetType read_set_;
   WriteSetType write_set_;
+  Table* current_table_;
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_IMPL_H */

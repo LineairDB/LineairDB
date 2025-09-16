@@ -18,8 +18,6 @@
 
 #include <glob.h>
 #include <lineairdb/config.h>
-#include <lineairdb/database.h>
-#include <lineairdb/tx_status.h>
 
 #include <cstring>
 #include <filesystem>
@@ -194,17 +192,27 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                 if (item.data_item_copy.transaction_id.load() < kvp.tid) {
                   item.data_item_copy.buffer.Reset(kvp.buffer);
                   item.data_item_copy.transaction_id = kvp.tid;
-                  SPDLOG_DEBUG("    update-> key {0}, version {1} in epoch {2}",
-                               kvp.key, kvp.tid.tid, kvp.tid.epoch);
+                  item.table_name = kvp.table_name;
+
+                  SPDLOG_DEBUG(
+                      "    update-> key {0}, version {1} in epoch {2} in table "
+                      "{3}",
+                      kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
                 }
               }
             }
             if (not_found) {
-              SPDLOG_DEBUG("    insert-> key {0}, version {1} in epoch {2}",
-                           kvp.key, kvp.tid.tid, kvp.tid.epoch);
+              SPDLOG_DEBUG(
+                  "    insert-> key {0}, version {1} in epoch {2} in table {3}",
+                  kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
               Snapshot snapshot = {
-                  kvp.key, reinterpret_cast<std::byte*>(kvp.buffer.data()),
-                  kvp.buffer.size(), nullptr, kvp.tid};
+                  kvp.key,
+                  reinterpret_cast<std::byte*>(kvp.buffer.data()),
+                  kvp.buffer.size(),
+                  nullptr,
+                  kvp.table_name,
+                  kvp.tid,
+              };
               recovery_set.emplace_back(std::move(snapshot));
             }
           }

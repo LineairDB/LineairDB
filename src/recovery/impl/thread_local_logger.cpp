@@ -20,15 +20,12 @@
 #include <lineairdb/database.h>
 #include <lineairdb/tx_status.h>
 
+#include <atomic>
 #include <cassert>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
-#include <functional>
-#include <iostream>
 #include <msgpack.hpp>
 #include <util/logger.hpp>
-#include <vector>
 
 #include "recovery/logger.h"
 #include "types/definitions.h"
@@ -63,6 +60,7 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
       kvp.key = snapshot.key;
       kvp.buffer = snapshot.data_item_copy.buffer.toString();
       kvp.tid = snapshot.data_item_copy.transaction_id.load();
+      kvp.table_name = snapshot.table_name;
 
       record.key_value_pairs.emplace_back(std::move(kvp));
     }

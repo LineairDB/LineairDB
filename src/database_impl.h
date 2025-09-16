@@ -22,11 +22,13 @@
 #include <lineairdb/tx_status.h>
 
 #include <functional>
+#include <utility>
 
 #include "callback/callback_manager.h"
-#include "index/concurrent_table.h"
 #include "recovery/checkpoint_manager.hpp"
 #include "recovery/logger.h"
+#include "table/table.h"
+#include "table/table_dictionary.hpp"
 #include "thread_pool/thread_pool.h"
 #include "transaction_impl.h"
 #include "util/backoff.hpp"
@@ -46,8 +48,7 @@ class Database::Impl {
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        index_(epoch_framework_, config_),
-        checkpoint_manager_(config_, index_, epoch_framework_) {
+        checkpoint_manager_(config_, table_dictionary_, epoch_framework_) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -55,7 +56,13 @@ class Database::Impl {
       SPDLOG_ERROR(
           "It is prohibited to allocate two LineairDB::Database instance at "
           "the same time.");
-      exit(1);
+      exit(EXIT_FAILURE);
+    }
+    if (!config_.anonymous_table_name.empty()) {
+      CreateTable(config_.anonymous_table_name);
+    } else {
+      SPDLOG_ERROR("Anonymous table name is not set.");
+      exit(EXIT_FAILURE);
     }
     if (config_.enable_recovery) {
       Recovery();
@@ -175,13 +182,31 @@ class Database::Impl {
     return epoch_framework_.GetMyThreadLocalEpoch();
   }
 
+  /**
+   * Ensures that all pending operations are completed and all callbacks have
+   * been executed.
+   *
+   * Note: Due to the dependency on the implementation of
+   * moodycamel::concurrentqueue, callbacks are executed **after**
+   * try_dequeue(). This means the queue size can become zero even if some
+   * callbacks have not yet been executed. As a result, the current
+   * `WaitForAllCallbacksToBeExecuted()` does not strictly behave as its name
+   * suggests (since it only checks if the queue length is zero).
+   *
+   * To address this problem, an atomic variable `latest_callbacked_epoch_` is
+   * used as a workaround to ensure proper waiting.
+   */
   void Fence() {
+    const auto current_epoch = epoch_framework_.GetGlobalEpoch();
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
     callback_manager_.WaitForAllCallbacksToBeExecuted();
+    // Spin-wait with yield for better performance in the critical path
+    while (latest_callbacked_epoch_.load() < current_epoch) {
+      std::this_thread::yield();
+    }
   }
   const Config& GetConfig() const { return config_; }
-  Index::ConcurrentTable& GetIndex() { return index_; }
 
   // NOTE: Called by a special thread managed by EpochFramework.
   std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {
@@ -197,8 +222,10 @@ class Database::Impl {
       }
 
       // Execute Callbacks
-      thread_pool_.EnqueueForAllThreads(
-          [&, old_epoch]() { callback_manager_.ExecuteCallbacks(old_epoch); });
+      thread_pool_.EnqueueForAllThreads([&, old_epoch]() {
+        callback_manager_.ExecuteCallbacks(old_epoch);
+        latest_callbacked_epoch_.store(old_epoch);
+      });
 
       if (config_.enable_checkpointing) {
         auto checkpoint_completed =
@@ -223,6 +250,14 @@ class Database::Impl {
     return checkpoint_manager_.IsNeedToCheckpointing(epoch);
   }
 
+  bool CreateTable(const std::string_view table_name) {
+    return table_dictionary_.CreateTable(table_name, epoch_framework_, config_);
+  }
+
+  std::optional<Table*> GetTable(const std::string_view table_name) {
+    return table_dictionary_.GetTable(table_name);
+  }
+
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
@@ -242,12 +277,23 @@ class Database::Impl {
     local_epoch = durable_epoch;
 
     highest_epoch = std::max(highest_epoch, durable_epoch);
-    auto&& recovery_set = logger_.GetRecoverySetFromLogs(durable_epoch);
-    for (auto& entry : recovery_set) {
-      highest_epoch = std::max(
-          highest_epoch, entry.data_item_copy.transaction_id.load().epoch);
+    auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
 
-      index_.Put(entry.key, std::move(entry.data_item_copy));
+    for (auto& recovery_set : recovery_sets) {
+      CreateTable(recovery_set.table_name);
+      auto table = GetTable(recovery_set.table_name);
+      if (!table.has_value()) {
+        SPDLOG_CRITICAL(
+            "Recovery failed: Table {0} could not be found or created.",
+            recovery_set.table_name);
+        exit(EXIT_FAILURE);
+      }
+
+      highest_epoch =
+          std::max(highest_epoch,
+                   recovery_set.data_item_copy.transaction_id.load().epoch);
+      table.value()->GetPrimaryIndex().Put(
+          recovery_set.key, std::move(recovery_set.data_item_copy));
     }
     epoch_framework_.MakeMeOffline();
 
@@ -262,11 +308,10 @@ class Database::Impl {
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
-  Index::ConcurrentTable index_;
+  TableDictionary table_dictionary_;
+  std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
 };
-
-// Database::Impl* Database::Impl::CurrentDBInstance = nullptr;
 
 }  // namespace LineairDB
 #endif /** LINEAIRDB_DATABASE_IMPL_H **/

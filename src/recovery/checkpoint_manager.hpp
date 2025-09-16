@@ -27,15 +27,12 @@
 #include <string_view>
 #include <thread>
 
-#include "index/concurrent_table.h"
 #include "recovery/logger.h"
-#include "transaction_impl.h"
+#include "table/table_dictionary.hpp"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
-#include "types/snapshot.hpp"
 #include "util/epoch_framework.hpp"
 #include "util/logger.hpp"
-#include "util/thread_key_storage.h"
 
 namespace LineairDB {
 
@@ -47,12 +44,12 @@ class CPRManager {
   const std::string CheckpointFileName;
   const std::string CheckpointWorkingFileName;
 
-  CPRManager(const LineairDB::Config& c_ref,
-             LineairDB::Index::ConcurrentTable& t_ref, EpochFramework& e_ref)
+  CPRManager(const LineairDB::Config& c_ref, TableDictionary& d_ref,
+             EpochFramework& e_ref)
       : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
         CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
         config_ref_(c_ref),
-        table_ref_(t_ref),
+        dict_ref_(d_ref),
         epoch_manager_ref_(e_ref),
         current_phase_(Phase::REST),
         checkpoint_epoch_(0),
@@ -118,27 +115,30 @@ class CPRManager {
               Recovery::Logger::LogRecord record;
               record.epoch = checkpoint_epoch_.load() + 1;
 
-              table_ref_.ForEach(
-                  [&](std::string_view key, LineairDB::DataItem& data_item) {
-                    data_item.ExclusiveLock();
+              dict_ref_.ForEachTable([&](LineairDB::Table& table) {
+                table.GetPrimaryIndex().ForEach(
+                    [&](std::string_view key, LineairDB::DataItem& data_item) {
+                      data_item.ExclusiveLock();
 
-                    Logger::LogRecord::KeyValuePair kvp;
-                    kvp.key = key;
-                    if (data_item.checkpoint_buffer.IsEmpty()) {
-                      // this data item holds version which has written before
-                      // the point of consistency.
-                      kvp.buffer = data_item.buffer.toString();
-                    } else {
-                      kvp.buffer = data_item.checkpoint_buffer.toString();
-                      data_item.checkpoint_buffer.Reset(nullptr, 0);
-                    }
-                    kvp.tid.epoch = record.epoch;
-                    kvp.tid.tid = 0;
-                    record.key_value_pairs.emplace_back(std::move(kvp));
+                      Logger::LogRecord::KeyValuePair kvp;
+                      kvp.table_name = table.GetTableName();
+                      kvp.key = key;
+                      if (data_item.checkpoint_buffer.IsEmpty()) {
+                        // this data item holds version which has written before
+                        // the point of consistency.
+                        kvp.buffer = data_item.buffer.toString();
+                      } else {
+                        kvp.buffer = data_item.checkpoint_buffer.toString();
+                        data_item.checkpoint_buffer.Reset(nullptr, 0);
+                      }
+                      kvp.tid.epoch = record.epoch;
+                      kvp.tid.tid = 0;
+                      record.key_value_pairs.emplace_back(std::move(kvp));
 
-                    data_item.ExclusiveUnlock();
-                    return true;
-                  });
+                      data_item.ExclusiveUnlock();
+                      return true;
+                    });
+              });
               records.emplace_back(std::move(record));
 
               std::ofstream new_file(
@@ -187,7 +187,7 @@ class CPRManager {
 
  private:
   const LineairDB::Config& config_ref_;
-  LineairDB::Index::ConcurrentTable& table_ref_;
+  LineairDB::TableDictionary& dict_ref_;
   LineairDB::EpochFramework& epoch_manager_ref_;
   Logger::LogRecords log_records;
   std::atomic<Phase> current_phase_;

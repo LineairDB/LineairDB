@@ -194,6 +194,20 @@ class Transaction {
    */
   void Abort();
 
+  /**
+   * @brief
+   * Sets the table to read/write/scan from this transaction.
+   * If the table is not set, this transaction uses the `__anonymous_table`,
+   * such that defined in the `Config::anonymous_table_name`. See
+   * include/lineairdb/config.h.
+   * @param[in] table_name The table name to select.
+   * @return true when the specified table exists and becomes the current table.
+   * @return false when the specified table does not exist; the current
+   * selection remains unchanged.
+   * @note This function does not create tables; use Database::CreateTable.
+   */
+  bool SetTable(const std::string_view table_name);
+
  private:
   Transaction(void*) noexcept;
   ~Transaction() noexcept;
