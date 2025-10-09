@@ -65,22 +65,13 @@ bool Database::CreateTable(const std::string_view table_name) {
   return db_pimpl_->CreateTable(table_name);
 }
 
-template <typename T>
 bool Database::CreateSecondaryIndex(
     const std::string_view table_name, const std::string_view index_name,
-    const SecondaryIndexOption::Constraint constraint) {
-  return db_pimpl_->CreateSecondaryIndex<T>(table_name, index_name, constraint);
+    const uint index_type,
+    const uint lineairdb_data_type) {
+  return db_pimpl_->CreateSecondaryIndex(table_name, index_name, index_type, lineairdb_data_type);
 }
 
-template bool Database::CreateSecondaryIndex<std::string>(
-    const std::string_view table_name, const std::string_view index_name,
-    const SecondaryIndexOption::Constraint constraint);
-template bool Database::CreateSecondaryIndex<int>(
-    const std::string_view table_name, const std::string_view index_name,
-    const SecondaryIndexOption::Constraint constraint);
-template bool Database::CreateSecondaryIndex<time_t>(
-    const std::string_view table_name, const std::string_view index_name,
-    const SecondaryIndexOption::Constraint constraint);
 
 
 }  // namespace LineairDB

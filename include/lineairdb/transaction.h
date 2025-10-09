@@ -16,7 +16,6 @@
 #ifndef LINEAIRDB_TRANSACTION_H
 #define LINEAIRDB_TRANSACTION_H
 
-#include <lineairdb/key_serializer.h>
 #include <lineairdb/tx_status.h>
 
 #include <any>

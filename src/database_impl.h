@@ -276,16 +276,16 @@ class Database::Impl {
     return table_dictionary_.CreateTable(table_name, epoch_framework_, config_);
   }
 
-  template <typename T>
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
-                            const SecondaryIndexOption::Constraint constraint) {
+                            const uint index_type,
+                            const uint lineairdb_data_type) {
     std::shared_lock<std::shared_mutex> lk(schema_mutex_);
     auto it = GetTable(table_name);
     if (!it.has_value()) {
       return false;
     }
-    return it.value()->CreateSecondaryIndex<T>(index_name, constraint);
+    return it.value()->CreateSecondaryIndex(index_name, index_type, lineairdb_data_type);
   }
 
   std::optional<Table*> GetTable(const std::string_view table_name) {

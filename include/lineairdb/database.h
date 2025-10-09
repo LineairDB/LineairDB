@@ -151,12 +151,10 @@ class Database {
    */
   void RequestCallbacks();
 
-  // implement UNIQUE constraint for secondary index
-  template <typename T>
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
-                            const SecondaryIndexOption::Constraint constraint =
-                                SecondaryIndexOption::Constraint::NONE);
+                            const uint index_type,
+                            const uint lineairdb_data_type);
 
   /**
    * @brief

@@ -18,7 +18,7 @@ Table::Table(EpochFramework& epoch_framework, const Config& config,
       primary_index_(epoch_framework, config),
       table_name_(table_name) {}
 
-Index::SecondaryIndexInterface* Table::GetSecondaryIndex(
+Index::SecondaryIndex* Table::GetSecondaryIndex(
     const std::string_view index_name) {
   std::shared_lock<std::shared_mutex> lk(table_lock_);
   auto it = secondary_indices_.find(std::string(index_name));
