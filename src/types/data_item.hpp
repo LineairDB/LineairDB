@@ -87,9 +87,11 @@ struct DataItem {
     if (!sec_idx_buffers) {
       sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>();
     }
+    std::string check_str = std::string(reinterpret_cast<const char*>(v), s);
     DataBuffer buf;
     buf.Reset(v, s);
     sec_idx_buffers->push_back(std::move(buf));
+    std::string sec_idx_buffer_str = std::string(reinterpret_cast<const char*>(sec_idx_buffers->at(0).value), sec_idx_buffers->at(0).size);
   }
 
   void CopyLiveVersionToStableVersion() {

@@ -55,6 +55,7 @@ TEST_F(ManipulateSecondaryIndexTest, ReadWriteSecondaryIndex) {
         primary_key.size());
 
     auto result = tx.ReadSecondaryIndex("age_index", "10");
+    std::string check_str = std::string(reinterpret_cast<const char*>(result[0].first), result[0].second);
 
     printf("Found %zu primary keys for age=10:\n", result.size());
     for (const auto& [pk_ptr, pk_size] : result) {
