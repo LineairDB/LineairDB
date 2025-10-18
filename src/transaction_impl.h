@@ -65,15 +65,15 @@ class Transaction::Impl {
   const std::pair<const std::byte* const, const size_t> Read(
       const std::string_view key);
 
-  std::vector<std::string> ReadSecondaryIndex(const std::string_view index_name,
-                                              const std::any& key);
+  std::vector<std::pair<const std::byte* const, const size_t>> ReadSecondaryIndex(const std::string_view index_name,
+                                              const std::string_view key);
 
   /*   void Write(const std::string_view key, const std::byte value[],
                const size_t size); */
   void Write(const std::string_view key, const std::byte value[],
              const size_t size);
   void WriteSecondaryIndex(const std::string_view index_name,
-                           const std::any& key,
+                           const std::string_view key,
                            const std::byte primary_key_buffer[],
                            const size_t primary_key_size);
 
@@ -90,8 +90,8 @@ class Transaction::Impl {
           operation);
 
   const std::optional<size_t> ScanSecondaryIndex(
-      const std::string_view index_name, const std::any& begin,
-      const std::any& end,
+      const std::string_view index_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
@@ -115,17 +115,6 @@ class Transaction::Impl {
  private:
   void EnsureCurrentTable();
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
-
-  // --- helpers for secondary index operations ---
-  bool FindWriteSnapshot(const std::string& qualified_key, Snapshot** out);
-  std::vector<std::string> DecodeCurrentPKList(const std::string& qualified_key,
-                                               DataItem* leaf);
-  void WriteEncodedPKList(const std::string& qualified_key, DataItem* leaf,
-                          const std::string& encoded_value, bool mark_rmf);
-  void WriteEncodedPKList(Snapshot& existing_snapshot,
-                          const std::string& encoded_value, bool mark_rmf);
-  bool IsKeyInReadSet(const std::string& qualified_key) const;
-  std::string EncodePKBytes(const std::vector<std::string>& list) const;
 
  private:
   TxStatus current_status_;

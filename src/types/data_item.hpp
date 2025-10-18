@@ -36,6 +36,7 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   bool initialized;
   DataBuffer buffer;
+  std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers; 
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
   Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
@@ -56,12 +57,22 @@ struct DataItem {
         initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
+    if(rhs.sec_idx_buffers) {
+      sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
+    } 
   }
+
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
     initialized = rhs.initialized;
     if (initialized) {
       buffer.Reset(rhs.buffer);
+    }
+
+    if(rhs.sec_idx_buffers) {
+      sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
+    } else {
+      sec_idx_buffers = nullptr;
     }
     return *this;
   }
@@ -70,6 +81,15 @@ struct DataItem {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
     initialized = (v != nullptr && s != 0);
+  }
+
+  void AddSecondaryIndexValue(const std::byte* v, size_t s) {
+    if (!sec_idx_buffers) {
+      sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>();
+    }
+    DataBuffer buf;
+    buf.Reset(v, s);
+    sec_idx_buffers->push_back(std::move(buf));
   }
 
   void CopyLiveVersionToStableVersion() {

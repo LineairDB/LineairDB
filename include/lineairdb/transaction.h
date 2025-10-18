@@ -116,12 +116,14 @@ class Transaction {
     }
   }
 
-  std::vector<std::string> ReadSecondaryIndex(const std::string_view index_name,
-                                              const std::any& key);
+  std::vector<std::pair<const std::byte* const, const size_t>>
+  ReadSecondaryIndex(const std::string_view index_name,
+                     const std::string_view key);
 
   template <typename T>
-  std::vector<std::string> ReadSecondaryIndex(const std::string_view index_name,
-                                              const std::any& key) {
+  std::vector<std::pair<const std::byte* const, const size_t>>
+  ReadSecondaryIndex(const std::string_view index_name,
+                     const std::string_view key) {
     auto result = ReadSecondaryIndex(index_name, key);
     return result;
   }
@@ -168,13 +170,13 @@ class Transaction {
   }
 
   void WriteSecondaryIndex(const std::string_view index_name,
-                           const std::any& key,
+                           const std::string_view key,
                            const std::byte primary_key_buffer[],
                            const size_t primary_key_size);
 
   template <typename T>
   void WriteSecondaryIndex(const std::string_view index_name,
-                           const std::any& key, const T& primary_key) {
+                           const std::string_view key, const T& primary_key) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
     std::byte buffer[sizeof(T)];
@@ -257,15 +259,15 @@ class Transaction {
   }
 
   const std::optional<size_t> ScanSecondaryIndex(
-      const std::string_view index_name, const std::any& begin,
-      const std::any& end,
+      const std::string_view index_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
   template <typename T>
   const std::optional<size_t> ScanSecondaryIndex(
-      const std::string_view index_name, const std::any& begin,
-      const std::any& end,
+      const std::string_view index_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
       std::function<bool(std::string_view, const std::vector<T>)> operation) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");

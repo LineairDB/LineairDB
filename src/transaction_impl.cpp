@@ -28,7 +28,6 @@
 #include "concurrency_control/impl/two_phase_locking.hpp"
 #include "database_impl.h"
 #include "types/snapshot.hpp"
-#include "util/pklist_util.h"
 
 // ---- Private helpers for SecondaryIndex operations ----
 namespace {
@@ -110,8 +109,8 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   }
 
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
-  Snapshot snapshot = {key, nullptr, 0, index_leaf,
-                       current_table_->GetTableName()};
+  Snapshot snapshot = {
+      key, nullptr, 0, index_leaf, current_table_->GetTableName(), ""};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref = read_set_.emplace_back(std::move(snapshot));
@@ -122,87 +121,66 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   }
 }
 
-/* const std::pair<const std::byte* const, const size_t>
-Transaction::Impl::Read( const std::string_view table_name, const
-std::string_view key) { if (IsAborted()) return {nullptr, 0};
+std::vector<std::pair<const std::byte* const, const size_t>>
+Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
+                                      const std::string_view key) {
+  if (IsAborted()) return {};
 
-  std::string qualified_key = std::string(table_name) + "#" + std::string(key);
+  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
+
+  if (index == nullptr) {
+    Abort();
+    return {};
+  }
+
+  EnsureCurrentTable();
+
   for (auto& snapshot : write_set_) {
-    if (snapshot.key == qualified_key) {
-      return std::make_pair(snapshot.data_item_copy.value(),
-                            snapshot.data_item_copy.size());
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      std::vector<std::pair<const std::byte* const, const size_t>> result;
+      if (snapshot.data_item_copy.sec_idx_buffers) {
+        for (auto& sec_idx_buffer : *snapshot.data_item_copy.sec_idx_buffers) {
+          result.emplace_back(sec_idx_buffer.value, sec_idx_buffer.size);
+        }
+      }
+      return result;
     }
   }
 
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == qualified_key) {
-      return std::make_pair(snapshot.data_item_copy.value(),
-                            snapshot.data_item_copy.size());
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      std::vector<std::pair<const std::byte* const, const size_t>> result;
+      if (snapshot.data_item_copy.sec_idx_buffers) {
+        for (auto& sec_idx_buffer : *snapshot.data_item_copy.sec_idx_buffers) {
+          result.emplace_back(sec_idx_buffer.value, sec_idx_buffer.size);
+        }
+      }
+      return result;
     }
   }
-  auto* index_leaf =
-      db_pimpl_->GetTable(table_name).GetPrimaryIndex().GetOrInsert(key);
-  Snapshot snapshot = {qualified_key, nullptr, 0, index_leaf};
+
+  DataItem* index_leaf = index->GetOrInsert(key);
+
+  Snapshot snapshot = {
+      key, nullptr, 0, index_leaf, current_table_->GetTableName(), index_name};
 
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref = read_set_.emplace_back(std::move(snapshot));
   if (ref.data_item_copy.IsInitialized()) {
-    return {ref.data_item_copy.value(), ref.data_item_copy.size()};
-  } else {
-    return {nullptr, 0};
+    std::vector<std::pair<const std::byte* const, const size_t>> result;
+    if (ref.data_item_copy.sec_idx_buffers) {
+      for (auto& sec_idx_buffer : *ref.data_item_copy.sec_idx_buffers) {
+        result.emplace_back(sec_idx_buffer.value, sec_idx_buffer.size);
+      }
+      return result;
+    } else {
+      return {};
+    }
   }
-} */
-
-std::vector<std::string> Transaction::Impl::ReadSecondaryIndex(
-    const std::string_view index_name, const std::any& key) {
-  /*  if (IsAborted()) return {};
-
-   Index::SecondaryIndex* index =
-       current_table_->GetSecondaryIndex(index_name);
-
-   if (index == nullptr) {
-     Abort();
-     return {};
-   }
-
-   const std::type_info& key_type = index->KeyTypeInfo();
-   if (key_type != key.type()) {
-     Abort();
-     return {};
-   }
-
-   std::string serialized_key = Util::SerializeKey(key);
-   std::string qualified_key = BuildQualifiedSKKey(
-       current_table_->GetTableName(), index_name, serialized_key);
-
-   for (auto& snapshot : write_set_) {
-     if (snapshot.key == qualified_key) {
-       return Util::DecodePKList(snapshot.data_item_copy.value(),
-                                 snapshot.data_item_copy.size());
-     }
-   }
-
-   for (auto& snapshot : read_set_) {
-     if (snapshot.key == qualified_key) {
-       return Util::DecodePKList(snapshot.data_item_copy.value(),
-                                 snapshot.data_item_copy.size());
-     }
-   }
-
-   DataItem* index_leaf = index->GetOrInsert(serialized_key);
-
-   Snapshot snapshot = {qualified_key, nullptr, 0, index_leaf,
-                        current_table_->GetTableName()};
-
-   snapshot.data_item_copy =
-       concurrency_control_->Read(serialized_key, index_leaf);
-   auto& ref = read_set_.emplace_back(std::move(snapshot));
-   if (ref.data_item_copy.IsInitialized()) {
-     return Util::DecodePKList(ref.data_item_copy.value(),
-                               ref.data_item_copy.size());
-   } else {
-     return {};
-   } */
   return {};
 }
 
@@ -236,257 +214,70 @@ void Transaction::Impl::Write(const std::string_view key,
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName(), "");
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
 
-/* void Transaction::Impl::Write(const std::string_view table_name,
-                              const std::string_view key,
-                              const std::byte value[], const size_t size) {
+void Transaction::Impl::WriteSecondaryIndex(
+    const std::string_view index_name, const std::string_view key,
+    const std::byte primary_key_buffer[], const size_t primary_key_size) {
   if (IsAborted()) return;
+
+  EnsureCurrentTable();
 
   // TODO: if `size` is larger than Config.internal_buffer_size,
   // then we have to abort this transaction or throw exception
 
-  std::string qualified_key = std::string(table_name) + "#" + std::string(key);
+  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
+
+  // If the index is not registered, abort the transaction
+  if (index == nullptr) {
+    Abort();
+    return;
+  }
+
+  // existing key
+  // unique constraint check out of the transaction
+  DataItem* index_leaf = index->GetOrInsert(key);
+  if (index_leaf->IsInitialized() && index->IsUnique()) {
+    Abort();
+    return;
+  }
 
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == qualified_key) {
+    if (snapshot.key == key) {
       is_rmf = true;
       snapshot.is_read_modify_write = true;
       break;
     }
   }
 
+  // unique constraint check in the transaction
   for (auto& snapshot : write_set_) {
-    if (snapshot.key != qualified_key) continue;
-    snapshot.data_item_copy.Reset(value, size);
+    if (snapshot.key != key ||
+        snapshot.table_name != current_table_->GetTableName() ||
+        snapshot.index_name != index_name)
+      continue;
+    if (index->IsUnique()) {
+      Abort();
+      return;
+    }
+    snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
+                                                   primary_key_size);
     if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
+    break;
   }
 
-  auto& table = db_pimpl_->GetTable(table_name);
-  auto* index_leaf = table.GetPrimaryIndex().GetOrInsert(key);
-  bool is_new_insert = !index_leaf->IsInitialized();
-
-  concurrency_control_->Write(qualified_key, value, size, index_leaf);
-  Snapshot sp(qualified_key, value, size, index_leaf);
+  concurrency_control_->Write(key, primary_key_buffer, primary_key_size,
+                              index_leaf);
+  Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(),
+              index_name);
+  sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
+                                           primary_key_size);
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
-
-  // Initialize pending_ only for new primary insert and when table has SK(s)
-  if (is_new_insert) {
-    size_t num_secondary = table.GetSecondaryIndexCount();
-    if (num_secondary > 0) {
-      auto& state =
-          remainingNotNullSkWrites_[std::string(table_name)][std::string(key)];
-      state.remainingWrites = num_secondary;
-      state.satisfiedIndexNames.clear();
-    }
-  }
-} */
-
-// ---- Private helpers for SecondaryIndex operations ----
-namespace {
-inline std::string BuildQualifiedSKKey(std::string_view table_name,
-                                       std::string_view index_name,
-                                       std::string_view serialized_key) {
-  std::string k;
-  k.reserve(table_name.size() + index_name.size() + serialized_key.size() + 2);
-  k.append(table_name);
-  k.push_back('#');
-  k.append(index_name);
-  k.push_back('#');
-  k.append(serialized_key);
-  return k;
-}
-}  // namespace
-
-bool Transaction::Impl::FindWriteSnapshot(const std::string& qualified_key,
-                                          Snapshot** out) {
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key == qualified_key) {
-      *out = &snapshot;
-      return true;
-    }
-  }
-  return false;
-}
-
-std::vector<std::string> Transaction::Impl::DecodeCurrentPKList(
-    const std::string& qualified_key, DataItem* leaf) {
-  Snapshot* snap = nullptr;
-  if (FindWriteSnapshot(qualified_key, &snap)) {
-    return Util::DecodePKList(snap->data_item_copy.value(),
-                              snap->data_item_copy.size());
-  }
-  return Util::DecodePKList(leaf->value(), leaf->size());
-}
-
-void Transaction::Impl::WriteEncodedPKList(const std::string& qualified_key,
-                                           DataItem* leaf,
-                                           const std::string& encoded_value,
-                                           bool mark_rmf) {
-  const std::byte* value_ptr =
-      reinterpret_cast<const std::byte*>(encoded_value.data());
-  size_t value_size = encoded_value.size();
-
-  Snapshot* snap = nullptr;
-  if (FindWriteSnapshot(qualified_key, &snap)) {
-    snap->data_item_copy.Reset(value_ptr, value_size);
-    if (mark_rmf) snap->is_read_modify_write = true;
-    return;
-  }
-  concurrency_control_->Write(qualified_key, value_ptr, value_size, leaf);
-  Snapshot sp(qualified_key, value_ptr, value_size, leaf,
-              current_table_->GetTableName());
-  if (mark_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
-}
-
-void Transaction::Impl::WriteEncodedPKList(Snapshot& existing_snapshot,
-                                           const std::string& encoded_value,
-                                           bool mark_rmf) {
-  const std::byte* value_ptr =
-      reinterpret_cast<const std::byte*>(encoded_value.data());
-  size_t value_size = encoded_value.size();
-  existing_snapshot.data_item_copy.Reset(value_ptr, value_size);
-  if (mark_rmf) existing_snapshot.is_read_modify_write = true;
-}
-
-bool Transaction::Impl::IsKeyInReadSet(const std::string& qualified_key) const {
-  for (const auto& snapshot : read_set_) {
-    if (snapshot.key == qualified_key) return true;
-  }
-  return false;
-}
-
-std::string Transaction::Impl::EncodePKBytes(
-    const std::vector<std::string>& list) const {
-  if (list.empty()) {
-    return LineairDB::Codec::EncodePKList({});
-  }
-  LineairDB::Codec::PKList tmp;
-  tmp.reserve(list.size());
-  for (auto& s : list) tmp.emplace_back(s);
-  return LineairDB::Codec::EncodePKList(tmp);
-}
-
-void Transaction::Impl::WriteSecondaryIndex(
-    const std::string_view index_name, const std::any& key,
-    const std::byte primary_key_buffer[], const size_t primary_key_size) {
-  /*  if (IsAborted()) return;
-
-   // TODO: if `size` is larger than Config.internal_buffer_size,
-   // then we have to abort this transaction or throw exception
-
-   std::string_view primary_key_view;
-   std::memcpy(&primary_key_view, primary_key_buffer, primary_key_size);
-
-   Index::SecondaryIndex* index =
-       current_table_->GetSecondaryIndex(index_name);
-   auto primary_leaf = current_table_->GetPrimaryIndex().Get(primary_key_view);
-
-   if (primary_leaf == nullptr) {
-     Abort();
-     return;
-   }
-
-   // If the index is not registered, abort the transaction
-   if (index == nullptr) {
-     Abort();
-     return;
-   }
-
-   // Key type must match the registered secondary index type
-   const std::type_info& key_type = index->KeyTypeInfo();
-   if (key_type != key.type()) {
-     Abort();
-     return;
-   }
-
-   std::string serialized_key = Util::SerializeKey(key);
-
-   std::string qualified_key = BuildQualifiedSKKey(
-       current_table_->GetTableName(), index_name, serialized_key);
-   // existing key
-   DataItem* index_leaf = index->GetOrInsert(serialized_key);
-   if (index_leaf->IsInitialized() && index->IsUnique()) {
-     Abort();
-     return;
-   }
-
-   bool is_rmf = false;
-   for (auto& snapshot : read_set_) {
-     if (snapshot.key == qualified_key) {
-       is_rmf = true;
-       snapshot.is_read_modify_write = true;
-       break;
-     }
-   }
-
-   bool added = false;
-
-   for (auto& snapshot : write_set_) {
-     if (snapshot.key != qualified_key) continue;
-     std::vector<std::string> new_pklist = Util::DecodePKList(
-         snapshot.data_item_copy.value(), snapshot.data_item_copy.size());
-     for (auto& p : new_pklist) {
-       if (p == primary_key_view) return;  // already exists
-     }
-     if (index->IsUnique() && !new_pklist.empty()) {
-       Abort();
-       return;
-     }
-     std::string_view new_pk;
-     std::memcpy(&new_pk, primary_key_buffer, primary_key_size);
-     std::string encoded_value = Util::EncodePKList(new_pklist, new_pk);
-     WriteEncodedPKList(snapshot, encoded_value, is_rmf);
-     added = true;
-     break;
-   }
-
-   if (!added) {
-     std::vector<std::string> existing_pklist =
-         Util::DecodePKList(index_leaf->value(), index_leaf->size());
-
-     bool contains = false;
-     for (auto& p : existing_pklist) {
-       if (p == primary_key_view) {
-         contains = true;
-         break;
-       }
-     }
-
-     if (!contains) {
-       std::string encoded_value =
-           Util::EncodePKList(existing_pklist, primary_key_view);
-       WriteEncodedPKList(qualified_key, index_leaf, encoded_value, is_rmf);
-       added = true;
-     }
-   }
-
-   // decrement remainingNotNullSkWrites_ only if we actually added pk to SK
-   if (added) {
-     auto tbl_it = remainingNotNullSkWrites_.find(
-         std::string(current_table_->GetTableName()));
-     if (tbl_it != remainingNotNullSkWrites_.end()) {
-       auto& per_table = tbl_it->second;
-       auto pk_it = per_table.find(std::string(primary_key_view));
-       if (pk_it != per_table.end()) {
-         auto& state = pk_it->second;
-         // decrement once per index_name for this PK
-         if (state.satisfiedIndexNames.insert(std::string(index_name)).second) {
-           if (--state.remainingWrites == 0) {
-             per_table.erase(pk_it);
-             if (per_table.empty()) remainingNotNullSkWrites_.erase(tbl_it);
-           }
-         }
-       }
-     }
-   } */
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -507,50 +298,35 @@ const std::optional<size_t> Transaction::Impl::Scan(
   return result;
 };
 
-/* const std::optional<size_t> Transaction::Impl::Scan(
-    const std::string_view table_name, const std::string_view begin,
-    const std::optional<std::string_view> end,
-    std::function<bool(std::string_view,
-                       const std::pair<const void*, const size_t>)>
-        operation) {
-  auto& primary = db_pimpl_->GetTable(table_name).GetPrimaryIndex();
-  auto result = primary.Scan(begin, end, [&](std::string_view key) {
-    const auto read_result = Read(table_name, key);
-    if (IsAborted()) return true;
-    return operation(key, read_result);
-  });
-  if (!result.has_value()) {
-    Abort();
-  }
-  return result;
-} */
-
 const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
-    const std::string_view index_name, const std::any& begin,
-    const std::any& end,
+    const std::string_view index_name, const std::string_view begin,
+    const std::optional<std::string_view> end,
     std::function<bool(std::string_view, const std::vector<std::string>)>
         operation) {
-  /* Index::SecondaryIndex* index =
-      current_table_->GetSecondaryIndex(index_name);
+  EnsureCurrentTable();
+  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
 
   if (index == nullptr) {
     Abort();
     return {};
   }
 
-  std::string serialized_begin = Util::SerializeKey(begin);
-  std::string serialized_end = Util::SerializeKey(end);
-
-  auto result =
-      index->Scan(serialized_begin, serialized_end, [&](std::string_view key) {
-        const auto read_result = ReadSecondaryIndex(index_name, key);
-        if (IsAborted()) return true;
-        return operation(key, read_result);
-      });
+  auto result = index->Scan(begin, end, [&](std::string_view key) {
+    const auto read_result = ReadSecondaryIndex(index_name, key);
+    if (IsAborted()) return true;
+    std::vector<std::string> primary_keys;
+    primary_keys.reserve(read_result.size());
+    for (const auto& sec_idx_buffer : read_result) {
+      primary_keys.emplace_back(
+          reinterpret_cast<const char*>(sec_idx_buffer.first),
+          sec_idx_buffer.second);
+    }
+    return operation(key, primary_keys);
+  });
   if (!result.has_value()) {
     Abort();
-  } */
-  return {};
+  }
+  return result;
 };
 
 // Overview of operations
@@ -741,7 +517,7 @@ void Transaction::Impl::UpdateSecondaryIndex(
         }
       }
       if (!contains) {
-        std::string encoded_value =
+        std::string encoded_value
             Util::EncodePKList(existing_pklist, primary_key_view);
         WriteEncodedPKList(new_qualified, new_leaf, encoded_value, is_rmf_new);
       }
@@ -804,8 +580,9 @@ const std::pair<const std::byte* const, const size_t> Transaction::Read(
   return tx_pimpl_->Read(key);
 }
 
-std::vector<std::string> Transaction::ReadSecondaryIndex(
-    const std::string_view index_name, const std::any& key) {
+std::vector<std::pair<const std::byte* const, const size_t>>
+Transaction::ReadSecondaryIndex(const std::string_view index_name,
+                                const std::string_view key) {
   return tx_pimpl_->ReadSecondaryIndex(index_name, key);
 }
 
@@ -815,7 +592,7 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
 }
 
 void Transaction::WriteSecondaryIndex(const std::string_view index_name,
-                                      const std::any& key,
+                                      const std::string_view key,
                                       const std::byte primary_key_buffer[],
                                       const size_t primary_key_size) {
   tx_pimpl_->WriteSecondaryIndex(index_name, key, primary_key_buffer,
@@ -840,8 +617,8 @@ const std::optional<size_t> Transaction::Scan(
 };
 
 const std::optional<size_t> Transaction::ScanSecondaryIndex(
-    const std::string_view index_name, const std::any& begin,
-    const std::any& end,
+    const std::string_view index_name, const std::string_view begin,
+    const std::optional<std::string_view> end,
     std::function<bool(std::string_view, const std::vector<std::string>)>
         operation) {
   return tx_pimpl_->ScanSecondaryIndex(index_name, begin, end, operation);

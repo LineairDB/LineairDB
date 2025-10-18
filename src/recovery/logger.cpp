@@ -193,6 +193,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                   item.data_item_copy.buffer.Reset(kvp.buffer);
                   item.data_item_copy.transaction_id = kvp.tid;
                   item.table_name = kvp.table_name;
+                  item.index_name = kvp.index_name;
 
                   SPDLOG_DEBUG(
                       "    update-> key {0}, version {1} in epoch {2} in table "
@@ -211,6 +212,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                   kvp.buffer.size(),
                   nullptr,
                   kvp.table_name,
+                  kvp.index_name,
                   kvp.tid,
               };
               recovery_set.emplace_back(std::move(snapshot));
