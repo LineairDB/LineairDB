@@ -67,9 +67,8 @@ bool Database::CreateTable(const std::string_view table_name) {
 
 bool Database::CreateSecondaryIndex(
     const std::string_view table_name, const std::string_view index_name,
-    const uint index_type,
-    const uint lineairdb_data_type) {
-  return db_pimpl_->CreateSecondaryIndex(table_name, index_name, index_type, lineairdb_data_type);
+    const uint index_type) {
+  return db_pimpl_->CreateSecondaryIndex(table_name, index_name, index_type);
 }
 
 

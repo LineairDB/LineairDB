@@ -177,9 +177,8 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
     std::vector<std::pair<const std::byte* const, const size_t>> result;
     if (ref.data_item_copy.sec_idx_buffers) {
       for (auto& sec_idx_buffer : *ref.data_item_copy.sec_idx_buffers) {
-        std::string check_str =
-            std::string(reinterpret_cast<const char*>(sec_idx_buffer.value),
-                        sec_idx_buffer.size);
+        fprintf(stderr, "[DEBUG] sec_idx_buffer = %s\n",
+                sec_idx_buffer.toString().c_str());
         result.emplace_back(sec_idx_buffer.value, sec_idx_buffer.size);
       }
       return result;
@@ -275,7 +274,7 @@ void Transaction::Impl::WriteSecondaryIndex(
       for (auto& buf : *snapshot.data_item_copy.sec_idx_buffers) {
         if (buf.size == primary_key_size &&
             std::memcmp(buf.value, primary_key_buffer, primary_key_size) == 0) {
-          return;  
+          return;
         }
       }
     }
@@ -287,15 +286,39 @@ void Transaction::Impl::WriteSecondaryIndex(
     return;
   }
 
+  // Read existing data from storage to support multi-transaction inserts
+  auto existing_data = concurrency_control_->Read(key, index_leaf);
+  auto& existing_sec_index = existing_data.sec_idx_buffers;
+  if (existing_sec_index) {
+    for (auto& buf : *existing_sec_index) {
+      fprintf(stderr, "[DEBUG] existing_sec_index = %s\n",
+              buf.toString().c_str());
+    }
+  }
+
   concurrency_control_->Write(key, primary_key_buffer, primary_key_size,
                               index_leaf);
   Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(),
               index_name);
+
+  // If existing data is found, use it as the base
+  if (existing_data.IsInitialized()) {
+    sp.data_item_copy = existing_data;
+    sp.is_read_modify_write = true;
+  }
+
   if (is_rmf) sp.is_read_modify_write = true;
   std::string check_str = std::string(
       reinterpret_cast<const char*>(primary_key_buffer), primary_key_size);
   sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                            primary_key_size);
+
+  auto& new_sec_index = sp.data_item_copy.sec_idx_buffers;
+  if (new_sec_index) {
+    for (auto& buf : *new_sec_index) {
+      fprintf(stderr, "[DEBUG] new_sec_index = %s\n", buf.toString().c_str());
+    }
+  }
   write_set_.emplace_back(std::move(sp));
 }
 

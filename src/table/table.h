@@ -19,14 +19,13 @@ class Table {
         std::string_view table_name);
 
   bool CreateSecondaryIndex(const std::string_view index_name,
-                            [[maybe_unused]] const uint index_type,
-                            [[maybe_unused]] const uint lineairdb_data_type) {
+                            [[maybe_unused]] const uint index_type) {
     std::unique_lock<std::shared_mutex> lk(table_lock_);
     if (secondary_indices_.count(std::string(index_name))) {
       return false;
     }
     auto new_index = std::make_unique<Index::SecondaryIndex>(
-        epoch_framework_, config_, index_type, lineairdb_data_type);
+        epoch_framework_, config_, index_type);
     secondary_indices_[std::string(index_name)] = std::move(new_index);
     return true;
   }

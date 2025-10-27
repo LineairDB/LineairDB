@@ -278,14 +278,13 @@ class Database::Impl {
 
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
-                            const uint index_type,
-                            const uint lineairdb_data_type) {
+                            const uint index_type) {
     std::shared_lock<std::shared_mutex> lk(schema_mutex_);
     auto it = GetTable(table_name);
     if (!it.has_value()) {
       return false;
     }
-    return it.value()->CreateSecondaryIndex(index_name, index_type, lineairdb_data_type);
+    return it.value()->CreateSecondaryIndex(index_name, index_type);
   }
 
   std::optional<Table*> GetTable(const std::string_view table_name) {

@@ -9,9 +9,9 @@ namespace Index {
 class SecondaryIndex {
  public:
   SecondaryIndex(EpochFramework& epoch_framework, Config config = Config(),
-                 uint index_type = 0, uint data_type = 0,
+                 uint index_type = 0,
                  [[maybe_unused]] WriteSetType recovery_set = WriteSetType())
-      : index_type_(index_type), data_type_(data_type) {
+      : index_type_(index_type) {
     secondary_index_ =
         std::make_unique<HashTableWithPrecisionLockingIndex<DataItem>>(
             config, epoch_framework);
@@ -47,7 +47,6 @@ class SecondaryIndex {
 
  private:
   uint index_type_;
-  uint data_type_;
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>>
       secondary_index_;
 

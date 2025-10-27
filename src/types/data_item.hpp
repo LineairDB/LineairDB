@@ -36,7 +36,10 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   bool initialized;
   DataBuffer buffer;
-  std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers; 
+  //std::stringのvectorを保持する
+  //lineairdvkeyみたいなエイリアス
+  
+  std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers;
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
   Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
@@ -57,9 +60,10 @@ struct DataItem {
         initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
-    if(rhs.sec_idx_buffers) {
-      sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
-    } 
+    if (rhs.sec_idx_buffers) {
+      sec_idx_buffers =
+          std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
+    }
   }
 
   DataItem& operator=(const DataItem& rhs) {
@@ -69,8 +73,9 @@ struct DataItem {
       buffer.Reset(rhs.buffer);
     }
 
-    if(rhs.sec_idx_buffers) {
-      sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
+    if (rhs.sec_idx_buffers) {
+      sec_idx_buffers =
+          std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
     } else {
       sec_idx_buffers = nullptr;
     }
@@ -91,7 +96,8 @@ struct DataItem {
     DataBuffer buf;
     buf.Reset(v, s);
     sec_idx_buffers->push_back(std::move(buf));
-    std::string sec_idx_buffer_str = std::string(reinterpret_cast<const char*>(sec_idx_buffers->at(0).value), sec_idx_buffers->at(0).size);
+    
+    initialized = (v != nullptr && s != 0);
   }
 
   void CopyLiveVersionToStableVersion() {
@@ -119,7 +125,9 @@ struct DataItem {
     }
 
     // for TwoPhaseLocking. it uses rw_lock.
-    { GetRWLockRef().Lock(); }
+    {
+      GetRWLockRef().Lock();
+    }
   }
 
   void ExclusiveUnlock() {
@@ -132,7 +140,9 @@ struct DataItem {
       transaction_id.store(tid);
     }
     // for TwoPhaseLocking. it uses rw_lock.
-    { GetRWLockRef().UnLock(); }
+    {
+      GetRWLockRef().UnLock();
+    }
   }
 
   decltype(readers_writers_lock)& GetRWLockRef() {
