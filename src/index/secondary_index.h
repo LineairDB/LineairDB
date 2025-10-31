@@ -49,8 +49,6 @@ class SecondaryIndex {
   uint index_type_;
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>>
       secondary_index_;
-
-  std::string serialized_key_buffer_;
 };
 }  // namespace Index
 }  // namespace LineairDB

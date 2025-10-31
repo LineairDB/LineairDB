@@ -65,8 +65,9 @@ class Transaction::Impl {
   const std::pair<const std::byte* const, const size_t> Read(
       const std::string_view key);
 
-  std::vector<std::pair<const std::byte* const, const size_t>> ReadSecondaryIndex(const std::string_view index_name,
-                                              const std::string_view key);
+  std::vector<std::pair<const std::byte* const, const size_t>>
+  ReadSecondaryIndex(const std::string_view index_name,
+                     const std::string_view key);
 
   /*   void Write(const std::string_view key, const std::byte value[],
                const size_t size); */
@@ -96,9 +97,11 @@ class Transaction::Impl {
           operation);
 
   void UpdateSecondaryIndex(const std::string_view index_name,
-                            const std::any& old_key, const std::any& new_key,
+                            const std::string_view old_secondary_key,
+                            const std::string_view new_secondary_key,
                             const std::byte primary_key_buffer[],
                             const size_t primary_key_size);
+  
 
   bool ValidateSKNotNull();
 

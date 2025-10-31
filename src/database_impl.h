@@ -110,16 +110,6 @@ class Database::Impl {
           return;
         }
 
-        // Enforce NOT NULL constraint before precommit
-        if (!tx.ValidateSKNotNull()) {
-          tx.Abort();
-          if (precommit_clbk)
-            precommit_clbk.value()(LineairDB::TxStatus::Aborted);
-          callback(LineairDB::TxStatus::Aborted);
-          epoch_framework_.MakeMeOffline();
-          return;
-        }
-
         bool committed = tx.Precommit();
         if (committed) {
           tx.tx_pimpl_->PostProcessing(TxStatus::Committed);
@@ -153,16 +143,6 @@ class Database::Impl {
 
   bool EndTransaction(Transaction& tx, CallbackType clbk) {
     if (tx.IsAborted()) {
-      clbk(TxStatus::Aborted);
-      delete &tx;
-      epoch_framework_.MakeMeOffline();
-      return false;
-    }
-
-    // Enforce NOT NULL: if some SK writes are missing for inserted PK(s),
-    // abort
-    if (!tx.ValidateSKNotNull()) {
-      tx.Abort();
       clbk(TxStatus::Aborted);
       delete &tx;
       epoch_framework_.MakeMeOffline();

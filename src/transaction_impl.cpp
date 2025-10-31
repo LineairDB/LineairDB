@@ -313,12 +313,6 @@ void Transaction::Impl::WriteSecondaryIndex(
   sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                            primary_key_size);
 
-  auto& new_sec_index = sp.data_item_copy.sec_idx_buffers;
-  if (new_sec_index) {
-    for (auto& buf : *new_sec_index) {
-      fprintf(stderr, "[DEBUG] new_sec_index = %s\n", buf.toString().c_str());
-    }
-  }
   write_set_.emplace_back(std::move(sp));
 }
 
@@ -371,207 +365,132 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
   return result;
 };
 
-// Overview of operations
-// Variables: oldSK, newSK
-
 void Transaction::Impl::UpdateSecondaryIndex(
-    const std::string_view index_name, const std::any& old_key,
-    const std::any& new_key, const std::byte primary_key_buffer[],
-    const size_t primary_key_size) {
-  /* if (IsAborted()) return;
+    const std::string_view index_name, const std::string_view old_secondary_key,
+    const std::string_view new_secondary_key,
+    const std::byte primary_key_buffer[], const size_t primary_key_size) {
+  if (IsAborted()) return;
 
-  // 1) Preconditions
-  //   - Resolve table and index
-  //   - Check that the target primary key (PK) exists
-  //   - Check that the secondary key types match the registered index type
-  //   - If old_key and new_key are identical, this operation is a no-op
-  std::string_view primary_key_view;
-  std::memcpy(&primary_key_view, primary_key_buffer, primary_key_size);
+  EnsureCurrentTable();
 
-  Index::SecondaryIndex* index =
-      current_table_->GetSecondaryIndex(index_name);
-  auto primary_leaf = current_table_->GetPrimaryIndex().Get(primary_key_view);
-  if (primary_leaf == nullptr || index == nullptr) {
-    Abort();
-    return;
-  }
-  if (index->KeyTypeInfo() != old_key.type() ||
-      index->KeyTypeInfo() != new_key.type()) {
+  // Get the secondary index
+  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
+  if (index == nullptr) {
     Abort();
     return;
   }
 
-  // no-op if old_key == new_key
-  if (old_key.type() == new_key.type() &&
-      Util::SerializeKey(old_key) == Util::SerializeKey(new_key)) {
-    return;  // nothing to do
+  // No-op if old_key == new_key
+  if (old_secondary_key == new_secondary_key) {
+    return;
   }
 
-  // 2) Remove PK from oldSK
-  //    - If oldSK exists in write_set_, update the in-flight snapshot
-  //    - Otherwise, decode from the current leaf, remove PK, re-encode and
-  //    write
-  //    shanpshot.Reset or write_set_.emplace_back
-  std::string old_serialized = Util::SerializeKey(old_key);
-  std::string new_serialized = Util::SerializeKey(new_key);
+  // ========== Phase 1: old_keyからprimary_keyを削除 ==========
+  auto old_leaf = index->GetOrInsert(old_secondary_key);
+  bool old_found_in_write_set = false;
 
-  std::string old_qualified = BuildQualifiedSKKey(
-      current_table_->GetTableName(), index_name, old_serialized);
-  std::string new_qualified = BuildQualifiedSKKey(
-      current_table_->GetTableName(), index_name, new_serialized);
-
-  DataItem* old_leaf = index->GetOrInsert(old_serialized);
-  DataItem* new_leaf = index->GetOrInsert(new_serialized);
-
-  // UNIQUE constraint check on the newSK side
-  if () {
-    // If there is an in-flight write for newSK in write_set_, consult it first;
-    // otherwise consult the current leaf value.
-    std::vector<std::string> current_new_list;
-    bool found_snapshot_new = false;
-    for (auto& snapshot : write_set_) {
-      if (snapshot.key == new_qualified) {
-        current_new_list = Util::DecodePKList(snapshot.data_item_copy.value(),
-                                              snapshot.data_item_copy.size());
-        found_snapshot_new = true;
-        break;
-      }
-    }
-    if (!found_snapshot_new) {
-      current_new_list =
-          Util::DecodePKList(new_leaf->value(), new_leaf->size());
-    }
-    // Abort if another PK already exists for newSK.
-    // For an update that moves the same PK (old != new), the list should be
-    // empty.
-    bool another_exists = false;
-    for (auto& p : current_new_list) {
-      if (p != primary_key_view) {
-        another_exists = true;
-        break;
-      }
-    }
-    if (another_exists) {
-      Abort();
-      return;
-    }
-  }
-
-  // 2-a) If oldSK exists in write_set_, remove PK from that snapshot
-  bool old_updated = false;
+  // ケースA: write_setにold_keyが存在する場合
   for (auto& snapshot : write_set_) {
-    if (snapshot.key != old_qualified) continue;
-    auto lst = Util::DecodePKList(snapshot.data_item_copy.value(),
-                                  snapshot.data_item_copy.size());
-    size_t before = lst.size();
-    lst.erase(
-        std::remove(lst.begin(), lst.end(), std::string(primary_key_view)),
-        lst.end());
-    if (lst.size() != before) {
-      std::string encoded = EncodePKBytes(lst);
-      const std::byte* v = reinterpret_cast<const std::byte*>(encoded.data());
-      size_t n = encoded.size();
-      snapshot.data_item_copy.Reset(v, n);
-      for (auto& read_snapshot : read_set_) {
-        if (read_snapshot.key == old_qualified) {
-          read_snapshot.is_read_modify_write = true;
+    if (snapshot.key != old_secondary_key ||
+        snapshot.table_name != current_table_->GetTableName() ||
+        snapshot.index_name != index_name)
+      continue;
+
+    old_found_in_write_set = true;
+    if (snapshot.data_item_copy.sec_idx_buffers) {
+      for (auto it = snapshot.data_item_copy.sec_idx_buffers->begin();
+           it != snapshot.data_item_copy.sec_idx_buffers->end(); ++it) {
+        if (it->size == primary_key_size &&
+            std::memcmp(it->value, primary_key_buffer, primary_key_size) == 0) {
+          snapshot.data_item_copy.sec_idx_buffers->erase(it);
           break;
         }
       }
     }
-    old_updated = true;
     break;
   }
 
-  // 2-b) Otherwise, remove PK from the current leaf and write it into
-  // write_set_
-  if (!old_updated) {
-    auto lst = Util::DecodePKList(old_leaf->value(), old_leaf->size());
-    size_t before = lst.size();
-    lst.erase(
-        std::remove(lst.begin(), lst.end(), std::string(primary_key_view)),
-        lst.end());
-    if (lst.size() != before) {
-      std::string encoded = EncodePKBytes(lst);
-      WriteEncodedPKList(old_qualified, old_leaf, encoded,
-                         IsKeyInReadSet(old_qualified));
-    }
-  }
-
-  // 2-c) If oldSK's PK list becomes empty, delete the SK from the range index
-  {
-    // Get the latest view of oldSK (prefer write_set_ if present)
-    std::vector<std::string> cur;
-    bool found = false;
-    for (auto& snapshot : write_set_) {
-      if (snapshot.key == old_qualified) {
-        cur = Util::DecodePKList(snapshot.data_item_copy.value(),
-                                 snapshot.data_item_copy.size());
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      cur = Util::DecodePKList(old_leaf->value(), old_leaf->size());
-    }
-    if (cur.empty()) {
-      if (!index->DeleteKey(old_serialized)) {
-        Abort();
-        return;
-      }
-    }
-  }
-
-  // 3) Add PK to newSK (equivalent to WriteSecondaryIndex semantics)
-  {
-    bool is_rmf_new = IsKeyInReadSet(new_qualified);
-
-    bool added = false;
-    for (auto& snapshot : write_set_) {
-      if (snapshot.key != new_qualified) continue;
-      auto new_pklist = Util::DecodePKList(snapshot.data_item_copy.value(),
-                                           snapshot.data_item_copy.size());
-      for (auto& p : new_pklist) {
-        if (p == primary_key_view) {
-          // Already registered in this transaction; no further action needed
-          return;
-        }
-      }
-       if (index->IsUnique() && !new_pklist.empty()) {
-        Abort();
-        return;
-      }
-      std::string_view new_pk;
-      std::memcpy(&new_pk, primary_key_buffer, primary_key_size);
-      std::string encoded_value = Util::EncodePKList(new_pklist, new_pk);
-      WriteEncodedPKList(snapshot, encoded_value, is_rmf_new);
-      added = true;
-      break;
-    }
-    if (!added) {
-      auto existing_pklist =
-          Util::DecodePKList(new_leaf->value(), new_leaf->size());
-      bool contains = false;
-      for (auto& p : existing_pklist) {
-        if (p == primary_key_view) {
-          contains = true;
+  // ケースB: write_setにold_keyが存在しない場合
+  if (!old_found_in_write_set) {
+    auto existing_data =
+        concurrency_control_->Read(old_secondary_key, old_leaf);
+    if (existing_data.sec_idx_buffers) {
+      for (auto it = existing_data.sec_idx_buffers->begin();
+           it != existing_data.sec_idx_buffers->end(); ++it) {
+        if (it->size == primary_key_size &&
+            std::memcmp(it->value, primary_key_buffer, primary_key_size) == 0) {
+          existing_data.sec_idx_buffers->erase(it);
           break;
         }
       }
-      if (!contains) {
-        std::string encoded_value
-            Util::EncodePKList(existing_pklist, primary_key_view);
-        WriteEncodedPKList(new_qualified, new_leaf, encoded_value, is_rmf_new);
+    }
+
+    Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
+                current_table_->GetTableName(), index_name);
+    if (existing_data.IsInitialized()) {
+      sp.data_item_copy = existing_data;
+      sp.is_read_modify_write = true;
+    }
+    write_set_.emplace_back(std::move(sp));
+  }
+
+  // ========== Phase 2: new_keyにprimary_keyを追加 ==========
+  auto new_leaf = index->GetOrInsert(new_secondary_key);
+  bool new_found_in_write_set = false;
+
+  // ケースC: write_setにnew_keyが存在する場合
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != new_secondary_key ||
+        snapshot.table_name != current_table_->GetTableName() ||
+        snapshot.index_name != index_name)
+      continue;
+
+    new_found_in_write_set = true;
+
+    // 既に同じprimary_keyが存在するか確認（重複回避）
+    if (snapshot.data_item_copy.sec_idx_buffers) {
+      for (auto& buf : *snapshot.data_item_copy.sec_idx_buffers) {
+        if (buf.size == primary_key_size &&
+            std::memcmp(buf.value, primary_key_buffer, primary_key_size) == 0) {
+          return;  // 既に存在するので何もしない
+        }
       }
     }
-  } */
-}
 
-bool Transaction::Impl::ValidateSKNotNull() {
-  // Ensure that, for every created secondary index, a SK→PK mapping exists
-  // (NOT NULL constraint). This is tracked via the per-transaction
-  // 'remainingNotNullSkWrites_' state.
-  return remainingNotNullSkWrites_.empty();
+    snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
+                                                   primary_key_size);
+    break;
+  }
+
+  // ケースD: write_setにnew_keyが存在しない場合
+  if (!new_found_in_write_set) {
+    auto existing_data =
+        concurrency_control_->Read(new_secondary_key, new_leaf);
+
+    Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
+                current_table_->GetTableName(), index_name);
+    if (existing_data.IsInitialized()) {
+      sp.data_item_copy = existing_data;
+      sp.is_read_modify_write = true;
+    }
+
+    // 既に同じprimary_keyが存在するか確認（重複回避）
+    if (existing_data.sec_idx_buffers) {
+      for (auto& buf : *existing_data.sec_idx_buffers) {
+        if (buf.size == primary_key_size &&
+            std::memcmp(buf.value, primary_key_buffer, primary_key_size) == 0) {
+          return;  // 既に存在するので何もしない
+        }
+      }
+    }
+
+    // 自トランザクション内の read-your-own-write を成立させるため、
+    // 新しいセカンダリキーに対する primary key を write-set に追加する
+    sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
+                                             primary_key_size);
+    sp.is_read_modify_write = true;
+    write_set_.emplace_back(std::move(sp));
+  }
 }
 
 void Transaction::Impl::Abort() {
@@ -642,12 +561,13 @@ void Transaction::WriteSecondaryIndex(const std::string_view index_name,
 }
 
 void Transaction::UpdateSecondaryIndex(const std::string_view index_name,
-                                       const std::any& old_key,
-                                       const std::any& new_key,
+                                       const std::string_view old_secondary_key,
+                                       const std::string_view new_secondary_key,
                                        const std::byte primary_key_buffer[],
                                        const size_t primary_key_size) {
-  tx_pimpl_->UpdateSecondaryIndex(index_name, old_key, new_key,
-                                  primary_key_buffer, primary_key_size);
+  tx_pimpl_->UpdateSecondaryIndex(index_name, old_secondary_key,
+                                  new_secondary_key, primary_key_buffer,
+                                  primary_key_size);
 }
 
 const std::optional<size_t> Transaction::Scan(
@@ -665,8 +585,6 @@ const std::optional<size_t> Transaction::ScanSecondaryIndex(
         operation) {
   return tx_pimpl_->ScanSecondaryIndex(index_name, begin, end, operation);
 }
-
-bool Transaction::ValidateSKNotNull() { return tx_pimpl_->ValidateSKNotNull(); }
 
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::SetTable(const std::string_view table_name) {

@@ -284,22 +284,22 @@ class Transaction {
   }
 
   void UpdateSecondaryIndex(const std::string_view index_name,
-                            const std::any& old_key, const std::any& new_key,
+                            const std::string_view old_secondary_key,
+                            const std::string_view new_secondary_key,
                             const std::byte primary_key_buffer[],
                             const size_t primary_key_size);
 
   template <typename T>
   void UpdateSecondaryIndex(const std::string_view index_name,
-                            const std::any& old_key, const std::any& new_key,
-                            const T& primary_key) {
+                            const std::string_view old_secondary_key,
+                            const std::string_view new_secondary_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to read/write trivially copyable types.");
-    std::byte buffer[sizeof(T)];
-    std::memcpy(buffer, &primary_key, sizeof(T));
-    UpdateSecondaryIndex(index_name, old_key, new_key, buffer, sizeof(T));
+    UpdateSecondaryIndex(index_name, old_secondary_key, new_secondary_key,
+                         primary_key_buffer, primary_key_size);
   }
-
-  bool ValidateSKNotNull();
 
   /**
    * @brief

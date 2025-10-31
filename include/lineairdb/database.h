@@ -153,8 +153,7 @@ class Database {
 
   bool CreateSecondaryIndex(const std::string_view table_name,
                             const std::string_view index_name,
-                            const uint index_type,
-                            const uint lineairdb_data_type);
+                            const uint index_type);
 
   /**
    * @brief

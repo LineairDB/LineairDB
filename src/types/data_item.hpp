@@ -36,9 +36,9 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   bool initialized;
   DataBuffer buffer;
-  //std::stringのvectorを保持する
-  //lineairdvkeyみたいなエイリアス
-  
+  // std::stringのvectorを保持する
+  // lineairdvkeyみたいなエイリアス
+
   std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers;
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
@@ -96,7 +96,7 @@ struct DataItem {
     DataBuffer buf;
     buf.Reset(v, s);
     sec_idx_buffers->push_back(std::move(buf));
-    
+
     initialized = (v != nullptr && s != 0);
   }
 
