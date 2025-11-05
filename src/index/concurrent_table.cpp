@@ -52,7 +52,6 @@ DataItem* ConcurrentTable::Get(const std::string_view key) {
 
 DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
   auto* item = index_->Get(key);
-  std::cout << "[LineairDB][ConcurrentTable::GetOrInsert] key=" << key << " update ---------------------------------> " << (item == nullptr ? "not exists" : "exists") << std::endl;
   if (item == nullptr) {
     index_->ForcePutBlankEntry(key);
     item = index_->Get(key);

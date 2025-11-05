@@ -140,10 +140,6 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
         snapshot.index_name == index_name) {
       std::vector<std::pair<const std::byte* const, const size_t>> result;
       if (snapshot.data_item_copy.sec_idx_buffers) {
-        std::string check_str = std::string(
-            reinterpret_cast<const char*>(
-                snapshot.data_item_copy.sec_idx_buffers->at(0).value),
-            snapshot.data_item_copy.sec_idx_buffers->at(0).size);
         for (auto& sec_idx_buffer : *snapshot.data_item_copy.sec_idx_buffers) {
           result.emplace_back(sec_idx_buffer.value, sec_idx_buffer.size);
         }
@@ -177,8 +173,6 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
     std::vector<std::pair<const std::byte* const, const size_t>> result;
     if (ref.data_item_copy.sec_idx_buffers) {
       for (auto& sec_idx_buffer : *ref.data_item_copy.sec_idx_buffers) {
-        fprintf(stderr, "[DEBUG] sec_idx_buffer = %s\n",
-                sec_idx_buffer.toString().c_str());
         result.emplace_back(sec_idx_buffer.value, sec_idx_buffer.size);
       }
       return result;
@@ -278,8 +272,6 @@ void Transaction::Impl::WriteSecondaryIndex(
         }
       }
     }
-    std::string check_str = std::string(
-        reinterpret_cast<const char*>(primary_key_buffer), primary_key_size);
     snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                                    primary_key_size);
     if (is_rmf) snapshot.is_read_modify_write = true;
@@ -288,13 +280,6 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   // Read existing data from storage to support multi-transaction inserts
   auto existing_data = concurrency_control_->Read(key, index_leaf);
-  auto& existing_sec_index = existing_data.sec_idx_buffers;
-  if (existing_sec_index) {
-    for (auto& buf : *existing_sec_index) {
-      fprintf(stderr, "[DEBUG] existing_sec_index = %s\n",
-              buf.toString().c_str());
-    }
-  }
 
   concurrency_control_->Write(key, primary_key_buffer, primary_key_size,
                               index_leaf);
@@ -308,8 +293,6 @@ void Transaction::Impl::WriteSecondaryIndex(
   }
 
   if (is_rmf) sp.is_read_modify_write = true;
-  std::string check_str = std::string(
-      reinterpret_cast<const char*>(primary_key_buffer), primary_key_size);
   sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                            primary_key_size);
 
