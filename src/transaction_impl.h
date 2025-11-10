@@ -96,12 +96,16 @@ class Transaction::Impl {
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
+  void DeleteSecondaryIndex(const std::string_view index_name,
+                            const std::string_view secondary_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
+
   void UpdateSecondaryIndex(const std::string_view index_name,
                             const std::string_view old_secondary_key,
                             const std::string_view new_secondary_key,
                             const std::byte primary_key_buffer[],
                             const size_t primary_key_size);
-  
 
   bool ValidateSKNotNull();
 

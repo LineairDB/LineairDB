@@ -283,6 +283,22 @@ class Transaction {
         });
   }
 
+  void DeleteSecondaryIndex(const std::string_view index_name,
+                            const std::string_view secondary_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
+
+  template <typename T>
+  void DeleteSecondaryIndex(const std::string_view index_name,
+                            const std::string_view secondary_key,
+                            const std::string_view primary_key) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    DeleteSecondaryIndex(index_name, secondary_key,
+                         reinterpret_cast<const std::byte*>(primary_key.data()),
+                         primary_key.size());
+  }
+
   void UpdateSecondaryIndex(const std::string_view index_name,
                             const std::string_view old_secondary_key,
                             const std::string_view new_secondary_key,

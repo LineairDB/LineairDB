@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <set>
 
 #include "gtest/gtest.h"
 #include "lineairdb/config.h"
@@ -40,7 +41,7 @@ class ManipulateSecondaryIndexTest : public ::testing::Test {
 
 TEST_F(ManipulateSecondaryIndexTest, ReadWriteSecondaryIndex) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
 
   {
     auto& tx = db_->BeginTransaction();
@@ -55,7 +56,8 @@ TEST_F(ManipulateSecondaryIndexTest, ReadWriteSecondaryIndex) {
         primary_key.size());
 
     auto result = tx.ReadSecondaryIndex("age_index", "10");
-    std::string check_str = std::string(reinterpret_cast<const char*>(result[0].first), result[0].second);
+    std::string check_str = std::string(
+        reinterpret_cast<const char*>(result[0].first), result[0].second);
 
     printf("Found %zu primary keys for age=10:\n", result.size());
     for (const auto& [pk_ptr, pk_size] : result) {
@@ -79,7 +81,7 @@ TEST_F(ManipulateSecondaryIndexTest, ReadWriteSecondaryIndex) {
 
 TEST_F(ManipulateSecondaryIndexTest, ReadWriteMultipleSecondaryIndex) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
 
   {
     auto& tx = db_->BeginTransaction();
@@ -125,7 +127,7 @@ TEST_F(ManipulateSecondaryIndexTest, ReadWriteMultipleSecondaryIndex) {
 
 TEST_F(ManipulateSecondaryIndexTest, ReadDataViaSecondaryIndex) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
 
   {
     auto& tx = db_->BeginTransaction();
@@ -164,6 +166,412 @@ TEST_F(ManipulateSecondaryIndexTest, ReadDataViaSecondaryIndex) {
     }
 
     EXPECT_EQ(primary_keys.size(), 2);
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(ManipulateSecondaryIndexTest, UpdateSecondaryIndexMovesPrimaryKey) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+
+  // 事前にセカンダリインデックスへ値を登録
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    tx.Write("user1", "Alice");
+
+    std::string pk = "user1";
+    tx.WriteSecondaryIndex("age_index", "25",
+                           reinterpret_cast<const std::byte*>(pk.data()),
+                           pk.size());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  // UpdateSecondaryIndexで25→30へ移動させる
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    std::string pk = "user1";
+
+    // まず旧キーを読み取り read-set に載せる
+    auto before_update = tx.ReadSecondaryIndex("age_index", "25");
+    ASSERT_EQ(before_update.size(), 1u);
+
+    tx.UpdateSecondaryIndex("age_index", "25", "30",
+                            reinterpret_cast<const std::byte*>(pk.data()),
+                            pk.size());
+
+    // トランザクション内で read-your-own-write が成立することを確認
+    auto old_key_result = tx.ReadSecondaryIndex("age_index", "25");
+    EXPECT_TRUE(old_key_result.empty())
+        << "old secondary key should no longer contain the primary key";
+
+    auto new_key_result = tx.ReadSecondaryIndex("age_index", "30");
+    ASSERT_EQ(new_key_result.size(), 1u);
+    EXPECT_EQ(
+        std::string(reinterpret_cast<const char*>(new_key_result[0].first),
+                    new_key_result[0].second),
+        "user1");
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  // コミット後も新しいキーで参照でき、旧キーは空のまま
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto old_key_result = tx.ReadSecondaryIndex("age_index", "25");
+    EXPECT_TRUE(old_key_result.empty());
+
+    auto new_key_result = tx.ReadSecondaryIndex("age_index", "30");
+    ASSERT_EQ(new_key_result.size(), 1u);
+    EXPECT_EQ(
+        std::string(reinterpret_cast<const char*>(new_key_result[0].first),
+                    new_key_result[0].second),
+        "user1");
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(ManipulateSecondaryIndexTest,
+       UpdateSecondaryIndexNoopWhenNewKeyAlreadyHasPrimaryKey) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+
+  // まず旧キーと新キーの双方に同じ primary key を登録
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    tx.Write("user1", "Alice");
+
+    std::string pk = "user1";
+    tx.WriteSecondaryIndex("age_index", "25",
+                           reinterpret_cast<const std::byte*>(pk.data()),
+                           pk.size());
+    tx.WriteSecondaryIndex("age_index", "30",
+                           reinterpret_cast<const std::byte*>(pk.data()),
+                           pk.size());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  // UpdateSecondaryIndex で 25 -> 30 へ移動させるが、既に 30
+  // に存在するため重複を追加しない
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    std::string pk = "user1";
+
+    // read-your-own-write (read-modify-write) が成立するよう旧キーを先に読む
+    auto before_update = tx.ReadSecondaryIndex("age_index", "25");
+    ASSERT_EQ(before_update.size(), 1u);
+
+    tx.UpdateSecondaryIndex("age_index", "25", "30",
+                            reinterpret_cast<const std::byte*>(pk.data()),
+                            pk.size());
+
+    auto old_key_result = tx.ReadSecondaryIndex("age_index", "25");
+    EXPECT_TRUE(old_key_result.empty());
+
+    auto new_key_result = tx.ReadSecondaryIndex("age_index", "30");
+    ASSERT_EQ(new_key_result.size(), 1u);
+    EXPECT_EQ(
+        std::string(reinterpret_cast<const char*>(new_key_result[0].first),
+                    new_key_result[0].second),
+        "user1");
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  // コミット後も新キーは 1 件のまま
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto old_key_result = tx.ReadSecondaryIndex("age_index", "25");
+    EXPECT_TRUE(old_key_result.empty());
+
+    auto new_key_result = tx.ReadSecondaryIndex("age_index", "30");
+    ASSERT_EQ(new_key_result.size(), 1u);
+    EXPECT_EQ(
+        std::string(reinterpret_cast<const char*>(new_key_result[0].first),
+                    new_key_result[0].second),
+        "user1");
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(ManipulateSecondaryIndexTest,
+       UpdateSecondaryIndexWithMissingOldKeyActsAsInsert) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+
+  auto& preparing_tx = db_->BeginTransaction();
+  preparing_tx.SetTable("users");
+  preparing_tx.Write("user1", "Alice");
+  db_->EndTransaction(preparing_tx, [](auto status) {
+    EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+  });
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    std::string pk = "user1";
+
+    // 存在しない old key を指定する
+    tx.UpdateSecondaryIndex("age_index", "99", "40",
+                            reinterpret_cast<const std::byte*>(pk.data()),
+                            pk.size());
+
+    auto old_key_result = tx.ReadSecondaryIndex("age_index", "99");
+    EXPECT_TRUE(old_key_result.empty());
+
+    auto new_key_result = tx.ReadSecondaryIndex("age_index", "40");
+    ASSERT_EQ(new_key_result.size(), 1u);
+    EXPECT_EQ(
+        std::string(reinterpret_cast<const char*>(new_key_result[0].first),
+                    new_key_result[0].second),
+        "user1");
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto result = tx.ReadSecondaryIndex("age_index", "40");
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(result[0].first),
+                          result[0].second),
+              "user1");
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(ManipulateSecondaryIndexTest, DeleteSecondaryIndexRemovesPrimaryKey) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    tx.Write("user1", "Alice");
+    std::string pk = "user1";
+    tx.WriteSecondaryIndex("age_index", "25",
+                           reinterpret_cast<const std::byte*>(pk.data()),
+                           pk.size());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    std::string pk = "user1";
+    auto before_delete = tx.ReadSecondaryIndex("age_index", "25");
+    ASSERT_EQ(before_delete.size(), 1u);
+
+    tx.DeleteSecondaryIndex("age_index", "25",
+                            reinterpret_cast<const std::byte*>(pk.data()),
+                            pk.size());
+
+    auto after_delete = tx.ReadSecondaryIndex("age_index", "25");
+    EXPECT_TRUE(after_delete.empty());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto result = tx.ReadSecondaryIndex("age_index", "25");
+    EXPECT_TRUE(result.empty());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(ManipulateSecondaryIndexTest,
+       DeleteSecondaryIndexRemovesOnlySpecifiedPrimaryKey) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    tx.Write("user1", "Alice");
+    tx.Write("user2", "Bob");
+    tx.Write("user3", "Carol");
+
+    std::string pk1 = "user1";
+    std::string pk2 = "user2";
+    std::string pk3 = "user3";
+
+    tx.WriteSecondaryIndex("age_index", "25",
+                           reinterpret_cast<const std::byte*>(pk1.data()),
+                           pk1.size());
+    tx.WriteSecondaryIndex("age_index", "25",
+                           reinterpret_cast<const std::byte*>(pk2.data()),
+                           pk2.size());
+    tx.WriteSecondaryIndex("age_index", "25",
+                           reinterpret_cast<const std::byte*>(pk3.data()),
+                           pk3.size());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto before_delete = tx.ReadSecondaryIndex("age_index", "25");
+    ASSERT_EQ(before_delete.size(), 3u);
+
+    std::string pk2 = "user2";
+    tx.DeleteSecondaryIndex("age_index", "25",
+                            reinterpret_cast<const std::byte*>(pk2.data()),
+                            pk2.size());
+
+    auto after_delete = tx.ReadSecondaryIndex("age_index", "25");
+    ASSERT_EQ(after_delete.size(), 2u);
+
+    std::set<std::string> expected{"user1", "user3"};
+    std::set<std::string> actual;
+    for (const auto& [pk_ptr, pk_size] : after_delete) {
+      actual.emplace(reinterpret_cast<const char*>(pk_ptr), pk_size);
+    }
+    EXPECT_EQ(actual, expected);
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto result = tx.ReadSecondaryIndex("age_index", "25");
+    ASSERT_EQ(result.size(), 2u);
+
+    std::set<std::string> expected{"user1", "user3"};
+    std::set<std::string> actual;
+    for (const auto& [pk_ptr, pk_size] : result) {
+      actual.emplace(reinterpret_cast<const char*>(pk_ptr), pk_size);
+    }
+    EXPECT_EQ(actual, expected);
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+}
+
+TEST_F(ManipulateSecondaryIndexTest,
+       MultipleUpdatesInSingleTransactionMaintainConsistency) {
+  ASSERT_TRUE(db_->CreateTable("users"));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    tx.Write("user1", "Alice");
+    std::string pk = "user1";
+    tx.WriteSecondaryIndex("age_index", "18",
+                           reinterpret_cast<const std::byte*>(pk.data()),
+                           pk.size());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    std::string pk = "user1";
+
+    auto r1 = tx.ReadSecondaryIndex("age_index", "18");
+    ASSERT_EQ(r1.size(), 1u);
+
+    tx.UpdateSecondaryIndex("age_index", "18", "19",
+                            reinterpret_cast<const std::byte*>(pk.data()),
+                            pk.size());
+
+    auto r2 = tx.ReadSecondaryIndex("age_index", "19");
+    ASSERT_EQ(r2.size(), 1u);
+
+    tx.UpdateSecondaryIndex("age_index", "19", "20",
+                            reinterpret_cast<const std::byte*>(pk.data()),
+                            pk.size());
+
+    auto r3 = tx.ReadSecondaryIndex("age_index", "20");
+    ASSERT_EQ(r3.size(), 1u);
+
+    auto r4_old = tx.ReadSecondaryIndex("age_index", "19");
+    EXPECT_TRUE(r4_old.empty());
+
+    db_->EndTransaction(tx, [](auto status) {
+      EXPECT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    auto old18 = tx.ReadSecondaryIndex("age_index", "18");
+    EXPECT_TRUE(old18.empty());
+
+    auto current = tx.ReadSecondaryIndex("age_index", "20");
+    ASSERT_EQ(current.size(), 1u);
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(current[0].first),
+                          current[0].second),
+              "user1");
 
     db_->EndTransaction(tx, [](auto status) {
       EXPECT_EQ(status, LineairDB::TxStatus::Committed);

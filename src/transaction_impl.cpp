@@ -355,6 +355,78 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
   return result;
 };
 
+void Transaction::Impl::DeleteSecondaryIndex(
+    const std::string_view index_name,
+    const std::string_view secondary_key,
+    const std::byte primary_key_buffer[], const size_t primary_key_size) {
+  if (IsAborted()) return;
+
+  EnsureCurrentTable();
+
+  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
+  if (index == nullptr) {
+    Abort();
+    return;
+  }
+
+  // delete the primary key from the data item associated
+  // with the old secondary key ==========
+  auto index_leaf = index->GetOrInsert(secondary_key);
+  bool found_in_write_set = false;
+
+  bool is_rmf = false;
+  DataItem existing_data;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == secondary_key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      is_rmf = true;
+      existing_data = snapshot.data_item_copy;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  // case A: old_key is in write_set
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != secondary_key ||
+        snapshot.table_name != current_table_->GetTableName() ||
+        snapshot.index_name != index_name)
+      continue;
+
+    found_in_write_set = true;
+    snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                      primary_key_size);
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    break;
+  }
+
+  // case B: old_key is not in write_set
+  if (!found_in_write_set) {
+    if (!is_rmf) {
+      Snapshot snapshot = {secondary_key,
+                           nullptr,
+                           0,
+                           index_leaf,
+                           current_table_->GetTableName(),
+                           index_name};
+
+      snapshot.data_item_copy =
+          concurrency_control_->Read(secondary_key, index_leaf);
+      existing_data = snapshot.data_item_copy;
+      read_set_.emplace_back(std::move(snapshot));
+    }
+    existing_data.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                    primary_key_size);
+
+    Snapshot sp(secondary_key, nullptr, 0, index_leaf,
+                current_table_->GetTableName(), index_name);
+    sp.data_item_copy = existing_data;
+    if (is_rmf) sp.is_read_modify_write = true;
+    write_set_.emplace_back(std::move(sp));
+  }
+}
+
 void Transaction::Impl::UpdateSecondaryIndex(
     const std::string_view index_name, const std::string_view old_secondary_key,
     const std::string_view new_secondary_key,
@@ -503,7 +575,7 @@ void Transaction::Impl::UpdateSecondaryIndex(
                 current_table_->GetTableName(), index_name);
     sp.data_item_copy = existing_data_new_key;
     if (is_rmf_new_key) sp.is_read_modify_write = true;
-    
+
     write_set_.emplace_back(std::move(sp));
   }
 }
@@ -573,6 +645,14 @@ void Transaction::WriteSecondaryIndex(const std::string_view index_name,
                                       const size_t primary_key_size) {
   tx_pimpl_->WriteSecondaryIndex(index_name, key, primary_key_buffer,
                                  primary_key_size);
+}
+
+void Transaction::DeleteSecondaryIndex(const std::string_view index_name,
+                                      const std::string_view secondary_key,
+                                      const std::byte primary_key_buffer[],
+                                      const size_t primary_key_size) {
+  tx_pimpl_->DeleteSecondaryIndex(index_name, secondary_key, primary_key_buffer,
+                                  primary_key_size);
 }
 
 void Transaction::UpdateSecondaryIndex(const std::string_view index_name,
