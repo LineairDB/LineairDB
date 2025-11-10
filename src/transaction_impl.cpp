@@ -245,9 +245,13 @@ void Transaction::Impl::WriteSecondaryIndex(
   }
 
   bool is_rmf = false;
+  DataItem existing_data;
   for (auto& snapshot : read_set_) {
-    if (snapshot.key == key) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
       is_rmf = true;
+      existing_data = snapshot.data_item_copy;
       snapshot.is_read_modify_write = true;
       break;
     }
@@ -278,21 +282,24 @@ void Transaction::Impl::WriteSecondaryIndex(
     return;
   }
 
-  // Read existing data from storage to support multi-transaction inserts
-  auto existing_data = concurrency_control_->Read(key, index_leaf);
+  if (!is_rmf) {
+    Snapshot snapshot = {
+        key,       nullptr, 0, index_leaf, current_table_->GetTableName(),
+        index_name};
+    snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
+    snapshot.is_read_modify_write = true;
+    read_set_.emplace_back(std::move(snapshot));
+    existing_data = snapshot.data_item_copy;
+    is_rmf = true;
+  }
 
   concurrency_control_->Write(key, primary_key_buffer, primary_key_size,
                               index_leaf);
   Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(),
               index_name);
 
-  // If existing data is found, use it as the base
-  if (existing_data.IsInitialized()) {
-    sp.data_item_copy = existing_data;
-    sp.is_read_modify_write = true;
-  }
-
   if (is_rmf) sp.is_read_modify_write = true;
+  sp.data_item_copy = existing_data;
   sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                            primary_key_size);
 
@@ -356,23 +363,35 @@ void Transaction::Impl::UpdateSecondaryIndex(
 
   EnsureCurrentTable();
 
-  // Get the secondary index
   Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
   if (index == nullptr) {
     Abort();
     return;
   }
 
-  // No-op if old_key == new_key
   if (old_secondary_key == new_secondary_key) {
     return;
   }
 
-  // ========== Phase 1: old_keyからprimary_keyを削除 ==========
+  // ========== Phase 1: delete the primary key from the data item associated
+  // with the old secondary key ==========
   auto old_leaf = index->GetOrInsert(old_secondary_key);
   bool old_found_in_write_set = false;
 
-  // ケースA: write_setにold_keyが存在する場合
+  bool is_rmf_old_key = false;
+  DataItem existing_data_old_key;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == old_secondary_key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      is_rmf_old_key = true;
+      existing_data_old_key = snapshot.data_item_copy;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  // case A: old_key is in write_set
   for (auto& snapshot : write_set_) {
     if (snapshot.key != old_secondary_key ||
         snapshot.table_name != current_table_->GetTableName() ||
@@ -380,48 +399,56 @@ void Transaction::Impl::UpdateSecondaryIndex(
       continue;
 
     old_found_in_write_set = true;
-    if (snapshot.data_item_copy.sec_idx_buffers) {
-      for (auto it = snapshot.data_item_copy.sec_idx_buffers->begin();
-           it != snapshot.data_item_copy.sec_idx_buffers->end(); ++it) {
-        if (it->size == primary_key_size &&
-            std::memcmp(it->value, primary_key_buffer, primary_key_size) == 0) {
-          snapshot.data_item_copy.sec_idx_buffers->erase(it);
-          break;
-        }
-      }
-    }
+    snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                      primary_key_size);
+    if (is_rmf_old_key) snapshot.is_read_modify_write = true;
     break;
   }
 
-  // ケースB: write_setにold_keyが存在しない場合
+  // case B: old_key is not in write_set
   if (!old_found_in_write_set) {
-    auto existing_data =
-        concurrency_control_->Read(old_secondary_key, old_leaf);
-    if (existing_data.sec_idx_buffers) {
-      for (auto it = existing_data.sec_idx_buffers->begin();
-           it != existing_data.sec_idx_buffers->end(); ++it) {
-        if (it->size == primary_key_size &&
-            std::memcmp(it->value, primary_key_buffer, primary_key_size) == 0) {
-          existing_data.sec_idx_buffers->erase(it);
-          break;
-        }
-      }
+    if (!is_rmf_old_key) {
+      Snapshot snapshot = {old_secondary_key,
+                           nullptr,
+                           0,
+                           old_leaf,
+                           current_table_->GetTableName(),
+                           index_name};
+
+      snapshot.data_item_copy =
+          concurrency_control_->Read(old_secondary_key, old_leaf);
+      existing_data_old_key = snapshot.data_item_copy;
+      read_set_.emplace_back(std::move(snapshot));
     }
+    existing_data_old_key.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                    primary_key_size);
 
     Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
                 current_table_->GetTableName(), index_name);
-    if (existing_data.IsInitialized()) {
-      sp.data_item_copy = existing_data;
-      sp.is_read_modify_write = true;
-    }
+    sp.data_item_copy = existing_data_old_key;
+    if (is_rmf_old_key) sp.is_read_modify_write = true;
     write_set_.emplace_back(std::move(sp));
   }
 
-  // ========== Phase 2: new_keyにprimary_keyを追加 ==========
+  // ========== Phase 2: add the primary key to the data item associated with
+  // the new secondary key ==========
   auto new_leaf = index->GetOrInsert(new_secondary_key);
   bool new_found_in_write_set = false;
 
-  // ケースC: write_setにnew_keyが存在する場合
+  bool is_rmf_new_key = false;
+  DataItem existing_data_new_key;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == new_secondary_key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      is_rmf_new_key = true;
+      snapshot.is_read_modify_write = true;
+      existing_data_new_key = snapshot.data_item_copy;
+      break;
+    }
+  }
+
+  // case: new_key is in write_set
   for (auto& snapshot : write_set_) {
     if (snapshot.key != new_secondary_key ||
         snapshot.table_name != current_table_->GetTableName() ||
@@ -429,49 +456,54 @@ void Transaction::Impl::UpdateSecondaryIndex(
       continue;
 
     new_found_in_write_set = true;
-
-    // 既に同じprimary_keyが存在するか確認（重複回避）
+    // check if the primary_key already exists (avoid duplicates)
     if (snapshot.data_item_copy.sec_idx_buffers) {
       for (auto& buf : *snapshot.data_item_copy.sec_idx_buffers) {
         if (buf.size == primary_key_size &&
             std::memcmp(buf.value, primary_key_buffer, primary_key_size) == 0) {
-          return;  // 既に存在するので何もしない
+          return;  // already exists, so do nothing
         }
       }
     }
 
     snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                                    primary_key_size);
+    if (is_rmf_new_key) snapshot.is_read_modify_write = true;
     break;
   }
 
-  // ケースD: write_setにnew_keyが存在しない場合
+  // case: new_key is not in write_set
   if (!new_found_in_write_set) {
-    auto existing_data =
-        concurrency_control_->Read(new_secondary_key, new_leaf);
+    if (!is_rmf_new_key) {
+      Snapshot snapshot = {new_secondary_key,
+                           nullptr,
+                           0,
+                           new_leaf,
+                           current_table_->GetTableName(),
+                           index_name};
 
-    Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
-                current_table_->GetTableName(), index_name);
-    if (existing_data.IsInitialized()) {
-      sp.data_item_copy = existing_data;
-      sp.is_read_modify_write = true;
+      snapshot.data_item_copy =
+          concurrency_control_->Read(new_secondary_key, new_leaf);
+      existing_data_new_key = snapshot.data_item_copy;
+      read_set_.emplace_back(std::move(snapshot));
     }
-
-    // 既に同じprimary_keyが存在するか確認（重複回避）
-    if (existing_data.sec_idx_buffers) {
-      for (auto& buf : *existing_data.sec_idx_buffers) {
+    // check if the primary_key already exists (avoid duplicates)
+    if (existing_data_new_key.sec_idx_buffers) {
+      for (auto& buf : *existing_data_new_key.sec_idx_buffers) {
         if (buf.size == primary_key_size &&
             std::memcmp(buf.value, primary_key_buffer, primary_key_size) == 0) {
-          return;  // 既に存在するので何もしない
+          return;  // already exists, so do nothing
         }
       }
     }
+    existing_data_new_key.AddSecondaryIndexValue(primary_key_buffer,
+                                                 primary_key_size);
 
-    // 自トランザクション内の read-your-own-write を成立させるため、
-    // 新しいセカンダリキーに対する primary key を write-set に追加する
-    sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
-                                             primary_key_size);
-    sp.is_read_modify_write = true;
+    Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
+                current_table_->GetTableName(), index_name);
+    sp.data_item_copy = existing_data_new_key;
+    if (is_rmf_new_key) sp.is_read_modify_write = true;
+    
     write_set_.emplace_back(std::move(sp));
   }
 }

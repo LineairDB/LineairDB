@@ -133,9 +133,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
           for (auto& read_item : validation_set_) {
             if (read_item.item_p_cache == item) {
               read_item.transaction_id.tid++;
-              // WANTFIX: break;
-              // In UpdateSecondaryIndex, we need to call Transaction::Impl::Read instead of concurrency_control_->Read
-              /* break; */
+              break;
             }
           }
           break;

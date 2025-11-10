@@ -21,8 +21,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <msgpack.hpp>
 #include <type_traits>
+#include <vector>
 
 #include "concurrency_control/pivot_object.hpp"
 #include "data_buffer.hpp"
@@ -38,7 +40,6 @@ struct DataItem {
   DataBuffer buffer;
   // std::stringのvectorを保持する
   // lineairdvkeyみたいなエイリアス
-
   std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers;
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
@@ -64,6 +65,7 @@ struct DataItem {
       sec_idx_buffers =
           std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
     }
+    UpdateInitializedFlag();
   }
 
   DataItem& operator=(const DataItem& rhs) {
@@ -79,13 +81,14 @@ struct DataItem {
     } else {
       sec_idx_buffers = nullptr;
     }
+    UpdateInitializedFlag();
     return *this;
   }
 
   void Reset(const std::byte* v, const size_t s, TransactionId tid = 0) {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
-    initialized = (v != nullptr && s != 0);
+    UpdateInitializedFlag();
   }
 
   void AddSecondaryIndexValue(const std::byte* v, size_t s) {
@@ -96,7 +99,24 @@ struct DataItem {
     buf.Reset(v, s);
     sec_idx_buffers->push_back(std::move(buf));
 
-    initialized = (v != nullptr && s != 0);
+    UpdateInitializedFlag();
+  }
+
+  bool RemoveSecondaryIndexValue(const std::byte* v, size_t s) {
+    if (!sec_idx_buffers) return false;
+    for (auto it = sec_idx_buffers->begin(); it != sec_idx_buffers->end();
+         ++it) {
+      if (it->size == s && (s == 0 || std::memcmp(it->value, v, s) == 0)) {
+        sec_idx_buffers->erase(it);
+        if (sec_idx_buffers->empty()) {
+          sec_idx_buffers.reset();
+        }
+        UpdateInitializedFlag();
+        return true;
+      }
+    }
+    UpdateInitializedFlag();
+    return false;
   }
 
   void CopyLiveVersionToStableVersion() {
@@ -147,6 +167,12 @@ struct DataItem {
   decltype(readers_writers_lock)& GetRWLockRef() {
     return readers_writers_lock;
   };
+
+ private:
+  void UpdateInitializedFlag() {
+    initialized =
+        !buffer.IsEmpty() || (sec_idx_buffers && !sec_idx_buffers->empty());
+  }
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_ITEM_HPP */
