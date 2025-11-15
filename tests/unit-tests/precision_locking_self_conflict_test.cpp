@@ -46,7 +46,6 @@ TEST_F(IndexTest, InsertAndScanConflictWithinSameTransaction) {
   tx.Write<int>("erin", erin);
 
   tx.Scan("erin", std::nullopt, [&](auto, auto) { return false; });
-  
   const bool committed = db_->EndTransaction(tx, [](auto status) {
     ASSERT_EQ(status, LineairDB::TxStatus::Committed);
   });
