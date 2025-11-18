@@ -21,6 +21,7 @@
 #include <functional>
 #include <string_view>
 
+#include "transaction_impl.h"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 
@@ -114,6 +115,7 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
 
   predicate_list_[epoch].emplace_back(b, e);
+  predicate_list_[epoch].back().tx_context = GetCurrentTransactionContext();
 
   return hit;
 };
@@ -126,6 +128,8 @@ bool PrecisionLockingIndex::Insert(const std::string_view key) {
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
   std::lock_guard<decltype(ulock_)> u_guard(ulock_);
   insert_or_delete_key_set_[epoch].emplace_back(key, false);
+  insert_or_delete_key_set_[epoch].back().tx_context =
+      GetCurrentTransactionContext();
 
   return true;
 };
@@ -134,6 +138,8 @@ void PrecisionLockingIndex::ForceInsert(const std::string_view key) {
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
   std::lock_guard<decltype(ulock_)> u_guard(ulock_);
   insert_or_delete_key_set_[epoch].emplace_back(key, false);
+  insert_or_delete_key_set_[epoch].back().tx_context =
+      GetCurrentTransactionContext();
 }
 
 bool PrecisionLockingIndex::Delete(const std::string_view key) {
@@ -144,14 +150,24 @@ bool PrecisionLockingIndex::Delete(const std::string_view key) {
   const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
   std::lock_guard<decltype(ulock_)> u_guard(ulock_);
   insert_or_delete_key_set_[epoch].emplace_back(key, true);
+  insert_or_delete_key_set_[epoch].back().tx_context =
+      GetCurrentTransactionContext();
 
   return true;
 };
 
 bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
+  void* current_tx = GetCurrentTransactionContext();
   for (auto it = predicate_list_.begin(); it != predicate_list_.end(); it++) {
     for (const auto& predicate : it->second) {
-      if (predicate.begin <= key && key <= predicate.end) return true;
+      // Skip predicates from the same transaction (self-conflict)
+      if (current_tx != nullptr && predicate.tx_context == current_tx) {
+        continue;
+      }
+      const bool is_after_begin = predicate.begin <= key;
+      const bool is_before_end =
+          predicate.end.has_value() ? key <= predicate.end.value() : true;
+      if (is_after_begin && is_before_end) return true;
     }
   }
   return false;
@@ -159,13 +175,20 @@ bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
 
 bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
     const std::string_view begin, const std::optional<std::string_view> end) {
+  void* current_tx = GetCurrentTransactionContext();
   for (auto it = insert_or_delete_key_set_.begin();
        it != insert_or_delete_key_set_.end(); it++) {
     for (const auto& event : it->second) {
+      // Skip events from the same transaction (self-conflict)
+      if (current_tx != nullptr && event.tx_context == current_tx) {
+        continue;
+      }
       const bool is_after_begin = begin <= event.key;
       const bool is_before_end =
           end.has_value() ? event.key <= end.value() : true;
-      return is_after_begin && is_before_end;
+      if (is_after_begin && is_before_end) {
+        return true;
+      }
     }
   }
   return false;

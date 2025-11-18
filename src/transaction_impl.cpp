@@ -29,11 +29,19 @@
 
 namespace LineairDB {
 
+namespace {
+thread_local void* current_transaction_context = nullptr;
+}
+
+void* GetCurrentTransactionContext() { return current_transaction_context; }
+
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
       config_ref_(db_pimpl_->GetConfig()),
       current_table_(nullptr) {
+  current_transaction_context = this;
+
   TransactionReferences&& tx = {read_set_, write_set_,
                                 db_pimpl_->epoch_framework_, current_status_};
 
@@ -64,7 +72,7 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
   }
 }
 
-Transaction::Impl::~Impl() noexcept = default;
+Transaction::Impl::~Impl() noexcept { current_transaction_context = nullptr; }
 
 TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 

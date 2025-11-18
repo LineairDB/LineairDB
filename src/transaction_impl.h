@@ -93,5 +93,8 @@ class Transaction::Impl {
   WriteSetType write_set_;
   Table* current_table_;
 };
+
+void* GetCurrentTransactionContext();
+
 }  // namespace LineairDB
 #endif /* LINEAIRDB_TRANSACTION_IMPL_H */
