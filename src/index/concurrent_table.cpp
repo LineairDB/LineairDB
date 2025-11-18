@@ -82,5 +82,8 @@ std::optional<size_t> ConcurrentTable::Scan(
   return index_->Scan(begin, end, operation);
 };
 
+bool ConcurrentTable::Delete(const std::string_view key) {
+  return index_->EraseRangeOnly(key);
+}
 }  // namespace Index
 }  // namespace LineairDB

@@ -96,6 +96,8 @@ class Transaction::Impl {
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
 
+  bool Delete(const std::string_view key);
+
   void DeleteSecondaryIndex(const std::string_view index_name,
                             const std::string_view secondary_key,
                             const std::byte primary_key_buffer[],

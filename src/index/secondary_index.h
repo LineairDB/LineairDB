@@ -35,7 +35,7 @@ class SecondaryIndex {
     return secondary_index_->Scan(begin, end, operation);
   }
 
-  bool DeleteKey(std::string_view key) {
+  bool Delete(std::string_view key) {
     // Range-only deletion to hide the key from scans.
     // Point index does not support erase currently.
     // Implement as a method on HashTableWithPrecisionLockingIndex when

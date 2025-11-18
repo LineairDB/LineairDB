@@ -40,7 +40,8 @@ struct DataItem {
   DataBuffer buffer;
   // std::stringのvectorを保持する
   // lineairdvkeyみたいなエイリアス
-  std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers;
+  std::vector<std::string> primary_keys;
+  /* std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers; */
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
   Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
@@ -61,11 +62,11 @@ struct DataItem {
         initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
-    if (rhs.sec_idx_buffers) {
+    /* if (rhs.sec_idx_buffers) {
       sec_idx_buffers =
           std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
-    }
-    UpdateInitializedFlag();
+    } */
+    primary_keys = rhs.primary_keys;
   }
 
   DataItem& operator=(const DataItem& rhs) {
@@ -75,48 +76,36 @@ struct DataItem {
       buffer.Reset(rhs.buffer);
     }
 
-    if (rhs.sec_idx_buffers) {
+    /* if (rhs.sec_idx_buffers) {
       sec_idx_buffers =
           std::make_unique<std::vector<DataBuffer>>(*rhs.sec_idx_buffers);
     } else {
       sec_idx_buffers = nullptr;
-    }
-    UpdateInitializedFlag();
+    } */
+    primary_keys = rhs.primary_keys;
     return *this;
   }
 
   void Reset(const std::byte* v, const size_t s, TransactionId tid = 0) {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
-    UpdateInitializedFlag();
+    initialized = (v != nullptr && s != 0) || !primary_keys.empty();
   }
 
   void AddSecondaryIndexValue(const std::byte* v, size_t s) {
-    if (!sec_idx_buffers) {
-      sec_idx_buffers = std::make_unique<std::vector<DataBuffer>>();
-    }
-    DataBuffer buf;
-    buf.Reset(v, s);
-    sec_idx_buffers->push_back(std::move(buf));
-
-    UpdateInitializedFlag();
+    primary_keys.push_back(std::string(reinterpret_cast<const char*>(v), s));
+    initialized = buffer.size != 0 || !primary_keys.empty();
   }
 
-  bool RemoveSecondaryIndexValue(const std::byte* v, size_t s) {
-    if (!sec_idx_buffers) return false;
-    for (auto it = sec_idx_buffers->begin(); it != sec_idx_buffers->end();
-         ++it) {
-      if (it->size == s && (s == 0 || std::memcmp(it->value, v, s) == 0)) {
-        sec_idx_buffers->erase(it);
-        if (sec_idx_buffers->empty()) {
-          sec_idx_buffers.reset();
-        }
-        UpdateInitializedFlag();
-        return true;
+  void RemoveSecondaryIndexValue(const std::byte* v, size_t s) {
+    const std::string target(reinterpret_cast<const char*>(v), s);
+    for (auto it = primary_keys.begin(); it != primary_keys.end(); ++it) {
+      if (*it == target) {
+        primary_keys.erase(it);
+        initialized = buffer.size != 0 || !primary_keys.empty();
+        break;
       }
     }
-    UpdateInitializedFlag();
-    return false;
   }
 
   void CopyLiveVersionToStableVersion() {
@@ -167,12 +156,6 @@ struct DataItem {
   decltype(readers_writers_lock)& GetRWLockRef() {
     return readers_writers_lock;
   };
-
- private:
-  void UpdateInitializedFlag() {
-    initialized =
-        !buffer.IsEmpty() || (sec_idx_buffers && !sec_idx_buffers->empty());
-  }
 };
 }  // namespace LineairDB
 #endif /* LINEAIRDB_DATA_ITEM_HPP */

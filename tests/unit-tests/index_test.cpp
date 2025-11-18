@@ -24,7 +24,6 @@
 
 #include "../test_helper.hpp"
 #include "gtest/gtest.h"
-
 class IndexTest : public ::testing::Test {
  protected:
   LineairDB::Config config_;
@@ -33,6 +32,7 @@ class IndexTest : public ::testing::Test {
     config_.enable_recovery = false;
     config_.enable_logging = false;
     config_.enable_checkpointing = false;
+    db_.reset(nullptr);
     db_ = std::make_unique<LineairDB::Database>(config_);
     db_->CreateTable("users");
 
@@ -131,5 +131,41 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
                   }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
+  }
+}
+
+TEST_F(IndexTest, Delete) {
+  constexpr int erin = 4;
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    tx.Write<int>("erin", erin);
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    auto result = tx.Read("erin");
+    ASSERT_EQ(result.second, sizeof(int));
+    ASSERT_EQ(*reinterpret_cast<const int*>(result.first), erin);
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    ASSERT_TRUE(tx.Delete("erin"));
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    auto result = tx.Read("erin");
+    ASSERT_EQ(result.second, 0);
+    ASSERT_EQ(result.first, nullptr);
+    db_->EndTransaction(tx, [](auto) {});
   }
 }

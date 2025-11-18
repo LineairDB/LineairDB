@@ -30,6 +30,10 @@ class Table {
     return true;
   }
 
+  bool Delete(const std::string_view key) {
+    return primary_index_.Delete(key);
+  }
+
   const std::string& GetTableName() const;
 
   Index::ConcurrentTable& GetPrimaryIndex();

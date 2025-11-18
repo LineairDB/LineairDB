@@ -40,32 +40,32 @@ class CreateSecondaryIndexTest : public ::testing::Test {
 
 TEST_F(CreateSecondaryIndexTest, CreateSecondaryIndexWithIntKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
 }
 
 TEST_F(CreateSecondaryIndexTest, CreateSecondaryIndexWithStringKey) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "name_index", 0, 1));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "name_index", 0));
 }
 
 TEST_F(CreateSecondaryIndexTest, CreateSecondaryIndexWithDateTimeKey) {
   ASSERT_TRUE(db_->CreateTable("events"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("events", "created_at_index", 0, 2));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("events", "created_at_index", 0));
 }
 
 TEST_F(CreateSecondaryIndexTest, CreateMultipleSecondaryIndexes) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "name_index", 0, 1));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "created_at_index", 0, 2));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "name_index", 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "created_at_index", 0));
 }
 
 TEST_F(CreateSecondaryIndexTest, CreateDuplicateSecondaryIndex) {
   ASSERT_TRUE(db_->CreateTable("users"));
-  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
-  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "age_index", 0, 0));
+  ASSERT_TRUE(db_->CreateSecondaryIndex("users", "age_index", 0));
+  ASSERT_FALSE(db_->CreateSecondaryIndex("users", "age_index", 0));
 }
 
 TEST_F(CreateSecondaryIndexTest, CreateSecondaryIndexOnNonExistentTable) {
-  ASSERT_FALSE(db_->CreateSecondaryIndex("non_existent_table", "index", 0, 0));
+  ASSERT_FALSE(db_->CreateSecondaryIndex("non_existent_table", "index", 0));
 }
