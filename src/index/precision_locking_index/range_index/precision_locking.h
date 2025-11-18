@@ -70,15 +70,17 @@ class PrecisionLockingIndex {
   struct Predicate {
     std::string begin;
     std::optional<std::string> end;
+    void* tx_context;
     Predicate(std::string_view b, std::optional<std::string_view> e)
-        : begin(b), end(e) {}
+        : begin(b), end(e), tx_context(nullptr) {}
   };
 
   struct InsertOrDeleteEvent {
     std::string key;
     bool is_delete_event;
+    void* tx_context;
     InsertOrDeleteEvent(std::string_view k, bool i)
-        : key(k), is_delete_event(i) {}
+        : key(k), is_delete_event(i), tx_context(nullptr) {}
   };
 
   struct IndexItem {
