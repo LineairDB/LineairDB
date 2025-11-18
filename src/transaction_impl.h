@@ -94,9 +94,6 @@ class Transaction::Impl {
   Table* current_table_;
 };
 
-// Get current transaction context (for precision locking self-conflict
-// detection) This is a global function that can be called from precision
-// locking index
 void* GetCurrentTransactionContext();
 
 }  // namespace LineairDB
