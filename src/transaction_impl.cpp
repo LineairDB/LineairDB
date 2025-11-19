@@ -149,8 +149,9 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
       std::vector<std::pair<const std::byte* const, const size_t>> result;
       if (!snapshot.data_item_copy.primary_keys.empty()) {
         for (auto& primary_key : snapshot.data_item_copy.primary_keys) {
-          result.emplace_back(reinterpret_cast<const std::byte*>(primary_key.data()),
-                              primary_key.size());
+          result.emplace_back(
+              reinterpret_cast<const std::byte*>(primary_key.data()),
+              primary_key.size());
         }
       }
       return result;
@@ -164,8 +165,9 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
       std::vector<std::pair<const std::byte* const, const size_t>> result;
       if (!snapshot.data_item_copy.primary_keys.empty()) {
         for (auto& primary_key : snapshot.data_item_copy.primary_keys) {
-          result.emplace_back(reinterpret_cast<const std::byte*>(primary_key.data()),
-                              primary_key.size());
+          result.emplace_back(
+              reinterpret_cast<const std::byte*>(primary_key.data()),
+              primary_key.size());
         }
       }
       return result;
@@ -183,8 +185,9 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
     std::vector<std::pair<const std::byte* const, const size_t>> result;
     if (!ref.data_item_copy.primary_keys.empty()) {
       for (auto& primary_key : ref.data_item_copy.primary_keys) {
-        result.emplace_back(reinterpret_cast<const std::byte*>(primary_key.data()),
-                            primary_key.size());
+        result.emplace_back(
+            reinterpret_cast<const std::byte*>(primary_key.data()),
+            primary_key.size());
       }
       return result;
     } else {
@@ -435,6 +438,12 @@ void Transaction::Impl::DeleteSecondaryIndex(
     found_in_write_set = true;
     snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
                                                       primary_key_size);
+    if (snapshot.data_item_copy.primary_keys.empty()) {
+      if (!index->Delete(secondary_key)) {
+        Abort();
+        return;
+      }
+    }
     if (is_rmf) snapshot.is_read_modify_write = true;
     break;
   }
@@ -453,6 +462,13 @@ void Transaction::Impl::DeleteSecondaryIndex(
     }
     existing_data.RemoveSecondaryIndexValue(primary_key_buffer,
                                             primary_key_size);
+
+    if (existing_data.primary_keys.empty()) {
+      if (!index->Delete(secondary_key)) {
+        Abort();
+        return;
+      }
+    }
 
     Snapshot sp(secondary_key, nullptr, 0, index_leaf,
                 current_table_->GetTableName(), index_name);
@@ -503,6 +519,12 @@ void Transaction::Impl::UpdateSecondaryIndex(
     old_found_in_write_set = true;
     snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
                                                       primary_key_size);
+    if (snapshot.data_item_copy.primary_keys.empty()) {
+      if (!index->Delete(old_secondary_key)) {
+        Abort();
+        return;
+      }
+    }
     if (is_rmf_old_key) snapshot.is_read_modify_write = true;
     break;
   }
@@ -524,7 +546,16 @@ void Transaction::Impl::UpdateSecondaryIndex(
     }
     existing_data_old_key.RemoveSecondaryIndexValue(primary_key_buffer,
                                                     primary_key_size);
-    concurrency_control_->Write(old_secondary_key, primary_key_buffer, primary_key_size, old_leaf);
+
+    if (existing_data_old_key.primary_keys.empty()) {
+      if (!index->Delete(old_secondary_key)) {
+        Abort();
+        return;
+      }
+    }
+
+    concurrency_control_->Write(old_secondary_key, primary_key_buffer,
+                                primary_key_size, old_leaf);
     Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
                 current_table_->GetTableName(), index_name);
     sp.data_item_copy = existing_data_old_key;
@@ -581,7 +612,8 @@ void Transaction::Impl::UpdateSecondaryIndex(
     }
     existing_data_new_key.AddSecondaryIndexValue(primary_key_buffer,
                                                  primary_key_size);
-    concurrency_control_->Write(new_secondary_key, primary_key_buffer, primary_key_size, new_leaf);
+    concurrency_control_->Write(new_secondary_key, primary_key_buffer,
+                                primary_key_size, new_leaf);
 
     Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
                 current_table_->GetTableName(), index_name);
