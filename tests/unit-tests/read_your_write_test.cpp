@@ -3,7 +3,6 @@
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
 
-#include <iostream>
 #include <memory>
 #include <optional>
 
