@@ -154,14 +154,12 @@ const std::optional<size_t> Transaction::Impl::Scan(
         operation) {
   EnsureCurrentTable();
 
-  // Process keys from index
+  // Step 1: Collect keys from index
   std::set<std::string> index_keys;
   auto index_result = current_table_->GetPrimaryIndex().Scan(
       begin, end, [&](std::string_view key) {
         index_keys.insert(std::string(key));
-        const auto read_result = Read(key);
-        if (IsAborted()) return true;
-        return operation(key, read_result);
+        return false;  // Continue to collect all keys
       });
 
   if (!index_result.has_value()) {
@@ -169,30 +167,57 @@ const std::optional<size_t> Transaction::Impl::Scan(
     return std::nullopt;
   }
 
-  size_t total_count = index_result.value();
-
-  // Process keys from write_set (that might be inserted by this transaction
-  // itself and not yet in the index)
+  // Step 2: Collect keys from write_set
+  std::set<std::string> write_set_keys;
   for (const auto& snapshot : write_set_) {
-    const bool in_range = (snapshot.key >= begin) &&
-                          (!end.has_value() || snapshot.key <= end.value());
-    const bool is_current_table =
-        (snapshot.table_name == current_table_->GetTableName());
-    const bool not_in_index =
-        (index_keys.find(snapshot.key) == index_keys.end());
-    if (!(in_range && is_current_table && not_in_index)) continue;
-
-    total_count++;
-    std::pair<const void*, const size_t> value_pair = {
-        snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
-    operation(snapshot.key, value_pair);
+    if (snapshot.table_name != current_table_->GetTableName()) continue;
+    if (snapshot.key < begin) continue;
+    if (end.has_value() && snapshot.key > end.value()) continue;
+    write_set_keys.insert(snapshot.key);
   }
-  // TODO: we should consider the case for deletions in write_set, when the
-  // lineairdb supports delete operation as the public interface of
-  // transaction.h.
+
+  // Step 3: Merge and sort all keys (std::set automatically keeps them sorted)
+  std::set<std::string> all_keys;
+  all_keys.insert(index_keys.begin(), index_keys.end());
+  all_keys.insert(write_set_keys.begin(), write_set_keys.end());
+
+  // Step 4: Process keys in sorted order
+  size_t total_count = 0;
+  for (const auto& key : all_keys) {
+    total_count++;
+    if (IsAborted()) return std::nullopt;
+
+    // Check if key is in write_set
+    // if the key exists, use write_set data (without Transaction#Read)
+    bool found_in_write_set = false;
+    for (const auto& snapshot : write_set_) {
+      if (snapshot.table_name != current_table_->GetTableName()) continue;
+      if (snapshot.key != key) continue;
+
+      std::pair<const void*, const size_t> value_pair = {
+          snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+      bool stop_scan = operation(key, value_pair);
+      if (stop_scan) return total_count;
+
+      found_in_write_set = true;
+      break;
+    }
+
+    // If not in write_set, invoke Transaction#Read to get the value
+    if (!found_in_write_set) {
+      const auto read_result = Read(key);
+      bool stop_scan = operation(key, read_result);
+      if (stop_scan) return total_count;
+    }
+  }
+
+  // TODO: we now only consider the insertion, but we should consider the case
+  // for deletions in write_set, when the lineairdb supports delete operation as
+  // the public interface of transaction.h.
 
   return total_count;
 };
+
 void Transaction::Impl::Abort() {
   if (!IsAborted()) {
     current_status_ = TxStatus::Aborted;
