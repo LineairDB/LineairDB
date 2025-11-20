@@ -93,11 +93,21 @@ TEST_F(ReadYourWriteTest, ScanShouldReturnKeysInOrder) {
       actual_order.push_back(std::string(key));
 
       // Verify values match expected
-      if (key == "alice") EXPECT_EQ(value, 1);
-      if (key == "bob") EXPECT_EQ(value, 2);
-      if (key == "carol") EXPECT_EQ(value, 3);
-      if (key == "diana") EXPECT_EQ(value, 4);
-      if (key == "erin") EXPECT_EQ(value, 5);
+      if (key == "alice") {
+        EXPECT_EQ(value, 1);
+      }
+      if (key == "bob") {
+        EXPECT_EQ(value, 2);
+      }
+      if (key == "carol") {
+        EXPECT_EQ(value, 3);
+      }
+      if (key == "diana") {
+        EXPECT_EQ(value, 4);
+      }
+      if (key == "erin") {
+        EXPECT_EQ(value, 5);
+      }
 
       return false;
     });
