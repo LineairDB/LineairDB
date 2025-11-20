@@ -160,7 +160,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
       begin, end, [&](std::string_view key) {
         index_keys.insert(std::string(key));
         const auto read_result = Read(key);
-        if (IsAborted()) return false;
+        if (IsAborted()) return true;
         return operation(key, read_result);
       });
 
