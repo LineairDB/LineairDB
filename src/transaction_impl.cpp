@@ -19,6 +19,7 @@
 #include <lineairdb/transaction.h>
 
 #include <memory>
+#include <set>
 #include <utility>
 
 #include "concurrency_control/concurrency_control_base.h"
@@ -152,18 +153,46 @@ const std::optional<size_t> Transaction::Impl::Scan(
                        const std::pair<const void*, const size_t>)>
         operation) {
   EnsureCurrentTable();
-  auto result = current_table_->GetPrimaryIndex().Scan(
+
+  // Process keys from index
+  std::set<std::string> index_keys;
+  auto index_result = current_table_->GetPrimaryIndex().Scan(
       begin, end, [&](std::string_view key) {
+        index_keys.insert(std::string(key));
         const auto read_result = Read(key);
-        if (IsAborted()) return true;
+        if (IsAborted()) return false;
         return operation(key, read_result);
       });
-  if (!result.has_value()) {
-    Abort();
-  }
-  return result;
-};
 
+  if (!index_result.has_value()) {
+    Abort();
+    return std::nullopt;
+  }
+
+  size_t total_count = index_result.value();
+
+  // Process keys from write_set (that might be inserted by this transaction
+  // itself and not yet in the index)
+  for (const auto& snapshot : write_set_) {
+    const bool in_range = (snapshot.key >= begin) &&
+                          (!end.has_value() || snapshot.key <= end.value());
+    const bool is_current_table =
+        (snapshot.table_name == current_table_->GetTableName());
+    const bool not_in_index =
+        (index_keys.find(snapshot.key) == index_keys.end());
+    if (!(in_range && is_current_table && not_in_index)) continue;
+
+    total_count++;
+    std::pair<const void*, const size_t> value_pair = {
+        snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+    operation(snapshot.key, value_pair);
+  }
+  // TODO: we should consider the case for deletions in write_set, when the
+  // lineairdb supports delete operation as the public interface of
+  // transaction.h.
+
+  return total_count;
+};
 void Transaction::Impl::Abort() {
   if (!IsAborted()) {
     current_status_ = TxStatus::Aborted;
