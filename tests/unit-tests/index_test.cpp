@@ -24,7 +24,6 @@
 
 #include "../test_helper.hpp"
 #include "gtest/gtest.h"
-
 class IndexTest : public ::testing::Test {
  protected:
   LineairDB::Config config_;
@@ -33,12 +32,15 @@ class IndexTest : public ::testing::Test {
     config_.enable_recovery = false;
     config_.enable_logging = false;
     config_.enable_checkpointing = false;
+    db_.reset(nullptr);
     db_ = std::make_unique<LineairDB::Database>(config_);
+    db_->CreateTable("users");
 
     TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
       int alice = 1;
       int bob = 2;
       int carol = 3;
+      tx.SetTable("users");
       tx.template Write<decltype(alice)>("alice", alice);
       tx.template Write<decltype(bob)>("bob", bob);
       tx.template Write<decltype(carol)>("carol", carol);
@@ -49,6 +51,7 @@ class IndexTest : public ::testing::Test {
 
 TEST_F(IndexTest, Scan) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   auto count = tx.Scan("alice", "bob", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob");
     return false;
@@ -60,6 +63,7 @@ TEST_F(IndexTest, Scan) {
 
 TEST_F(IndexTest, AlphabeticalOrdering) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
   ASSERT_FALSE(count.has_value());
 
@@ -71,6 +75,7 @@ TEST_F(IndexTest, AlphabeticalOrdering) {
 
 TEST_F(IndexTest, ScanViaTemplate) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   auto count = tx.Scan<int>("alice", "bob", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob");
     return false;
@@ -82,6 +87,7 @@ TEST_F(IndexTest, ScanViaTemplate) {
 
 TEST_F(IndexTest, StopScanning) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   auto count = tx.Scan("alice", "carol", [&](auto key, auto) {
     EXPECT_TRUE(key == "alice");
     EXPECT_FALSE(key == "bob");
@@ -94,6 +100,7 @@ TEST_F(IndexTest, StopScanning) {
 
 TEST_F(IndexTest, ScanWithoutEnd) {
   auto& tx = db_->BeginTransaction();
+  tx.SetTable("users");
   auto count = tx.Scan("alice", std::nullopt, [&](auto key, auto) {
     EXPECT_TRUE(key == "alice" || key == "bob" || key == "carol");
     return false;
@@ -108,17 +115,57 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
 
   std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
-       [&](LineairDB::Transaction& tx) {
-         auto scan = [&]() {
-           return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
-         };
-         first = scan();
-         std::this_thread::yield();
-         second = scan();
-       }});
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+                    tx.SetTable("users");
+                    tx.Write<int>("dave", dave);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    auto scan = [&]() {
+                      tx.SetTable("users");
+                      return tx.Scan("alice", "dave",
+                                     [&](auto, auto) { return false; });
+                    };
+                    first = scan();
+                    std::this_thread::yield();
+                    second = scan();
+                  }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
+  }
+}
+
+TEST_F(IndexTest, Delete) {
+  constexpr int erin = 4;
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    tx.Write<int>("erin", erin);
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    auto result = tx.Read("erin");
+    ASSERT_EQ(result.second, sizeof(int));
+    ASSERT_EQ(*reinterpret_cast<const int*>(result.first), erin);
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    ASSERT_TRUE(tx.Delete("erin"));
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    auto result = tx.Read("erin");
+    ASSERT_EQ(result.second, 0);
+    ASSERT_EQ(result.first, nullptr);
+    db_->EndTransaction(tx, [](auto) {});
   }
 }

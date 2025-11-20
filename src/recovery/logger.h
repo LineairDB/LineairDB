@@ -58,7 +58,8 @@ class Logger {
       std::string buffer;
       TransactionId tid;
       std::string table_name;
-      MSGPACK_DEFINE(key, buffer, tid, table_name);
+      std::string index_name;
+      MSGPACK_DEFINE(key, buffer, tid, table_name, index_name);
     };
 
     EpochNumber epoch;

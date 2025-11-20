@@ -48,6 +48,7 @@ class ConcurrencyControlTest
       config_.max_thread = 4;
     }
     db_ = std::make_unique<LineairDB::Database>(config_);
+    db_->CreateTable("users");
   }
   virtual void TearDown() { std::filesystem::remove_all("lineairdb_logs"); }
 };
@@ -66,11 +67,13 @@ TEST_P(ConcurrencyControlTest, Instantiate) {}
 TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   int initial_value = 1;
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.SetTable("users");
                                tx.Write<int>("alice", initial_value);
                              }});
   db_->Fence();
 
   TransactionProcedure increment([](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     auto alice = tx.Read<int>("alice");
     if (!alice.has_value()) return tx.Abort();
     int current_value = alice.value();
@@ -84,6 +87,7 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
   db_->Fence();
 
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.SetTable("users");
                                auto alice = tx.Read<int>("alice");
                                ASSERT_TRUE(alice.has_value());
                                auto expected_value =
@@ -95,10 +99,12 @@ TEST_P(ConcurrencyControlTest, IncrementOnMultiThreads) {
 
 TEST_P(ConcurrencyControlTest, AvoidingDeadLock) {
   TransactionProcedure readX_writeY([](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     tx.Read<int>("x");
     tx.Write<int>("y", 0xDEADBEEF);
   });
   TransactionProcedure readY_writeX([](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     tx.Read<int>("y");
     tx.Write<int>("x", 0xDEADBEEF);
   });
@@ -111,6 +117,7 @@ TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
+      tx.SetTable("users");
       tx.Write<int>("alice" + std::to_string(idx), value);
     }
     tx.Abort();
@@ -118,6 +125,7 @@ TEST_P(ConcurrencyControlTest, AvoidingDirtyReadAnomaly) {
 
   TransactionProcedure readTenTimes([](LineairDB::Transaction& tx) {
     for (size_t idx = 0; idx <= 10; idx++) {
+      tx.SetTable("users");
       auto result = tx.Read<int>("alice" + std::to_string(idx));
       ASSERT_FALSE(result.has_value());
     }
@@ -133,10 +141,12 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
   TransactionProcedure updateTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
+      tx.SetTable("users");
       tx.Write<int>("alice", value + idx);
     }
   });
   TransactionProcedure repeatableRead([](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     auto first_result = tx.Read<int>("alice");
     if (first_result.has_value()) {
       auto first_value = first_result.value();
@@ -157,16 +167,19 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
 TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** initialize **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                               tx.SetTable("users");
                                tx.Write<int>("alice", 0);
                                tx.Write<int>("bob", 1);
                              }});
 
   TransactionProcedure readAliceWriteBob([](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     auto result = tx.Read<int>("alice");
     if (!result.has_value()) return tx.Abort();
     tx.Write<int>("bob", result.value() += 1);
   });
   TransactionProcedure readBobWriteAlice([](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     auto result = tx.Read<int>("bob");
     if (!result.has_value()) return tx.Abort();
     tx.Write<int>("alice", result.value() += 1);
@@ -181,6 +194,7 @@ TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
 
   /** validation **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                               tx.SetTable("users");
                                auto alice = tx.Read<int>("alice");
                                auto bob = tx.Read<int>("bob");
                                ASSERT_TRUE(alice.has_value());
@@ -198,6 +212,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
 
   /** T1: r1(y0) w1(y1) **/
   TransactionProcedure T1([&](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     auto y = tx.Read<int>("y");
     if (!y.has_value()) return tx.Abort();
     EXPECT_TRUE(y.has_value());
@@ -211,6 +226,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
   });
   /** T2: r2(x0) r2(y0) w2(x2) **/
   TransactionProcedure T2([&](LineairDB::Transaction& tx) {
+    tx.SetTable("users");
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
     if (!(x.has_value() && y.has_value())) return tx.Abort();
@@ -230,6 +246,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
       std::this_thread::yield();
     }
     std::this_thread::yield();
+    tx.SetTable("users");
     auto x = tx.Read<int>("x");
     auto y = tx.Read<int>("y");
     if (!(x.has_value() && y.has_value())) return tx.Abort();
@@ -244,6 +261,7 @@ TEST_P(ConcurrencyControlTest, AvoidingReadOnlyAnomaly) {
     waits.store(true);
     /** initialize **/
     TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                                 tx.SetTable("users");
                                  tx.Write<int>("x", 0);
                                  tx.Write<int>("y", 0);
                                }});
@@ -301,6 +319,7 @@ TEST_P(ConcurrencyControlTest, Recoverability) {
     // writer
     db_->ExecuteTransaction(
         [&, my_tid](LineairDB::Transaction& tx) {
+          tx.SetTable("users");
           tx.Write<size_t>("alice", my_tid);
           {
             std::lock_guard<std::mutex> global_latch(v_latch);
@@ -324,6 +343,7 @@ TEST_P(ConcurrencyControlTest, Recoverability) {
     // reader
     db_->ExecuteTransaction(
         [&, my_tid](auto& tx) {
+          tx.SetTable("users");
           auto result = tx.template Read<size_t>("alice");
           if (result.has_value()) {
             {

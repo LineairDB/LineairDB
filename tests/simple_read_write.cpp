@@ -14,8 +14,6 @@
  *   limitations under the License.
  */
 
-#include "lineairdb/database.h"
-
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -26,6 +24,7 @@
 
 #include "gtest/gtest.h"
 #include "lineairdb/config.h"
+#include "lineairdb/database.h"
 #include "lineairdb/transaction.h"
 #include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
@@ -39,6 +38,7 @@ class DatabaseTest : public ::testing::Test {
     config_.checkpoint_period = 1;
     config_.epoch_duration_ms = 100;
     db_ = std::make_unique<LineairDB::Database>(config_);
+    db_->CreateTable("users");
   }
 };
 
@@ -55,8 +55,8 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
   TestHelper::DoTransactions(
       db_.get(),
       {[&](LineairDB::Transaction& tx) {
-         tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-                  sizeof(int));
+         tx.Write("alice",
+                  reinterpret_cast<std::byte*>(&value_of_alice), sizeof(int));
        },
        [&](LineairDB::Transaction& tx) {
          auto alice = tx.Read("alice");
@@ -68,15 +68,15 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
 
 TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
   int value_of_alice = 1;
-  TestHelper::DoTransactions(db_.get(),
-                             {[&](LineairDB::Transaction& tx) {
-                                tx.Write<int>("alice", value_of_alice);
-                              },
-                              [&](LineairDB::Transaction& tx) {
-                                auto alice = tx.Read<int>("alice");
-                                ASSERT_EQ(value_of_alice, alice.value());
-                                ASSERT_FALSE(tx.Read<int>("bob").has_value());
-                              }});
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+                    tx.Write<int>("alice", value_of_alice);
+                  },
+                  [&](LineairDB::Transaction& tx) {
+                    auto alice = tx.Read<int>("alice");
+                    ASSERT_EQ(value_of_alice, alice.value());
+                    ASSERT_FALSE(tx.Read<int>("bob").has_value());
+                  }});
 }
 
 TEST_F(DatabaseTest, LargeSizeBuffer) {
@@ -92,7 +92,9 @@ TEST_F(DatabaseTest, LargeSizeBuffer) {
 
   TestHelper::DoTransactions(
       db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Write("alice", &alice[0], Size); },
+      {[&](LineairDB::Transaction& tx) {
+         tx.Write("alice", &alice[0], Size);
+       },
        [&](LineairDB::Transaction& tx) {
          ASSERT_TRUE(tx.Read<decltype(alice)>("alice").has_value());
        }});
@@ -192,27 +194,25 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
   });
   db_->Fence();
 
-  TestHelper::DoTransactions(
-      db_.get(), {[](LineairDB::Transaction& tx) {
-        for (size_t idx = 0; idx <= 10; idx++) {
-          auto alice = tx.Read<int>("alice" + std::to_string(idx));
-          ASSERT_TRUE(alice.has_value());
-          auto current_value = alice.value();
-          ASSERT_EQ(0xBEEF, current_value);
-        }
-      }});
+  TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {
+                               for (size_t idx = 0; idx <= 10; idx++) {
+                                 auto alice = tx.Read<int>(
+                                     "alice" + std::to_string(idx));
+                                 ASSERT_TRUE(alice.has_value());
+                                 auto current_value = alice.value();
+                                 ASSERT_EQ(0xBEEF, current_value);
+                               }
+                             }});
 }
 
 TEST_F(DatabaseTest, NoConfigTransaction) {
   // NOTE: this test will take default 5 seconds for checkpointing
-  db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>();
   int value_of_alice = 1;
   TestHelper::DoTransactions(
       db_.get(),
       {[&](LineairDB::Transaction& tx) {
-         tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-                  sizeof(int));
+         tx.Write("alice",
+                  reinterpret_cast<std::byte*>(&value_of_alice), sizeof(int));
        },
        [&](LineairDB::Transaction& tx) {
          auto alice = tx.Read("alice");

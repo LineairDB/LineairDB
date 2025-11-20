@@ -20,8 +20,11 @@
 #include <lineairdb/database.h>
 #include <lineairdb/transaction.h>
 #include <lineairdb/tx_status.h>
+#include <table/table.h>
 
 #include <functional>
+#include <shared_mutex>
+#include <tuple>
 #include <utility>
 
 #include "callback/callback_manager.h"
@@ -157,7 +160,6 @@ class Database::Impl {
       if (config_.enable_logging) {
         logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
       }
-
     } else {
       tx.tx_pimpl_->PostProcessing(TxStatus::Aborted);
       clbk(TxStatus::Aborted);
@@ -254,6 +256,17 @@ class Database::Impl {
     return table_dictionary_.CreateTable(table_name, epoch_framework_, config_);
   }
 
+  bool CreateSecondaryIndex(const std::string_view table_name,
+                            const std::string_view index_name,
+                            const uint index_type) {
+    std::shared_lock<std::shared_mutex> lk(schema_mutex_);
+    auto it = GetTable(table_name);
+    if (!it.has_value()) {
+      return false;
+    }
+    return it.value()->CreateSecondaryIndex(index_name, index_type);
+  }
+
   std::optional<Table*> GetTable(const std::string_view table_name) {
     return table_dictionary_.GetTable(table_name);
   }
@@ -273,6 +286,7 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
+
     auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
     local_epoch = durable_epoch;
 
@@ -311,6 +325,7 @@ class Database::Impl {
   TableDictionary table_dictionary_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
+  mutable std::shared_mutex schema_mutex_;
 };
 
 }  // namespace LineairDB

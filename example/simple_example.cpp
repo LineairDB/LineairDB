@@ -23,15 +23,16 @@ int main() {
   {
     LineairDB::Database db;
     LineairDB::TxStatus status;
+    db.CreateTable("users");
 
     // Execute: enqueue a transaction with an expected callback
     db.ExecuteTransaction(
         [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
+          auto alice = tx.Read<int>("users", "alice");
           if (alice.has_value()) {
             std::cout << "alice is recovered: " << alice.value() << std::endl;
           }
-          tx.Write<int>("alice", 1);
+          tx.Write<int>("users", "alice", 1);
         },
         [&](LineairDB::TxStatus s) { status = s; });
 
@@ -43,11 +44,12 @@ int main() {
   {
     LineairDB::Database db;
     LineairDB::TxStatus status;
+    db.CreateTable("users");
 
     // Handler interface: execute a transaction on this thread
     auto& tx = db.BeginTransaction();
-    tx.Read<int>("alice");
-    tx.Write<int>("alice", 1);
+    tx.Read<int>("users", "alice");
+    tx.Write<int>("users", "alice", 1);
     db.EndTransaction(tx, [&](auto s) { status = s; });
     // Fence: Block-wait until all running transactions are terminated
     db.Fence();
@@ -68,9 +70,10 @@ int main() {
     // Here we have instantiated and destructed LineariDB twice, and
     // we can recover stored data from durable logs.
     LineairDB::Database db;
+    db.CreateTable("users");
     db.ExecuteTransaction(
         [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
+          auto alice = tx.Read<int>("users", "alice");
           assert(alice.has_value());
           assert(alice.value() == 1);
         },
@@ -93,7 +96,7 @@ int main() {
 
     db.ExecuteTransaction(
         [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
+          auto alice = tx.Read<int>("users", "alice");
           // Any data item is not recovered
           assert(!alice.has_value());
         },
