@@ -74,7 +74,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
             }
           }
         }
-      }){};
+      }) {};
 
 PrecisionLockingIndex::~PrecisionLockingIndex() {
   manager_stop_flag_.store(true);

@@ -92,9 +92,7 @@ class HashTableWithPrecisionLockingIndex {
     point_index_.ForEach(f);
   };
 
-  bool Delete(const std::string_view key) {
-    return range_index_.Delete(key);
-  };
+  bool Delete(const std::string_view key) { return range_index_.Delete(key); };
 
  private:
   MPMCConcurrentSetImpl<T> point_index_;
