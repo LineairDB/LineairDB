@@ -318,9 +318,7 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
-void Transaction::Delete(const std::string_view key) {
-  tx_pimpl_->Delete(key);
-}
+void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
