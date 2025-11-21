@@ -62,6 +62,7 @@ class Transaction::Impl {
       const std::string_view key);
   void Write(const std::string_view key, const std::byte value[],
              const size_t size);
+  bool Delete(const std::string_view key);
 
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
