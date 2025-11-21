@@ -115,14 +115,6 @@ class Transaction {
 
   /**
    * @brief
-   * Deletes a value with a given key.
-   *
-   * @param key
-   */
-  bool Delete(const std::string_view key);
-
-  /**
-   * @brief
    * Writes an user-defined value with a given key.
    *
    * @tparam T
@@ -139,6 +131,14 @@ class Transaction {
     std::memcpy(buffer, &value, sizeof(T));
     Write(key, buffer, sizeof(T));
   };
+
+  /**
+   * @brief
+   * Deletes a value with a given key.
+   *
+   * @param key
+   */
+  bool Delete(const std::string_view key);
 
   /**
    * @brief
