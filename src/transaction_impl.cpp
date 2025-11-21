@@ -147,13 +147,13 @@ void Transaction::Impl::Write(const std::string_view key,
   write_set_.emplace_back(std::move(sp));
 }
 
-bool Transaction::Impl::Delete(const std::string_view key) {
-  if (IsAborted()) return false;
+void Transaction::Impl::Delete(const std::string_view key) {
+  if (IsAborted()) return;
   EnsureCurrentTable();
   bool deleted = current_table_->GetPrimaryIndex().Delete(key);
   if (!deleted) {
     Abort();
-    return false;
+    return;
   }
 
   bool is_rmf = false;
@@ -172,7 +172,7 @@ bool Transaction::Impl::Delete(const std::string_view key) {
       continue;
     snapshot.data_item_copy.Reset(nullptr, 0);
     if (is_rmf) snapshot.is_read_modify_write = true;
-    return true;
+    return;
   }
 
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
@@ -181,8 +181,6 @@ bool Transaction::Impl::Delete(const std::string_view key) {
   Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName());
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
-
-  return true;
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -320,8 +318,8 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
-bool Transaction::Delete(const std::string_view key) {
-  return tx_pimpl_->Delete(key);
+void Transaction::Delete(const std::string_view key) {
+  tx_pimpl_->Delete(key);
 }
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,

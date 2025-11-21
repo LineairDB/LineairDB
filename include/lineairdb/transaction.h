@@ -138,7 +138,7 @@ class Transaction {
    *
    * @param key
    */
-  bool Delete(const std::string_view key);
+  void Delete(const std::string_view key);
 
   /**
    * @brief
