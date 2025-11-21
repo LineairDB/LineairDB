@@ -48,6 +48,8 @@ class ConcurrentTable {
       const std::string_view begin, const std::string_view end,
       std::function<bool(std::string_view, DataItem&)> operation);
 
+  bool Delete(const std::string_view key);
+
  private:
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>> index_;
   LineairDB::EpochFramework& epoch_manager_ref_;
