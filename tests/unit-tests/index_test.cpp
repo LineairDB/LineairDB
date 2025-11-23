@@ -62,15 +62,21 @@ TEST_F(IndexTest, Scan) {
 }
 
 TEST_F(IndexTest, AlphabeticalOrdering) {
-  auto& tx = db_->BeginTransaction();
-  tx.SetTable("users");
-  auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
-  ASSERT_FALSE(count.has_value());
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
+    ASSERT_FALSE(count.has_value());
+    db_->EndTransaction(tx, [](auto) {});
+  }
 
-  count = tx.Scan("carol", "zzz", [&](auto, auto) { return false; });
-  ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(size_t(1), count.value());
-  db_->EndTransaction(tx, [](auto) {});
+  {
+    auto& tx = db_->BeginTransaction();
+    auto count = tx.Scan("carol", "zzz", [&](auto, auto) { return false; });
+    ASSERT_TRUE(count.has_value());
+    ASSERT_EQ(size_t(1), count.value());
+    db_->EndTransaction(tx, [](auto) {});
+  }
 }
 
 TEST_F(IndexTest, ScanViaTemplate) {

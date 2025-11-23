@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <utility>
 
 #include "concurrency_control/concurrency_control_base.h"
@@ -318,16 +319,69 @@ const std::optional<size_t> Transaction::Impl::Scan(
                        const std::pair<const void*, const size_t>)>
         operation) {
   EnsureCurrentTable();
-  auto result = current_table_->GetPrimaryIndex().Scan(
+
+  // Step 1: Collect keys from index
+  std::set<std::string> index_keys;
+  auto index_result = current_table_->GetPrimaryIndex().Scan(
       begin, end, [&](std::string_view key) {
-        const auto read_result = Read(key);
-        if (IsAborted()) return true;
-        return operation(key, read_result);
+        index_keys.insert(std::string(key));
+        return false;  // Continue to collect all keys
       });
-  if (!result.has_value()) {
+
+  if (!index_result.has_value()) {
     Abort();
+    return std::nullopt;
   }
-  return result;
+
+  // Step 2: Collect keys from write_set
+  std::set<std::string> write_set_keys;
+  for (const auto& snapshot : write_set_) {
+    if (snapshot.table_name != current_table_->GetTableName()) continue;
+    if (snapshot.key < begin) continue;
+    if (end.has_value() && snapshot.key > end.value()) continue;
+    write_set_keys.insert(snapshot.key);
+  }
+
+  // Step 3: Merge and sort all keys (std::set automatically keeps them sorted)
+  std::set<std::string> all_keys;
+  all_keys.insert(index_keys.begin(), index_keys.end());
+  all_keys.insert(write_set_keys.begin(), write_set_keys.end());
+
+  // Step 4: Process keys in sorted order
+  size_t total_count = 0;
+  for (const auto& key : all_keys) {
+    total_count++;
+    if (IsAborted()) return std::nullopt;
+
+    // Check if key is in write_set
+    // if the key exists, use write_set data (without Transaction#Read)
+    bool found_in_write_set = false;
+    for (const auto& snapshot : write_set_) {
+      if (snapshot.table_name != current_table_->GetTableName()) continue;
+      if (snapshot.key != key) continue;
+
+      std::pair<const void*, const size_t> value_pair = {
+          snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+      bool stop_scan = operation(key, value_pair);
+      if (stop_scan) return total_count;
+
+      found_in_write_set = true;
+      break;
+    }
+
+    // If not in write_set, invoke Transaction#Read to get the value
+    if (!found_in_write_set) {
+      const auto read_result = Read(key);
+      bool stop_scan = operation(key, read_result);
+      if (stop_scan) return total_count;
+    }
+  }
+
+  // TODO: we now only consider the insertion, but we should consider the case
+  // for deletions in write_set, when the lineairdb supports delete operation as
+  // the public interface of transaction.h.
+
+  return total_count;
 };
 
 const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
