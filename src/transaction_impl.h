@@ -78,11 +78,7 @@ class Transaction::Impl {
                            const std::byte primary_key_buffer[],
                            const size_t primary_key_size);
 
-  /*   const std::optional<size_t> Scan(
-        const std::string_view begin, const std::optional<std::string_view> end,
-        std::function<bool(std::string_view,
-                           const std::pair<const void*, const size_t>)>
-            operation); */
+  void Delete(const std::string_view key);
 
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
@@ -95,9 +91,7 @@ class Transaction::Impl {
       const std::optional<std::string_view> end,
       std::function<bool(std::string_view, const std::vector<std::string>)>
           operation);
-
-  bool Delete(const std::string_view key);
-
+          
   void DeleteSecondaryIndex(const std::string_view index_name,
                             const std::string_view secondary_key,
                             const std::byte primary_key_buffer[],

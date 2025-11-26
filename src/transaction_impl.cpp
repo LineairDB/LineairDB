@@ -313,12 +313,52 @@ void Transaction::Impl::WriteSecondaryIndex(
   write_set_.emplace_back(std::move(sp));
 }
 
+void Transaction::Impl::Delete(const std::string_view key) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+  bool deleted = current_table_->GetPrimaryIndex().Delete(key);
+  if (!deleted) {
+    Abort();
+    return;
+  }
+
+  bool is_rmf = false;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
+      is_rmf = true;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != key ||
+        snapshot.table_name != current_table_->GetTableName())
+      continue;
+    snapshot.data_item_copy.Reset(nullptr, 0);
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    return;
+  }
+
+  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
+
+  concurrency_control_->Write(key, nullptr, 0, index_leaf);
+  Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(), "");
+  if (is_rmf) sp.is_read_modify_write = true;
+  write_set_.emplace_back(std::move(sp));
+}
+
 const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
   EnsureCurrentTable();
+
+  // Note: In this Scan implementation, nullptr indicates that the key is
+  // deleted or does not exist. SQL NULL values should be handled within the
+  // byte array value, not by nullptr.
 
   // Step 1: Collect keys from index
   std::set<std::string> index_keys;
@@ -350,7 +390,6 @@ const std::optional<size_t> Transaction::Impl::Scan(
   // Step 4: Process keys in sorted order
   size_t total_count = 0;
   for (const auto& key : all_keys) {
-    total_count++;
     if (IsAborted()) return std::nullopt;
 
     // Check if key is in write_set
@@ -360,20 +399,31 @@ const std::optional<size_t> Transaction::Impl::Scan(
       if (snapshot.table_name != current_table_->GetTableName()) continue;
       if (snapshot.key != key) continue;
 
+      found_in_write_set = true;
+
+      // If the key is deleted within this transaction, break the loop
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        break;
+      }
+
       std::pair<const void*, const size_t> value_pair = {
           snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
       bool stop_scan = operation(key, value_pair);
+      total_count++;
       if (stop_scan) return total_count;
 
-      found_in_write_set = true;
       break;
     }
 
     // If not in write_set, invoke Transaction#Read to get the value
     if (!found_in_write_set) {
       const auto read_result = Read(key);
-      bool stop_scan = operation(key, read_result);
-      if (stop_scan) return total_count;
+      // If the key is not deleted, invoke Transaction#Read to get the value
+      if (read_result.first != nullptr) {
+        bool stop_scan = operation(key, read_result);
+        total_count++;
+        if (stop_scan) return total_count;
+      }
     }
   }
 
@@ -414,42 +464,6 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
   }
   return result;
 };
-
-bool Transaction::Impl::Delete(const std::string_view key) {
-  if (IsAborted()) return false;
-  EnsureCurrentTable();
-  if (!current_table_->GetPrimaryIndex().Delete(key)) {
-    return false;
-  }
-
-  bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName())
-      continue;
-    snapshot.data_item_copy.Reset(nullptr, 0);
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    return true;
-  }
-
-  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
-
-  concurrency_control_->Write(key, nullptr, 0, index_leaf);
-  Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(), "");
-  if (is_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
-
-  return true;
-}
 
 void Transaction::Impl::DeleteSecondaryIndex(
     const std::string_view index_name, const std::string_view secondary_key,
@@ -736,7 +750,6 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
-
 void Transaction::WriteSecondaryIndex(const std::string_view index_name,
                                       const std::string_view key,
                                       const std::byte primary_key_buffer[],
@@ -745,8 +758,8 @@ void Transaction::WriteSecondaryIndex(const std::string_view index_name,
                                  primary_key_size);
 }
 
-bool Transaction::Delete(const std::string_view key) {
-  return tx_pimpl_->Delete(key);
+void Transaction::Delete(const std::string_view key) {
+  tx_pimpl_->Delete(key);
 }
 
 void Transaction::DeleteSecondaryIndex(const std::string_view index_name,
@@ -766,7 +779,6 @@ void Transaction::UpdateSecondaryIndex(const std::string_view index_name,
                                   new_secondary_key, primary_key_buffer,
                                   primary_key_size);
 }
-
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,

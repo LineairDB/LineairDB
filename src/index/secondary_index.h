@@ -40,7 +40,7 @@ class SecondaryIndex {
     // Point index does not support erase currently.
     // Implement as a method on HashTableWithPrecisionLockingIndex when
     // available.
-    return secondary_index_->EraseRangeOnly(key);
+    return secondary_index_->Delete(key);
   }
 
   bool IsUnique() { return index_type_ == 1; }
