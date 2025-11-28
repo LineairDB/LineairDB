@@ -185,13 +185,18 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
         if (filename == checkpoint_filename ||
             log_record.epoch <= durable_epoch) {
           for (auto& kvp : log_record.key_value_pairs) {
+            const std::byte* kvp_value_ptr =
+                kvp.buffer.empty()
+                    ? nullptr
+                    : reinterpret_cast<const std::byte*>(kvp.buffer.data());
+            const size_t kvp_value_size = kvp.buffer.size();
             bool not_found = true;
             for (auto& item : recovery_set) {
               if (item.key == kvp.key) {
                 not_found = false;
                 if (item.data_item_copy.transaction_id.load() < kvp.tid) {
-                  item.data_item_copy.buffer.Reset(kvp.buffer);
-                  item.data_item_copy.transaction_id = kvp.tid;
+                  item.data_item_copy.Reset(kvp_value_ptr, kvp_value_size,
+                                            kvp.tid);
                   item.table_name = kvp.table_name;
 
                   SPDLOG_DEBUG(
@@ -205,14 +210,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
               SPDLOG_DEBUG(
                   "    insert-> key {0}, version {1} in epoch {2} in table {3}",
                   kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
-              Snapshot snapshot = {
-                  kvp.key,
-                  reinterpret_cast<std::byte*>(kvp.buffer.data()),
-                  kvp.buffer.size(),
-                  nullptr,
-                  kvp.table_name,
-                  kvp.tid,
-              };
+              Snapshot snapshot = {kvp.key, kvp_value_ptr,  kvp_value_size,
+                                   nullptr, kvp.table_name, kvp.tid};
               recovery_set.emplace_back(std::move(snapshot));
             }
           }
