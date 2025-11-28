@@ -154,6 +154,37 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
   });
 }
 
+TEST_P(ConcurrencyControlTest, ConcurrentDeleteAndRead) {
+  /** initialize **/
+  int initial_value = 1;
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               tx.Write<int>("alice", initial_value);
+                             }});
+  db_->Fence();
+
+  TransactionProcedure deleter([](LineairDB::Transaction& tx) {
+    auto alice = tx.Read<int>("alice");
+    if (!alice.has_value()) return tx.Abort();
+    tx.Delete("alice");
+  });
+
+  TransactionProcedure reader([](LineairDB::Transaction& tx) {
+    [[maybe_unused]] auto alice = tx.Read<int>("alice");
+  });
+
+  ASSERT_NO_THROW({
+    TestHelper::DoTransactionsOnMultiThreads(
+        db_.get(), {deleter, deleter, reader, reader});
+  });
+  db_->Fence();
+
+  /** validation **/
+  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                               auto alice = tx.Read<int>("alice");
+                               ASSERT_FALSE(alice.has_value());
+                             }});
+}
+
 TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** initialize **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {

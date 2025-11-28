@@ -150,37 +150,17 @@ void Transaction::Impl::Write(const std::string_view key,
 void Transaction::Impl::Delete(const std::string_view key) {
   if (IsAborted()) return;
   EnsureCurrentTable();
+  // Delete() consists of two deletions: removal from the index (physical)
+  //   and initialization of the data item (logical).
+  // The reason for this design is that we consider Delete() as
+  //   a combination of two writes: a write to the index and a write to the data
+  //   item.
   bool deleted = current_table_->GetPrimaryIndex().Delete(key);
   if (!deleted) {
     Abort();
     return;
   }
-
-  bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName())
-      continue;
-    snapshot.data_item_copy.Reset(nullptr, 0);
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
-  }
-
-  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
-
-  concurrency_control_->Write(key, nullptr, 0, index_leaf);
-  Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName());
-  if (is_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
+  this->Write(key, nullptr, 0);
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -249,11 +229,16 @@ const std::optional<size_t> Transaction::Impl::Scan(
       break;
     }
 
-    // If not in write_set, invoke Transaction#Read to get the value
+    // If not n write_set, invoke Transaction#Read to get the value
     if (!found_in_write_set) {
       const auto read_result = Read(key);
-      // If the key is not deleted, invoke Transaction#Read to get the value
-      if (read_result.first != nullptr) {
+      // The pair "nullptr, 0" means deleted (or uninitialized) data. See
+      // include/lineairdb/transaction.h
+      const bool is_uninitialized =
+          read_result.first == nullptr && read_result.second == 0;
+
+      // If the data item exists, continue scanning with the data
+      if (!is_uninitialized) {
         bool stop_scan = operation(key, read_result);
         total_count++;
         if (stop_scan) return total_count;
