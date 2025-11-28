@@ -57,6 +57,9 @@ struct DataBuffer {
   bool IsEmpty() const { return size == 0; }
 
   std::string toString() const {
+    if (value == nullptr || size == 0) {
+      return std::string();
+    }
     return std::string(reinterpret_cast<char*>(value), size);
   }
 };
