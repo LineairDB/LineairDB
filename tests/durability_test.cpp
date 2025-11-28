@@ -105,6 +105,35 @@ TEST_F(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
   }
 }
 
+TEST_F(DurabilityTest, RecoveryKeepsDeletedKeysAbsentEvenWithCheckpoint) {
+  // We expect LineairDB enables recovery logging by default.
+  const LineairDB::Config config = db_->GetConfig();
+  ASSERT_TRUE(config.enable_logging);
+
+  int initial_value = 1;
+  TestHelper::DoTransactions(
+      db_.get(), {{[&](LineairDB::Transaction& tx) {
+                    tx.Write<int>("alice", initial_value);
+                  }},
+                  {[&](LineairDB::Transaction& tx) { tx.Delete("alice"); }}});
+
+  // Wait for checkpoint to be created.
+  // The checkpoint algorithm should ignore deleted keys to be recovered.
+  std::this_thread::sleep_for(
+      std::chrono::seconds(config.checkpoint_period + 5));
+
+  // Expect that recovery procedure has idempotence
+  for (size_t i = 0; i < 3; i++) {
+    db_.reset(nullptr);
+    db_ = std::make_unique<LineairDB::Database>(config);
+
+    TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                 auto alice = tx.Read<int>("alice");
+                                 ASSERT_FALSE(alice.has_value());
+                               }});
+  }
+}
+
 TEST_F(DurabilityTest, RecoveryLargeObject) {
   std::string initial_value(4096, 'a');
   TestHelper::DoTransactions(
@@ -215,9 +244,8 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
       filesize_is_monotonically_increasing = false;
       break;
     }
-    ASSERT_NO_THROW({
-      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
-    });
+    ASSERT_NO_THROW(
+        { TestHelper::DoTransactions(db_.get(), {Update, Update, Update}); });
 
     auto now = std::chrono::high_resolution_clock::now();
     assert(begin < now);
