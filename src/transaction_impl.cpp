@@ -228,7 +228,7 @@ void Transaction::Impl::Write(const std::string_view key,
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName(), "");
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName(), "", {});
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
@@ -295,6 +295,7 @@ void Transaction::Impl::WriteSecondaryIndex(
         index_name};
     snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
     snapshot.is_read_modify_write = true;
+    
     read_set_.emplace_back(std::move(snapshot));
     existing_data = snapshot.data_item_copy;
     is_rmf = true;

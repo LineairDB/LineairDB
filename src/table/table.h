@@ -30,9 +30,7 @@ class Table {
     return true;
   }
 
-  bool Delete(const std::string_view key) {
-    return primary_index_.Delete(key);
-  }
+  bool Delete(const std::string_view key) { return primary_index_.Delete(key); }
 
   const std::string& GetTableName() const;
 
@@ -43,6 +41,30 @@ class Table {
   size_t GetSecondaryIndexCount() const {
     std::shared_lock<std::shared_mutex> lk(table_lock_);
     return secondary_indices_.size();
+  }
+
+  template <typename Func>
+  void ForEachSecondaryIndex(Func&& f) {
+    std::shared_lock<std::shared_mutex> lk(table_lock_);
+    for (auto& [index_name, index_ptr] : secondary_indices_) {
+      f(index_name, *index_ptr);
+    }
+  }
+
+  bool GetOrCreateSecondaryIndex(const std::string_view index_name,
+                                 Index::SecondaryIndex** out_index) {
+    std::unique_lock<std::shared_mutex> lk(table_lock_);
+    auto it = secondary_indices_.find(std::string(index_name));
+    if (it != secondary_indices_.end()) {
+      *out_index = it->second.get();
+      return false;
+    }
+    // Create new index with default type (0 = non-unique)
+    auto new_index =
+        std::make_unique<Index::SecondaryIndex>(epoch_framework_, config_, 0);
+    *out_index = new_index.get();
+    secondary_indices_[std::string(index_name)] = std::move(new_index);
+    return true;
   }
 
  private:

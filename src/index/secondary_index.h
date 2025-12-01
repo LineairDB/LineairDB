@@ -43,6 +43,14 @@ class SecondaryIndex {
     return secondary_index_->Delete(key);
   }
 
+  void ForEach(std::function<bool(std::string_view, DataItem&)> f) {
+    secondary_index_->ForEach(f);
+  }
+
+  bool Put(const std::string_view key, DataItem&& value) {
+    return secondary_index_->Put(key, std::forward<DataItem>(value));
+  }
+
   bool IsUnique() { return index_type_ == 1; }
 
  private:
