@@ -58,7 +58,6 @@ int main() {
     LineairDB::Database db;
     LineairDB::TxStatus status;
 
-    // Delete API example: tombstone remains even if we read again in same tx
     db.ExecuteTransaction(
         [](LineairDB::Transaction& tx) {
           tx.Write<int>("carol", 10);

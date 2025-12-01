@@ -229,7 +229,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
       break;
     }
 
-    // If not n write_set, invoke Transaction#Read to get the value
+    // If not in write_set, invoke Transaction#Read to get the value
     if (!found_in_write_set) {
       const auto read_result = Read(key);
       // The pair "nullptr, 0" means deleted (or uninitialized) data. See
