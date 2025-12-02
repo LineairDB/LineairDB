@@ -228,7 +228,8 @@ void Transaction::Impl::Write(const std::string_view key,
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
 
   concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName(), "", {});
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName(), "",
+              {});
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
 }
@@ -295,7 +296,7 @@ void Transaction::Impl::WriteSecondaryIndex(
         index_name};
     snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
     snapshot.is_read_modify_write = true;
-    
+
     read_set_.emplace_back(std::move(snapshot));
     existing_data = snapshot.data_item_copy;
     is_rmf = true;
@@ -434,23 +435,91 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndex(
     return {};
   }
 
-  auto result = index->Scan(begin, end, [&](std::string_view key) {
-    const auto read_result = ReadSecondaryIndex(index_name, key);
-    if (IsAborted()) return true;
-    std::vector<std::string> primary_keys;
-    primary_keys.reserve(read_result.size());
-    for (const auto& sec_idx_buffer : read_result) {
-      primary_keys.emplace_back(
-          reinterpret_cast<const char*>(sec_idx_buffer.first),
-          sec_idx_buffer.second);
-    }
-    return operation(key, primary_keys);
+  // Step 1: Collect keys from secondary index
+  std::set<std::string> index_keys;
+  auto index_result = index->Scan(begin, end, [&](std::string_view key) {
+    index_keys.insert(std::string(key));
+    return false;  // Continue to collect all keys
   });
-  if (!result.has_value()) {
+
+  if (!index_result.has_value()) {
     Abort();
+    return std::nullopt;
   }
-  return result;
-};
+
+  // Step 2: Collect keys from write_set (for this secondary index)
+  std::set<std::string> write_set_keys;
+  for (const auto& snapshot : write_set_) {
+    if (snapshot.table_name != current_table_->GetTableName()) continue;
+    if (snapshot.index_name != index_name)
+      continue;  // セカンダリインデックス名でフィルタ
+    if (snapshot.key < begin) continue;
+    if (end.has_value() && snapshot.key > end.value()) continue;
+    write_set_keys.insert(snapshot.key);
+  }
+
+  // Step 3: Merge and sort all keys
+  std::set<std::string> all_keys;
+  all_keys.insert(index_keys.begin(), index_keys.end());
+  all_keys.insert(write_set_keys.begin(), write_set_keys.end());
+
+  // Step 4: Process keys in sorted order
+  size_t total_count = 0;
+  for (const auto& key : all_keys) {
+    if (IsAborted()) return std::nullopt;
+
+    // Check if key is in write_set
+    bool found_in_write_set = false;
+    for (const auto& snapshot : write_set_) {
+      if (snapshot.table_name != current_table_->GetTableName()) continue;
+      if (snapshot.index_name != index_name) continue;
+      if (snapshot.key != key) continue;
+
+      // Use write_set data directly
+      std::vector<std::string> primary_keys;
+      primary_keys.reserve(snapshot.data_item_copy.primary_keys.size());
+      for (const auto& pk : snapshot.data_item_copy.primary_keys) {
+        primary_keys.emplace_back(pk);
+      }
+
+      // Skip deleted keys (empty primary_keys means the entry was deleted)
+      if (primary_keys.empty()) {
+        found_in_write_set = true;
+        break;
+      }
+
+      total_count++;
+      bool stop_scan = operation(key, primary_keys);
+      if (stop_scan) return total_count;
+
+      found_in_write_set = true;
+      break;
+    }
+
+    // If not in write_set, invoke ReadSecondaryIndex
+    if (!found_in_write_set) {
+      const auto read_result = ReadSecondaryIndex(index_name, key);
+      if (IsAborted()) return std::nullopt;
+
+      std::vector<std::string> primary_keys;
+      primary_keys.reserve(read_result.size());
+      for (const auto& primary_key : read_result) {
+        primary_keys.emplace_back(
+            reinterpret_cast<const char*>(primary_key.first),
+            primary_key.second);
+      }
+
+      // Skip deleted keys
+      if (primary_keys.empty()) continue;
+
+      total_count++;
+      bool stop_scan = operation(key, primary_keys);
+      if (stop_scan) return total_count;
+    }
+  }
+
+  return total_count;
+}
 
 void Transaction::Impl::DeleteSecondaryIndex(
     const std::string_view index_name, const std::string_view secondary_key,
@@ -745,9 +814,7 @@ void Transaction::WriteSecondaryIndex(const std::string_view index_name,
                                  primary_key_size);
 }
 
-void Transaction::Delete(const std::string_view key) {
-  tx_pimpl_->Delete(key);
-}
+void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
 
 void Transaction::DeleteSecondaryIndex(const std::string_view index_name,
                                        const std::string_view secondary_key,
