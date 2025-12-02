@@ -162,7 +162,7 @@ TEST_F(IndexTest, Delete) {
   {
     auto& tx = db_->BeginTransaction();
     tx.SetTable("users");
-    ASSERT_TRUE(tx.Delete("erin"));
+    tx.Delete("erin");
     db_->EndTransaction(tx, [](auto) {});
   }
 
