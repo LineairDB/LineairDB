@@ -133,9 +133,7 @@ struct DataItem {
     }
 
     // for TwoPhaseLocking. it uses rw_lock.
-    {
-      GetRWLockRef().Lock();
-    }
+    { GetRWLockRef().Lock(); }
   }
 
   void ExclusiveUnlock() {
@@ -148,9 +146,7 @@ struct DataItem {
       transaction_id.store(tid);
     }
     // for TwoPhaseLocking. it uses rw_lock.
-    {
-      GetRWLockRef().UnLock();
-    }
+    { GetRWLockRef().UnLock(); }
   }
 
   decltype(readers_writers_lock)& GetRWLockRef() {
