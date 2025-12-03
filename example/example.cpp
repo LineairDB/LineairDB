@@ -123,4 +123,3 @@ int main() {
         [&](LineairDB::TxStatus s) {});
   }
 }
-
