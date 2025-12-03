@@ -56,6 +56,29 @@ int main() {
 
   {
     LineairDB::Database db;
+    LineairDB::TxStatus status;
+
+    db.ExecuteTransaction(
+        [](LineairDB::Transaction& tx) {
+          tx.Write<int>("carol", 10);
+          tx.Delete("carol");
+        },
+        [&](LineairDB::TxStatus s) { status = s; });
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+
+    db.ExecuteTransaction(
+        [](LineairDB::Transaction& tx) {
+          auto carol = tx.Read<int>("carol");
+          assert(!carol.has_value());
+        },
+        [&](LineairDB::TxStatus s) { status = s; });
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+  }
+
+  {
+    LineairDB::Database db;
     // Example of failures: database instance is not copy-constructable.
     //    NG: auto db2 = db;
     // Example of failures: we cannot allocate two Database instance at the same

@@ -120,6 +120,12 @@ class CPRManager {
                     [&](std::string_view key, LineairDB::DataItem& data_item) {
                       data_item.ExclusiveLock();
 
+                      // Skip deleted items (not initialized)
+                      if (!data_item.IsInitialized()) {
+                        data_item.ExclusiveUnlock();
+                        return true;
+                      }
+
                       Logger::LogRecord::KeyValuePair kvp;
                       kvp.table_name = table.GetTableName();
                       kvp.key = key;

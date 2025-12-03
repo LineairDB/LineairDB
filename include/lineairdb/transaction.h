@@ -134,6 +134,14 @@ class Transaction {
 
   /**
    * @brief
+   * Deletes a value with a given key.
+   *
+   * @param key
+   */
+  void Delete(const std::string_view key);
+
+  /**
+   * @brief
    * Get all data items that match the range from the "begin" key to the "end"
    * key in the lexical order.
    * The term "get" here means that it is equivalent to the #Read
