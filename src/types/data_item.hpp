@@ -93,7 +93,11 @@ struct DataItem {
   }
 
   void AddSecondaryIndexValue(const std::byte* v, size_t s) {
-    primary_keys.push_back(std::string(reinterpret_cast<const char*>(v), s));
+    std::string new_key(reinterpret_cast<const char*>(v), s);
+    for (const auto& pk : primary_keys) {
+      if (pk == new_key) return;
+    }
+    primary_keys.push_back(std::move(new_key));
     initialized = buffer.size != 0 || !primary_keys.empty();
   }
 
@@ -133,7 +137,9 @@ struct DataItem {
     }
 
     // for TwoPhaseLocking. it uses rw_lock.
-    { GetRWLockRef().Lock(); }
+    {
+      GetRWLockRef().Lock();
+    }
   }
 
   void ExclusiveUnlock() {
@@ -146,7 +152,9 @@ struct DataItem {
       transaction_id.store(tid);
     }
     // for TwoPhaseLocking. it uses rw_lock.
-    { GetRWLockRef().UnLock(); }
+    {
+      GetRWLockRef().UnLock();
+    }
   }
 
   decltype(readers_writers_lock)& GetRWLockRef() {

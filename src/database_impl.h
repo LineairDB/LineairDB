@@ -294,6 +294,8 @@ class Database::Impl {
     auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
 
     for (auto& recovery_set : recovery_sets) {
+      // Skip deleted entries (tombstones with size=0)
+      if (!recovery_set.data_item_copy.IsInitialized()) continue;
       CreateTable(recovery_set.table_name);
       auto table = GetTable(recovery_set.table_name);
       if (!table.has_value()) {

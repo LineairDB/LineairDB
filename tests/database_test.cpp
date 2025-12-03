@@ -154,6 +154,24 @@ TEST_F(DatabaseTest, SaveAsString) {
                               }});
 }
 
+TEST_F(DatabaseTest, DeleteRemovesKeyAcrossTransactions) {
+  int value_of_alice = 123;
+  TestHelper::DoTransactions(db_.get(),
+                             {[&](LineairDB::Transaction& tx) {
+                                tx.Write<int>("alice", value_of_alice);
+                              },
+                              [&](LineairDB::Transaction& tx) {
+                                auto alice = tx.Read<int>("alice");
+                                ASSERT_TRUE(alice.has_value());
+                                ASSERT_EQ(value_of_alice, alice.value());
+                                tx.Delete("alice");
+                              },
+                              [&](LineairDB::Transaction& tx) {
+                                auto alice = tx.Read<int>("alice");
+                                ASSERT_FALSE(alice.has_value());
+                              }});
+}
+
 TEST_F(DatabaseTest, UserAbort) {
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {

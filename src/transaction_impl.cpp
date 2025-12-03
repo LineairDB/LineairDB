@@ -318,37 +318,17 @@ void Transaction::Impl::WriteSecondaryIndex(
 void Transaction::Impl::Delete(const std::string_view key) {
   if (IsAborted()) return;
   EnsureCurrentTable();
+  // Delete() consists of two deletions: removal from the index (physical)
+  //   and initialization of the data item (logical).
+  // The reason for this design is that we consider Delete() as
+  //   a combination of two writes: a write to the index and a write to the data
+  //   item.
   bool deleted = current_table_->GetPrimaryIndex().Delete(key);
   if (!deleted) {
     Abort();
     return;
   }
-
-  bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName())
-      continue;
-    snapshot.data_item_copy.Reset(nullptr, 0);
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
-  }
-
-  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
-
-  concurrency_control_->Write(key, nullptr, 0, index_leaf);
-  Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(), "");
-  if (is_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
+  this->Write(key, nullptr, 0);
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -357,6 +337,10 @@ const std::optional<size_t> Transaction::Impl::Scan(
                        const std::pair<const void*, const size_t>)>
         operation) {
   EnsureCurrentTable();
+
+  // Note: In this Scan implementation, nullptr indicates that the key is
+  // deleted or does not exist. SQL NULL values should be handled within the
+  // byte array value, not by nullptr.
 
   // Step 1: Collect keys from index
   std::set<std::string> index_keys;
@@ -388,7 +372,6 @@ const std::optional<size_t> Transaction::Impl::Scan(
   // Step 4: Process keys in sorted order
   size_t total_count = 0;
   for (const auto& key : all_keys) {
-    total_count++;
     if (IsAborted()) return std::nullopt;
 
     // Check if key is in write_set
@@ -398,20 +381,36 @@ const std::optional<size_t> Transaction::Impl::Scan(
       if (snapshot.table_name != current_table_->GetTableName()) continue;
       if (snapshot.key != key) continue;
 
+      found_in_write_set = true;
+
+      // If the key is deleted within this transaction, break the loop
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        break;
+      }
+
       std::pair<const void*, const size_t> value_pair = {
           snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
       bool stop_scan = operation(key, value_pair);
+      total_count++;
       if (stop_scan) return total_count;
 
-      found_in_write_set = true;
       break;
     }
 
     // If not in write_set, invoke Transaction#Read to get the value
     if (!found_in_write_set) {
       const auto read_result = Read(key);
-      bool stop_scan = operation(key, read_result);
-      if (stop_scan) return total_count;
+      // The pair "nullptr, 0" means deleted (or uninitialized) data. See
+      // include/lineairdb/transaction.h
+      const bool is_uninitialized =
+          read_result.first == nullptr && read_result.second == 0;
+
+      // If the data item exists, continue scanning with the data
+      if (!is_uninitialized) {
+        bool stop_scan = operation(key, read_result);
+        total_count++;
+        if (stop_scan) return total_count;
+      }
     }
   }
 
@@ -814,8 +813,6 @@ void Transaction::WriteSecondaryIndex(const std::string_view index_name,
                                  primary_key_size);
 }
 
-void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
-
 void Transaction::DeleteSecondaryIndex(const std::string_view index_name,
                                        const std::string_view secondary_key,
                                        const std::byte primary_key_buffer[],
@@ -833,6 +830,8 @@ void Transaction::UpdateSecondaryIndex(const std::string_view index_name,
                                   new_secondary_key, primary_key_buffer,
                                   primary_key_size);
 }
+
+void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,

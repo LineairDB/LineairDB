@@ -164,6 +164,53 @@ TEST_P(ConcurrencyControlTest, RepeatableRead) {
   });
 }
 
+TEST_P(ConcurrencyControlTest, ConcurrentDeleteAndRead) {
+  constexpr size_t kMaxRetry = 100;
+  size_t retry = 0;
+  bool alice_deleted = false;
+
+  TransactionProcedure deleter([](LineairDB::Transaction& tx) {
+    auto alice = tx.Read<int>("alice");
+    if (!alice.has_value()) return tx.Abort();
+    tx.Delete("alice");
+  });
+
+  TransactionProcedure reader([](LineairDB::Transaction& tx) {
+    [[maybe_unused]] auto alice = tx.Read<int>("alice");
+  });
+
+  while (!alice_deleted && retry <= kMaxRetry) {
+    /** initialize **/
+    int initial_value = 1;
+    TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                 tx.Write<int>("alice", initial_value);
+                               }});
+    db_->Fence();
+
+    ASSERT_NO_THROW({
+      TestHelper::DoTransactionsOnMultiThreads(
+          db_.get(), {deleter, deleter, reader, reader});
+    });
+    db_->Fence();
+
+    /** validation **/
+    TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
+                                 auto alice = tx.Read<int>("alice");
+                                 alice_deleted = !alice.has_value();
+                               }});
+    if (!alice_deleted) {
+      SPDLOG_DEBUG(
+          "ConcurrentDeleteAndRead: alice still visible after attempt #{0}. "
+          "Retrying...",
+          retry + 1);
+      retry++;
+    }
+  }
+
+  ASSERT_TRUE(alice_deleted)
+      << "alice still existed after " << kMaxRetry << " retries.";
+}
+
 TEST_P(ConcurrencyControlTest, AvoidingWriteSkewAnomaly) {
   /** initialize **/
   TestHelper::DoTransactions(db_.get(), {[](LineairDB::Transaction& tx) {

@@ -72,6 +72,7 @@ TEST_F(IndexTest, AlphabeticalOrdering) {
 
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     auto count = tx.Scan("carol", "zzz", [&](auto, auto) { return false; });
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(size_t(1), count.value());
@@ -137,41 +138,5 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
                   }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
-  }
-}
-
-TEST_F(IndexTest, Delete) {
-  constexpr int erin = 4;
-
-  {
-    auto& tx = db_->BeginTransaction();
-    tx.SetTable("users");
-    tx.Write<int>("erin", erin);
-    db_->EndTransaction(tx, [](auto) {});
-  }
-
-  {
-    auto& tx = db_->BeginTransaction();
-    tx.SetTable("users");
-    auto result = tx.Read("erin");
-    ASSERT_EQ(result.second, sizeof(int));
-    ASSERT_EQ(*reinterpret_cast<const int*>(result.first), erin);
-    db_->EndTransaction(tx, [](auto) {});
-  }
-
-  {
-    auto& tx = db_->BeginTransaction();
-    tx.SetTable("users");
-    tx.Delete("erin");
-    db_->EndTransaction(tx, [](auto) {});
-  }
-
-  {
-    auto& tx = db_->BeginTransaction();
-    tx.SetTable("users");
-    auto result = tx.Read("erin");
-    ASSERT_EQ(result.second, 0);
-    ASSERT_EQ(result.first, nullptr);
-    db_->EndTransaction(tx, [](auto) {});
   }
 }
