@@ -183,8 +183,9 @@ class Database::Impl {
   }
 
   /**
-   * Ensures that all pending operations are completed and all callbacks have
-   * been executed.
+   * Ensures that (1) all pending operations are completed, (2) all callbacks
+   * have been executed, and (3) all index updates have been fully applied and
+   * are visible to subsequent operations.
    *
    * Note: Due to the dependency on the implementation of
    * moodycamel::concurrentqueue, callbacks are executed **after**
@@ -205,6 +206,10 @@ class Database::Impl {
     while (latest_callbacked_epoch_.load() < current_epoch) {
       std::this_thread::yield();
     }
+    // Wait for all index updates to be linearizable
+    // This ensures that all insertions/deletions are visible in the index
+    table_dictionary_.ForEachTable(
+        [](Table& table) { table.WaitForIndexIsLinearizable(); });
   }
   const Config& GetConfig() const { return config_; }
 

@@ -16,6 +16,7 @@ class Table {
 
   const std::string& GetTableName() const;
   Index::ConcurrentTable& GetPrimaryIndex();
+  void WaitForIndexIsLinearizable();
 
  private:
   Index::ConcurrentTable primary_index_;

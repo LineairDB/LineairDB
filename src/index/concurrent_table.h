@@ -50,6 +50,8 @@ class ConcurrentTable {
 
   bool Delete(const std::string_view key);
 
+  void WaitForIndexIsLinearizable();
+
  private:
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>> index_;
   LineairDB::EpochFramework& epoch_manager_ref_;
