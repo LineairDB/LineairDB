@@ -63,7 +63,7 @@ TEST_F(ScanDeleteVisibilityTest, ScanShouldExcludeDeletedKeys) {
     });
 
     ASSERT_TRUE(count.has_value());
-    ASSERT_EQ(count.value(), 2);  // bob should be excluded
+    ASSERT_EQ(count.value(), size_t(2));  // bob should be excluded
 
     std::vector<std::string> expected = {"alice", "carol"};
     ASSERT_EQ(scanned_keys, expected);
@@ -105,7 +105,7 @@ TEST_F(ScanDeleteVisibilityTest, ScanShouldExcludeReadYourWriteDeletedKeys) {
     });
 
     ASSERT_TRUE(count.has_value());
-    ASSERT_EQ(count.value(), 2);  // bob should be excluded
+    ASSERT_EQ(count.value(), size_t(2));  // bob should be excluded
 
     std::vector<std::string> expected = {"alice", "carol"};
     ASSERT_EQ(scanned_keys, expected);
