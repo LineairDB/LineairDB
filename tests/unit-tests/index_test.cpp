@@ -144,6 +144,7 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
 TEST_F(IndexTest, Delete) {
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Delete("bob");
     db_->EndTransaction(tx, [](auto) {});
   }
@@ -151,6 +152,7 @@ TEST_F(IndexTest, Delete) {
 
   {
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     auto count = tx.Scan("alice", "carol", [&](auto key, auto) {
       EXPECT_TRUE(key == "alice" || key == "carol");
       EXPECT_FALSE(key == "bob");
@@ -165,6 +167,7 @@ TEST_F(IndexTest, Delete) {
 TEST_F(IndexTest, FenceShouldMakeAllInsertionsVisible) {
   {  // blocker: make index busy
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     for (volatile size_t i = 0; i < 1000; i++) {
       tx.Write<int>("ZZZZ blocker" + std::to_string(i), i);
     }
@@ -175,6 +178,7 @@ TEST_F(IndexTest, FenceShouldMakeAllInsertionsVisible) {
   int eve = 5;
   {  // TX 1: insert "eve"
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     tx.Write<int>("eve", eve);
     db_->EndTransaction(tx, [](auto) {});
   }
@@ -184,6 +188,7 @@ TEST_F(IndexTest, FenceShouldMakeAllInsertionsVisible) {
 
   {  // TX 2: read "eve" via Scan
     auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
     auto count = tx.Scan("alice", "eve", [&](auto key, auto) {
       EXPECT_TRUE(key == "alice" || key == "bob" || key == "carol" ||
                   key == "eve");
