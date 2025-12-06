@@ -86,7 +86,6 @@ bool ConcurrentTable::Delete(const std::string_view key) {
   return index_->Delete(key);
 };
 
-
 void ConcurrentTable::WaitForIndexIsLinearizable() {
   index_->WaitForIndexIsLinearizable();
 }
