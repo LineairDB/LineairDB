@@ -70,6 +70,8 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
                   }
                 }
                 insert_or_delete_key_set_.erase(beg, end);
+                last_processed_epoch_.store(stable_epoch,
+                                            std::memory_order_release);
               }
             }
           }
@@ -192,6 +194,19 @@ bool PrecisionLockingIndex::IsOverlapWithInsertOrDelete(
     }
   }
   return false;
+}
+
+void PrecisionLockingIndex::WaitForIndexIsLinearizable() {
+  // Wait until the manager thread processes all pending insert/delete events
+  // and updates the container. This ensures that all index updates are visible.
+  const auto target_epoch = epoch_manager_ref_.GetGlobalEpoch();
+  const auto stable_epoch_target =
+      target_epoch - 2;  // It assumes EpochManager#Sync()
+
+  while (last_processed_epoch_.load(std::memory_order_acquire) <
+         stable_epoch_target) {
+    std::this_thread::yield();
+  }
 }
 
 }  // namespace Index
