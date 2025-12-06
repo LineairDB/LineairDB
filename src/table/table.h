@@ -35,6 +35,7 @@ class Table {
   const std::string& GetTableName() const;
 
   Index::ConcurrentTable& GetPrimaryIndex();
+  void WaitForIndexIsLinearizable();
 
   Index::SecondaryIndex* GetSecondaryIndex(const std::string_view index_name);
 

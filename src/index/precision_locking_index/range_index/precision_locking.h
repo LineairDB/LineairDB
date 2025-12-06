@@ -61,6 +61,7 @@ class PrecisionLockingIndex {
   bool Insert(const std::string_view key);
   void ForceInsert(const std::string_view key);
   bool Delete(const std::string_view key);
+  void WaitForIndexIsLinearizable();
 
  private:
   bool IsInPredicateSet(const std::string_view);
@@ -99,6 +100,7 @@ class PrecisionLockingIndex {
   ROWEXRangeIndexContainer container_;
   EpochFramework& epoch_manager_ref_;
   std::atomic<bool> manager_stop_flag_;
+  std::atomic<EpochNumber> last_processed_epoch_{0};
   std::thread manager_;
 };
 }  // namespace Index

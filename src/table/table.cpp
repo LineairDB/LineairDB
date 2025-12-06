@@ -31,4 +31,8 @@ Index::SecondaryIndex* Table::GetSecondaryIndex(
 const std::string& Table::GetTableName() const { return table_name_; }
 Index::ConcurrentTable& Table::GetPrimaryIndex() { return primary_index_; }
 
+void Table::WaitForIndexIsLinearizable() {
+  primary_index_.WaitForIndexIsLinearizable();
+}
+
 }  // namespace LineairDB
