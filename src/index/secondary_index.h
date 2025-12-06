@@ -53,6 +53,10 @@ class SecondaryIndex {
 
   bool IsUnique() { return index_type_ == 1; }
 
+  void WaitForIndexIsLinearizable() {
+    secondary_index_->WaitForIndexIsLinearizable();
+  }
+
  private:
   uint index_type_;
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>>

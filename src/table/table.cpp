@@ -33,6 +33,10 @@ Index::ConcurrentTable& Table::GetPrimaryIndex() { return primary_index_; }
 
 void Table::WaitForIndexIsLinearizable() {
   primary_index_.WaitForIndexIsLinearizable();
+  // Also wait for all secondary indexes to be linearizable
+  ForEachSecondaryIndex([](const std::string&, Index::SecondaryIndex& index) {
+    index.WaitForIndexIsLinearizable();
+  });
 }
 
 }  // namespace LineairDB
