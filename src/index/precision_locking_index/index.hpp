@@ -94,6 +94,10 @@ class HashTableWithPrecisionLockingIndex {
 
   bool Delete(const std::string_view key) { return range_index_.Delete(key); };
 
+  void WaitForIndexIsLinearizable() {
+    range_index_.WaitForIndexIsLinearizable();
+  }
+
  private:
   MPMCConcurrentSetImpl<T> point_index_;
   PrecisionLockingIndex range_index_;

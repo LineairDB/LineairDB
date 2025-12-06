@@ -54,7 +54,7 @@ TEST_F(ReadYourWriteTest, ScanShouldIncludeInsertedKeys) {
     return false;
   });
   ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(count.value(), 4);
+  ASSERT_EQ(count.value(), size_t(4));
 
   const bool committed = db_->EndTransaction(tx, [](auto status) {
     ASSERT_EQ(status, LineairDB::TxStatus::Committed);
@@ -113,7 +113,7 @@ TEST_F(ReadYourWriteTest, ScanShouldReturnKeysInOrder) {
     });
 
     ASSERT_TRUE(count.has_value());
-    ASSERT_EQ(count.value(), 5);
+    ASSERT_EQ(count.value(), size_t(5));
     ASSERT_EQ(actual_order, expected_order);
 
     const bool committed = db_->EndTransaction(tx, [](auto status) {
@@ -157,7 +157,7 @@ TEST_F(ReadYourWriteTest, ScanShouldStopAtCorrectPosition) {
     });
 
     ASSERT_TRUE(count.has_value());
-    ASSERT_EQ(count.value(), 3);  // alice, bob, carol
+    ASSERT_EQ(count.value(), size_t(3));  // alice, bob, carol
 
     // Verify we scanned exactly: alice, bob, carol (in order)
     std::vector<std::string> expected = {"alice", "bob", "carol"};
