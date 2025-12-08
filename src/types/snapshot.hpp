@@ -31,11 +31,17 @@ struct Snapshot {
   DataItem* index_cache;
   bool is_read_modify_write;
   std::string table_name;
+  std::string index_name;
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
-           DataItem* const i, std::string_view tn, const TransactionId ver = 0)
-      : key(k), index_cache(i), is_read_modify_write(false), table_name(tn) {
-    data_item_copy.Reset(v, s, ver);
+           DataItem* const i, std::string_view tn, std::string_view in,
+           const TransactionId ver = 0)
+      : key(k),
+        index_cache(i),
+        is_read_modify_write(false),
+        table_name(tn),
+        index_name(in) {
+    if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
   Snapshot(const Snapshot&) = default;
   Snapshot& operator=(const Snapshot&) = default;
