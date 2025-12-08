@@ -21,8 +21,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <msgpack.hpp>
 #include <type_traits>
+#include <vector>
 
 #include "concurrency_control/pivot_object.hpp"
 #include "data_buffer.hpp"
@@ -36,6 +38,7 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   bool initialized;
   DataBuffer buffer;
+  std::vector<std::string> primary_keys;
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
   Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
@@ -56,20 +59,43 @@ struct DataItem {
         initialized(rhs.initialized),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
+    primary_keys = rhs.primary_keys;
   }
+
   DataItem& operator=(const DataItem& rhs) {
     transaction_id.store(rhs.transaction_id.load());
     initialized = rhs.initialized;
     if (initialized) {
       buffer.Reset(rhs.buffer);
     }
+    primary_keys = rhs.primary_keys;
     return *this;
   }
 
   void Reset(const std::byte* v, const size_t s, TransactionId tid = 0) {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
-    initialized = (v != nullptr && s != 0);
+    initialized = (v != nullptr && s != 0) || !primary_keys.empty();
+  }
+
+  void AddSecondaryIndexValue(const std::byte* v, size_t s) {
+    std::string new_key(reinterpret_cast<const char*>(v), s);
+    for (const auto& pk : primary_keys) {
+      if (pk == new_key) return;
+    }
+    primary_keys.push_back(std::move(new_key));
+    initialized = buffer.size != 0 || !primary_keys.empty();
+  }
+
+  void RemoveSecondaryIndexValue(const std::byte* v, size_t s) {
+    const std::string target(reinterpret_cast<const char*>(v), s);
+    for (auto it = primary_keys.begin(); it != primary_keys.end(); ++it) {
+      if (*it == target) {
+        primary_keys.erase(it);
+        initialized = buffer.size != 0 || !primary_keys.empty();
+        break;
+      }
+    }
   }
 
   void CopyLiveVersionToStableVersion() {

@@ -65,4 +65,10 @@ bool Database::CreateTable(const std::string_view table_name) {
   return db_pimpl_->CreateTable(table_name);
 }
 
+bool Database::CreateSecondaryIndex(const std::string_view table_name,
+                                    const std::string_view index_name,
+                                    const uint index_type) {
+  return db_pimpl_->CreateSecondaryIndex(table_name, index_name, index_type);
+}
+
 }  // namespace LineairDB
