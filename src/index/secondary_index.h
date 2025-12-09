@@ -51,6 +51,7 @@ class SecondaryIndex {
     return secondary_index_->Put(key, std::forward<DataItem>(value));
   }
 
+  // index_type: 0 = no constraint, 1 = UNIQUE constraint
   bool IsUnique() { return index_type_ == 1; }
 
   void WaitForIndexIsLinearizable() {

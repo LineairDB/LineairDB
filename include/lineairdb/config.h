@@ -172,35 +172,13 @@ struct Config {
   std::string anonymous_table_name = "__anonymous_table";
 };
 
-// Secondary index options (moved from secondary_index_option.h)
-struct SecondaryIndexOption {
-  enum class Constraint : unsigned {
-    NONE = 0u,
-    UNIQUE = 1u << 0,
-    NOT_NULL = 1u << 1,
-  };
-};
+// TODO: Secondary index constraints (UNIQUE, NOT_NULL) are currently specified
+// via the `index_type` parameter in CreateSecondaryIndex API:
+//   - 0: No constraint (default)
+//   - 1: UNIQUE constraint
+// Future work may introduce a dedicated enum or struct for better type safety
+// and support for combined constraints (e.g., UNIQUE | NOT_NULL).
 
-// bitwise operators for enum class Constraint
-constexpr SecondaryIndexOption::Constraint operator|(
-    SecondaryIndexOption::Constraint a, SecondaryIndexOption::Constraint b) {
-  using U = std::underlying_type_t<SecondaryIndexOption::Constraint>;
-  return static_cast<SecondaryIndexOption::Constraint>(static_cast<U>(a) |
-                                                       static_cast<U>(b));
-}
-
-constexpr SecondaryIndexOption::Constraint operator&(
-    SecondaryIndexOption::Constraint a, SecondaryIndexOption::Constraint b) {
-  using U = std::underlying_type_t<SecondaryIndexOption::Constraint>;
-  return static_cast<SecondaryIndexOption::Constraint>(static_cast<U>(a) &
-                                                       static_cast<U>(b));
-}
-
-constexpr bool HasFlag(SecondaryIndexOption::Constraint set,
-                       SecondaryIndexOption::Constraint flag) {
-  using U = std::underlying_type_t<SecondaryIndexOption::Constraint>;
-  return (static_cast<U>(set) & static_cast<U>(flag)) != 0;
-}
 }  // namespace LineairDB
 
 #endif

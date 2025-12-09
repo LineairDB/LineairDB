@@ -291,7 +291,7 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldReturnKeysInOrder) {
     std::vector<std::string> actual_order;
 
     auto count = tx.ScanSecondaryIndex(
-        "name_index", "alice", "erin", [&](auto key, auto primary_keys) {
+        "name_index", "alice", "erin", [&](auto key, auto /*primary_keys*/) {
           actual_order.push_back(std::string(key));
           return false;
         });
@@ -429,7 +429,7 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldExcludeDeletedKeys) {
     std::vector<std::string> scanned_keys;
 
     auto count = tx.ScanSecondaryIndex(
-        "name_index", "alice", "carol", [&](auto key, auto primary_keys) {
+        "name_index", "alice", "carol", [&](auto key, auto /*primary_keys*/) {
           scanned_keys.push_back(std::string(key));
           return false;
         });
@@ -484,7 +484,7 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldExcludeReadYourWriteDeletedKeys) {
     std::vector<std::string> scanned_keys;
 
     auto count = tx.ScanSecondaryIndex(
-        "name_index", "alice", "carol", [&](auto key, auto primary_keys) {
+        "name_index", "alice", "carol", [&](auto key, auto /*primary_keys*/) {
           scanned_keys.push_back(std::string(key));
           return false;
         });
@@ -539,7 +539,7 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldExcludeInsertThenDeletedKeys) {
     std::vector<std::string> scanned_keys;
 
     auto count = tx.ScanSecondaryIndex(
-        "name_index", "alice", "carol", [&](auto key, auto primary_keys) {
+        "name_index", "alice", "carol", [&](auto key, auto /*primary_keys*/) {
           scanned_keys.push_back(std::string(key));
           return false;
         });
