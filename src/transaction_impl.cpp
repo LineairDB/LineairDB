@@ -85,20 +85,14 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
   EnsureCurrentTable();
 
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      return std::make_pair(snapshot.data_item_copy.value(),
-                            snapshot.data_item_copy.size());
-    }
+  if (auto* ws = FindInWriteSet(key)) {
+    return std::make_pair(ws->data_item_copy.value(),
+                          ws->data_item_copy.size());
   }
 
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      return std::make_pair(snapshot.data_item_copy.value(),
-                            snapshot.data_item_copy.size());
-    }
+  if (auto* rs = FindInReadSet(key)) {
+    return std::make_pair(rs->data_item_copy.value(),
+                          rs->data_item_copy.size());
   }
 
   auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
@@ -118,45 +112,30 @@ std::vector<std::pair<const std::byte* const, const size_t>>
 Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
                                       const std::string_view key) {
   if (IsAborted()) return {};
-  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
 
+  EnsureCurrentTable();
+
+  Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
   if (index == nullptr) {
     Abort();
     return {};
   }
 
-  EnsureCurrentTable();
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName() &&
-        snapshot.index_name == index_name) {
-      std::vector<std::pair<const std::byte* const, const size_t>> result;
-      if (!snapshot.data_item_copy.primary_keys.empty()) {
-        for (auto& primary_key : snapshot.data_item_copy.primary_keys) {
-          result.emplace_back(
-              reinterpret_cast<const std::byte*>(primary_key.data()),
-              primary_key.size());
-        }
-      }
-      return result;
+  auto build_result = [](const DataItem& item) {
+    std::vector<std::pair<const std::byte* const, const size_t>> result;
+    for (const auto& pk : item.primary_keys) {
+      result.emplace_back(reinterpret_cast<const std::byte*>(pk.data()),
+                          pk.size());
     }
+    return result;
+  };
+
+  if (auto* ws = FindInWriteSet(key, index_name)) {
+    return build_result(ws->data_item_copy);
   }
 
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName() &&
-        snapshot.index_name == index_name) {
-      std::vector<std::pair<const std::byte* const, const size_t>> result;
-      if (!snapshot.data_item_copy.primary_keys.empty()) {
-        for (auto& primary_key : snapshot.data_item_copy.primary_keys) {
-          result.emplace_back(
-              reinterpret_cast<const std::byte*>(primary_key.data()),
-              primary_key.size());
-        }
-      }
-      return result;
-    }
+  if (auto* rs = FindInReadSet(key, index_name)) {
+    return build_result(rs->data_item_copy);
   }
 
   DataItem* index_leaf = index->GetOrInsert(key);
@@ -167,17 +146,7 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
   snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
   auto& ref = read_set_.emplace_back(std::move(snapshot));
   if (ref.data_item_copy.IsInitialized()) {
-    std::vector<std::pair<const std::byte* const, const size_t>> result;
-    if (!ref.data_item_copy.primary_keys.empty()) {
-      for (auto& primary_key : ref.data_item_copy.primary_keys) {
-        result.emplace_back(
-            reinterpret_cast<const std::byte*>(primary_key.data()),
-            primary_key.size());
-      }
-      return result;
-    } else {
-      return {};
-    }
+    return build_result(ref.data_item_copy);
   }
   return {};
 }
@@ -191,21 +160,14 @@ void Transaction::Impl::Write(const std::string_view key,
   EnsureCurrentTable();
 
   bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
+  if (auto* rs = FindInReadSet(key)) {
+    is_rmf = true;
+    rs->is_read_modify_write = true;
   }
 
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName())
-      continue;
-    snapshot.data_item_copy.Reset(value, size);
-    if (is_rmf) snapshot.is_read_modify_write = true;
+  if (auto* ws = FindInWriteSet(key)) {
+    ws->data_item_copy.Reset(value, size);
+    if (is_rmf) ws->is_read_modify_write = true;
     return;
   }
 
@@ -225,19 +187,13 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   EnsureCurrentTable();
 
-  // TODO: if `size` is larger than Config.internal_buffer_size,
-  // then we have to abort this transaction or throw exception
-
   Index::SecondaryIndex* index = current_table_->GetSecondaryIndex(index_name);
-
-  // If the index is not registered, abort the transaction
   if (index == nullptr) {
     Abort();
     return;
   }
 
-  // existing key
-  // unique constraint check out of the transaction
+  // Unique constraint check out of the transaction
   DataItem* index_leaf = index->GetOrInsert(key);
   if (index_leaf->IsInitialized() && index->IsUnique()) {
     Abort();
@@ -246,31 +202,21 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   bool is_rmf = false;
   DataItem existing_data;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName() &&
-        snapshot.index_name == index_name) {
-      is_rmf = true;
-      existing_data = snapshot.data_item_copy;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
+  if (auto* rs = FindInReadSet(key, index_name)) {
+    is_rmf = true;
+    existing_data = rs->data_item_copy;
+    rs->is_read_modify_write = true;
   }
 
-  // unique constraint check in the transaction
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName() ||
-        snapshot.index_name != index_name)
-      continue;
+  // Unique constraint check in the transaction
+  if (auto* ws = FindInWriteSet(key, index_name)) {
     if (index->IsUnique()) {
       Abort();
       return;
     }
-
-    snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
-                                                   primary_key_size);
-    if (is_rmf) snapshot.is_read_modify_write = true;
+    ws->data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
+                                              primary_key_size);
+    if (is_rmf) ws->is_read_modify_write = true;
     return;
   }
 
@@ -516,72 +462,10 @@ void Transaction::Impl::DeleteSecondaryIndex(
     return;
   }
 
-  // delete the primary key from the data item associated
-  // with the old secondary key ==========
   auto index_leaf = index->GetOrInsert(secondary_key);
-  bool found_in_write_set = false;
-
-  bool is_rmf = false;
-  DataItem existing_data;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == secondary_key &&
-        snapshot.table_name == current_table_->GetTableName() &&
-        snapshot.index_name == index_name) {
-      is_rmf = true;
-      existing_data = snapshot.data_item_copy;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
-
-  // case A: old_key is in write_set
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != secondary_key ||
-        snapshot.table_name != current_table_->GetTableName() ||
-        snapshot.index_name != index_name)
-      continue;
-
-    found_in_write_set = true;
-    snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
-                                                      primary_key_size);
-    if (snapshot.data_item_copy.primary_keys.empty()) {
-      if (!index->Delete(secondary_key)) {
-        Abort();
-        return;
-      }
-    }
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    break;
-  }
-
-  // case B: old_key is not in write_set
-  if (!found_in_write_set) {
-    if (!is_rmf) {
-      Snapshot snapshot = {
-          secondary_key, nullptr, 0, index_leaf, current_table_->GetTableName(),
-          index_name};
-
-      snapshot.data_item_copy =
-          concurrency_control_->Read(secondary_key, index_leaf);
-      existing_data = snapshot.data_item_copy;
-      read_set_.emplace_back(std::move(snapshot));
-    }
-    existing_data.RemoveSecondaryIndexValue(primary_key_buffer,
-                                            primary_key_size);
-
-    if (existing_data.primary_keys.empty()) {
-      if (!index->Delete(secondary_key)) {
-        Abort();
-        return;
-      }
-    }
-
-    Snapshot sp(secondary_key, nullptr, 0, index_leaf,
-                current_table_->GetTableName(), index_name);
-    sp.data_item_copy = existing_data;
-    if (is_rmf) sp.is_read_modify_write = true;
-    write_set_.emplace_back(std::move(sp));
-  }
+  RemovePrimaryKeyFromSecondaryIndex(secondary_key, primary_key_buffer,
+                                     primary_key_size, index_leaf, index,
+                                     index_name);
 }
 
 void Transaction::Impl::UpdateSecondaryIndex(
@@ -598,136 +482,17 @@ void Transaction::Impl::UpdateSecondaryIndex(
     return;
   }
 
-  // ========== Phase 1: delete the primary key from the data item
+  // Phase 1: delete the primary key from the old secondary key
   auto old_leaf = index->GetOrInsert(old_secondary_key);
-  bool old_found_in_write_set = false;
-
-  bool is_rmf_old_key = false;
-  DataItem existing_data_old_key;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == old_secondary_key &&
-        snapshot.table_name == current_table_->GetTableName() &&
-        snapshot.index_name == index_name) {
-      is_rmf_old_key = true;
-      existing_data_old_key = snapshot.data_item_copy;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
+  if (!RemovePrimaryKeyFromSecondaryIndex(old_secondary_key, primary_key_buffer,
+                                          primary_key_size, old_leaf, index,
+                                          index_name)) {
+    return;  // Already aborted
   }
 
-  // case A: old_key is in write_set
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != old_secondary_key ||
-        snapshot.table_name != current_table_->GetTableName() ||
-        snapshot.index_name != index_name)
-      continue;
-
-    old_found_in_write_set = true;
-    snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
-                                                      primary_key_size);
-    if (snapshot.data_item_copy.primary_keys.empty()) {
-      if (!index->Delete(old_secondary_key)) {
-        Abort();
-        return;
-      }
-    }
-    if (is_rmf_old_key) snapshot.is_read_modify_write = true;
-    break;
-  }
-
-  // case B: old_key is not in write_set
-  if (!old_found_in_write_set) {
-    if (!is_rmf_old_key) {
-      Snapshot snapshot = {old_secondary_key,
-                           nullptr,
-                           0,
-                           old_leaf,
-                           current_table_->GetTableName(),
-                           index_name};
-
-      snapshot.data_item_copy =
-          concurrency_control_->Read(old_secondary_key, old_leaf);
-      existing_data_old_key = snapshot.data_item_copy;
-      read_set_.emplace_back(std::move(snapshot));
-    }
-    existing_data_old_key.RemoveSecondaryIndexValue(primary_key_buffer,
-                                                    primary_key_size);
-
-    if (existing_data_old_key.primary_keys.empty()) {
-      if (!index->Delete(old_secondary_key)) {
-        Abort();
-        return;
-      }
-    }
-
-    concurrency_control_->Write(old_secondary_key, primary_key_buffer,
-                                primary_key_size, old_leaf);
-    Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
-                current_table_->GetTableName(), index_name);
-    sp.data_item_copy = existing_data_old_key;
-    if (is_rmf_old_key) sp.is_read_modify_write = true;
-    write_set_.emplace_back(std::move(sp));
-  }
-
-  // ========== Phase 2: add the primary key to the data item associated with
-  // the new secondary key ==========
-  auto new_leaf = index->GetOrInsert(new_secondary_key);
-  bool new_found_in_write_set = false;
-
-  bool is_rmf_new_key = false;
-  DataItem existing_data_new_key;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == new_secondary_key &&
-        snapshot.table_name == current_table_->GetTableName() &&
-        snapshot.index_name == index_name) {
-      is_rmf_new_key = true;
-      snapshot.is_read_modify_write = true;
-      existing_data_new_key = snapshot.data_item_copy;
-      break;
-    }
-  }
-
-  // case: new_key is in write_set
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != new_secondary_key ||
-        snapshot.table_name != current_table_->GetTableName() ||
-        snapshot.index_name != index_name)
-      continue;
-
-    new_found_in_write_set = true;
-    snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
-                                                   primary_key_size);
-    if (is_rmf_new_key) snapshot.is_read_modify_write = true;
-    break;
-  }
-
-  // case: new_key is not in write_set
-  if (!new_found_in_write_set) {
-    if (!is_rmf_new_key) {
-      Snapshot snapshot = {new_secondary_key,
-                           nullptr,
-                           0,
-                           new_leaf,
-                           current_table_->GetTableName(),
-                           index_name};
-
-      snapshot.data_item_copy =
-          concurrency_control_->Read(new_secondary_key, new_leaf);
-      existing_data_new_key = snapshot.data_item_copy;
-      read_set_.emplace_back(std::move(snapshot));
-    }
-    existing_data_new_key.AddSecondaryIndexValue(primary_key_buffer,
-                                                 primary_key_size);
-    concurrency_control_->Write(new_secondary_key, primary_key_buffer,
-                                primary_key_size, new_leaf);
-
-    Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
-                current_table_->GetTableName(), index_name);
-    sp.data_item_copy = existing_data_new_key;
-    if (is_rmf_new_key) sp.is_read_modify_write = true;
-
-    write_set_.emplace_back(std::move(sp));
-  }
+  // Phase 2: add the primary key to the new secondary key
+  WriteSecondaryIndex(index_name, new_secondary_key, primary_key_buffer,
+                      primary_key_size);
 }
 
 void Transaction::Impl::Abort() {
@@ -758,6 +523,103 @@ void Transaction::Impl::EnsureCurrentTable() {
     current_table_ =
         db_pimpl_->GetTable(config_ref_.anonymous_table_name).value();
   }
+}
+
+Snapshot* Transaction::Impl::FindInWriteSet(const std::string_view key,
+                                            const std::string_view index_name) {
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      return &snapshot;
+    }
+  }
+  return nullptr;
+}
+
+Snapshot* Transaction::Impl::FindInReadSet(const std::string_view key,
+                                           const std::string_view index_name) {
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      return &snapshot;
+    }
+  }
+  return nullptr;
+}
+
+bool Transaction::Impl::RemovePrimaryKeyFromSecondaryIndex(
+    const std::string_view secondary_key, const std::byte* primary_key_buffer,
+    size_t primary_key_size, DataItem* index_leaf, Index::SecondaryIndex* index,
+    const std::string_view index_name) {
+  bool found_in_write_set = false;
+
+  bool is_rmf = false;
+  DataItem existing_data;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == secondary_key &&
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name == index_name) {
+      is_rmf = true;
+      existing_data = snapshot.data_item_copy;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  // case A: key is in write_set
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != secondary_key ||
+        snapshot.table_name != current_table_->GetTableName() ||
+        snapshot.index_name != index_name)
+      continue;
+
+    found_in_write_set = true;
+    snapshot.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                      primary_key_size);
+    if (snapshot.data_item_copy.primary_keys.empty()) {
+      if (!index->Delete(secondary_key)) {
+        Abort();
+        return false;
+      }
+    }
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    break;
+  }
+
+  // case B: key is not in write_set
+  if (!found_in_write_set) {
+    if (!is_rmf) {
+      Snapshot snapshot = {
+          secondary_key, nullptr, 0, index_leaf, current_table_->GetTableName(),
+          index_name};
+
+      snapshot.data_item_copy =
+          concurrency_control_->Read(secondary_key, index_leaf);
+      existing_data = snapshot.data_item_copy;
+      read_set_.emplace_back(std::move(snapshot));
+    }
+    existing_data.RemoveSecondaryIndexValue(primary_key_buffer,
+                                            primary_key_size);
+
+    if (existing_data.primary_keys.empty()) {
+      if (!index->Delete(secondary_key)) {
+        Abort();
+        return false;
+      }
+    }
+
+    concurrency_control_->Write(secondary_key, primary_key_buffer,
+                                primary_key_size, index_leaf);
+    Snapshot sp(secondary_key, nullptr, 0, index_leaf,
+                current_table_->GetTableName(), index_name);
+    sp.data_item_copy = existing_data;
+    if (is_rmf) sp.is_read_modify_write = true;
+    write_set_.emplace_back(std::move(sp));
+  }
+
+  return true;
 }
 
 bool Transaction::Impl::SetTable(const std::string_view table_name) {

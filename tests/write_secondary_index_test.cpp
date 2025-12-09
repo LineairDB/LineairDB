@@ -112,4 +112,3 @@ TEST_F(WriteSecondaryIndexTest, WriteDuplicatePrimaryKeyIsIdempotent) {
     EXPECT_EQ(status, LineairDB::TxStatus::Committed);
   });
 }
-
