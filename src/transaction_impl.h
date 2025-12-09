@@ -116,6 +116,21 @@ class Transaction::Impl {
   void EnsureCurrentTable();
   bool IsAborted() { return current_status_ == TxStatus::Aborted; };
 
+  // Helper functions for searching snapshots
+  Snapshot* FindInWriteSet(const std::string_view key,
+                           const std::string_view index_name = "");
+  Snapshot* FindInReadSet(const std::string_view key,
+                          const std::string_view index_name = "");
+
+  // Helper function for removing a primary key from a secondary index entry.
+  // Returns true if successful, false if aborted.
+  bool RemovePrimaryKeyFromSecondaryIndex(const std::string_view secondary_key,
+                                          const std::byte* primary_key_buffer,
+                                          size_t primary_key_size,
+                                          DataItem* index_leaf,
+                                          Index::SecondaryIndex* index,
+                                          const std::string_view index_name);
+
  private:
   TxStatus current_status_;
   Database::Impl* db_pimpl_;
