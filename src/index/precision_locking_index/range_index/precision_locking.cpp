@@ -121,6 +121,7 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
 
   return hit;
 };
+
 bool PrecisionLockingIndex::Insert(const std::string_view key) {
   std::shared_lock<decltype(plock_)> p_guard(plock_);
   if (IsInPredicateSet(key)) {

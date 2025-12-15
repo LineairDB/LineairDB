@@ -99,7 +99,7 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     }
   }
 
-  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
+  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf,
                        current_table_->GetTableName()};
 
