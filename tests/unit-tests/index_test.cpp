@@ -39,9 +39,9 @@ class IndexTest : public ::testing::Test {
       int alice = 1;
       int bob = 2;
       int carol = 3;
-      tx.template Write<decltype(alice)>("alice", alice);
-      tx.template Write<decltype(bob)>("bob", bob);
-      tx.template Write<decltype(carol)>("carol", carol);
+      tx.template Insert<decltype(alice)>("alice", alice);
+      tx.template Insert<decltype(bob)>("bob", bob);
+      tx.template Insert<decltype(carol)>("carol", carol);
     });
     db_->Fence();
   }
@@ -115,7 +115,7 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
   std::optional<size_t> first, second;
   const auto committed = TestHelper::DoHandlerTransactionsOnMultiThreads(
       db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Write<int>("dave", dave); },
+      {[&](LineairDB::Transaction& tx) { tx.Insert<int>("dave", dave); },
        [&](LineairDB::Transaction& tx) {
          auto scan = [&]() {
            return tx.Scan("alice", "dave", [&](auto, auto) { return false; });
@@ -154,7 +154,7 @@ TEST_F(IndexTest, FenceShouldMakeAllInsertionsVisible) {
   {  // blocker: make index busy
     auto& tx = db_->BeginTransaction();
     for (volatile size_t i = 0; i < 1000; i++) {
-      tx.Write<int>("ZZZZ blocker" + std::to_string(i), i);
+      tx.Insert<int>("ZZZZ blocker" + std::to_string(i), i);
     }
 
     db_->EndTransaction(tx, [](auto) {});
@@ -163,7 +163,7 @@ TEST_F(IndexTest, FenceShouldMakeAllInsertionsVisible) {
   int eve = 5;
   {  // TX 1: insert "eve"
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("eve", eve);
+    tx.Insert<int>("eve", eve);
     db_->EndTransaction(tx, [](auto) {});
   }
 

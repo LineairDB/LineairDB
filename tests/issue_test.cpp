@@ -27,7 +27,7 @@ TEST_F(IssueTest, FenceShouldWaitForAllCallbacks_ExecuteInterface) {
     callback_executed.store(false);
     db_->ExecuteTransaction(
         [&](LineairDB::Transaction& tx) {
-          tx.Write<int>("alice", value_of_alice);
+          tx.Insert<int>("alice", value_of_alice);
         },
         [&](LineairDB::TxStatus) { callback_executed.store(true); });
     db_->Fence();
@@ -42,7 +42,7 @@ TEST_F(IssueTest, FenceShouldWaitForAllCallbacks_HandlerInterface) {
   for (size_t i = 0; i < 30; i++) {
     callback_executed.store(false);
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("alice", value_of_alice);
+    tx.Insert<int>("alice", value_of_alice);
     db_->EndTransaction(
         tx, [&](LineairDB::TxStatus) { callback_executed.store(true); });
     db_->Fence();

@@ -31,13 +31,13 @@ void Read(LineairDB::Transaction& tx, std::string_view key, std::string_view,
 
 void Update(LineairDB::Transaction& tx, std::string_view key, std::string_view,
             void* payload, size_t size) {
-  tx.Write(key, reinterpret_cast<std::byte*>(payload), size);
+  tx.Update(key, reinterpret_cast<std::byte*>(payload), size);
 }
 
 // FIXME discriminate update and insert
 void Insert(LineairDB::Transaction& tx, std::string_view key, std::string_view,
             void* payload, size_t size) {
-  Update(tx, key, "", payload, size);
+  tx.Insert(key, reinterpret_cast<std::byte*>(payload), size);
 }
 
 void Scan(LineairDB::Transaction& tx, std::string_view begin,

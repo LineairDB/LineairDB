@@ -75,7 +75,7 @@ void PopulateDatabase(LineairDB::Database& db, Workload& workload,
           [&, from, to](LineairDB::Transaction& tx) {
             std::vector<std::byte> value(workload.payload_size);
             for (size_t idx = from; idx < to; idx++) {
-              tx.Write(std::to_string(idx), value.data(), value.size());
+              tx.Insert(std::to_string(idx), value.data(), value.size());
             }
           },
           [](LineairDB::TxStatus status) {

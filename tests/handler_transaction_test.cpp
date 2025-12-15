@@ -46,7 +46,7 @@ TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
-    tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
+    tx.Insert("alice", reinterpret_cast<std::byte*>(&value_of_alice),
              sizeof(int));
     db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
@@ -70,7 +70,7 @@ TEST_F(HandlerTransactionTest, ExecuteTransactionWithTemplates) {
   auto* db = db_.get();
   {
     auto& tx = db->BeginTransaction();
-    tx.Write<int>("alice", value_of_alice);
+    tx.Insert<int>("alice", value_of_alice);
     db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
     });

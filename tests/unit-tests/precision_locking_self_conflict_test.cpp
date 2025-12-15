@@ -27,7 +27,7 @@ TEST_F(IndexTest, InsertAndScanConflictWithinSameTransaction) {
   tx.SetTable("users");
 
   constexpr int erin = 4;
-  tx.Write<int>("erin", erin);
+  tx.Insert<int>("erin", erin);
 
   tx.Scan("erin", std::nullopt, [&](auto, auto) { return false; });
   const bool committed = db_->EndTransaction(tx, [](auto status) {

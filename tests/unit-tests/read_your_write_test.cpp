@@ -24,7 +24,7 @@ class ReadYourWriteTest : public ::testing::Test {
 TEST_F(ReadYourWriteTest, ScanShouldIncludeInsertedKeys) {
   {
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("alice", 1);
+    tx.Insert<int>("alice", 1);
     const bool committed = db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);
     });
@@ -37,9 +37,9 @@ TEST_F(ReadYourWriteTest, ScanShouldIncludeInsertedKeys) {
   constexpr int carol = 6;
 
   auto& tx = db_->BeginTransaction();
-  tx.Write<int>("erin", erin);
-  tx.Write<int>("bob", bob);
-  tx.Write<int>("carol", carol);
+  tx.Insert<int>("erin", erin);
+  tx.Insert<int>("bob", bob);
+  tx.Insert<int>("carol", carol);
 
   auto count = tx.Scan<int>("alice", "erin", [&](auto key, auto value) {
     if (key == "erin") {
@@ -66,8 +66,8 @@ TEST_F(ReadYourWriteTest, ScanShouldReturnKeysInOrder) {
   // First transaction: insert some keys into index
   {
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("alice", 1);
-    tx.Write<int>("diana", 4);
+    tx.Insert<int>("alice", 1);
+    tx.Insert<int>("diana", 4);
     const bool committed = db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);
     });
@@ -78,9 +78,9 @@ TEST_F(ReadYourWriteTest, ScanShouldReturnKeysInOrder) {
   // Second transaction: write new keys and scan
   {
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("bob", 2);
-    tx.Write<int>("carol", 3);
-    tx.Write<int>("erin", 5);
+    tx.Insert<int>("bob", 2);
+    tx.Insert<int>("carol", 3);
+    tx.Insert<int>("erin", 5);
 
     // Scan should return keys in alphabetical order:
     // alice(index), bob(write_set), carol(write_set), diana(index),
@@ -127,9 +127,9 @@ TEST_F(ReadYourWriteTest, ScanShouldStopAtCorrectPosition) {
   // Insert keys into index
   {
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("alice", 1);
-    tx.Write<int>("diana", 4);
-    tx.Write<int>("frank", 6);
+    tx.Insert<int>("alice", 1);
+    tx.Insert<int>("diana", 4);
+    tx.Insert<int>("frank", 6);
     const bool committed = db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);
     });
@@ -140,9 +140,9 @@ TEST_F(ReadYourWriteTest, ScanShouldStopAtCorrectPosition) {
   // Write new keys and scan with early stop
   {
     auto& tx = db_->BeginTransaction();
-    tx.Write<int>("bob", 2);
-    tx.Write<int>("carol", 3);
-    tx.Write<int>("erin", 5);
+    tx.Insert<int>("bob", 2);
+    tx.Insert<int>("carol", 3);
+    tx.Insert<int>("erin", 5);
 
     std::vector<std::string> scanned_keys;
 
