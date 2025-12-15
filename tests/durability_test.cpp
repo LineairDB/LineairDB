@@ -353,6 +353,11 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
     tx.Update<int>("alice", value);
   });
 
+  TransactionProcedure Insert([](LineairDB::Transaction& tx) {
+    int value = 0;
+    tx.Insert<int>("alice", value);
+  });
+
   TestHelper::DoTransactions(db_.get(), {Update});
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -364,7 +369,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
                                ASSERT_FALSE(alice.has_value());
                              }});
 
-  TestHelper::DoTransactions(db_.get(), {Update});
+  TestHelper::DoTransactions(db_.get(), {Insert});
   std::this_thread::sleep_for(
       std::chrono::seconds(config.checkpoint_period * 2));
 
@@ -394,6 +399,11 @@ TEST_F(DurabilityTest,
     tx.Update<int>("alice", value);
   });
 
+  TransactionProcedure Insert([](LineairDB::Transaction& tx) {
+    int value = 0;
+    tx.Insert<int>("alice", value);
+  });
+
   TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -406,7 +416,7 @@ TEST_F(DurabilityTest,
         ASSERT_FALSE(alice.has_value());
       }});
 
-  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
+  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Insert});
   std::this_thread::sleep_for(
       std::chrono::seconds(config.checkpoint_period * 2));
 

@@ -123,7 +123,31 @@ void Transaction::Impl::Insert(const std::string_view key,
     return;
   }
 
-  this->Update(key, value, size);
+  bool is_rmf = false;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
+      is_rmf = true;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != key ||
+        snapshot.table_name != current_table_->GetTableName())
+      continue;
+    snapshot.data_item_copy.Reset(value, size);
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    return;
+  }
+
+  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
+
+  concurrency_control_->Write(key, value, size, index_leaf);
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
+  if (is_rmf) sp.is_read_modify_write = true;
+  write_set_.emplace_back(std::move(sp));
 }
 
 void Transaction::Impl::Update(const std::string_view key,
@@ -154,6 +178,10 @@ void Transaction::Impl::Update(const std::string_view key,
   }
 
   auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
+  if (index_leaf == nullptr || !index_leaf->IsInitialized()) {
+    Abort();
+    return;
+  }
 
   concurrency_control_->Write(key, value, size, index_leaf);
   Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());

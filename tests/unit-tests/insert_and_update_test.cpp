@@ -150,3 +150,39 @@ TEST_F(InsertAndUpdateTest, InsertToEmptyEntry) {
     });
   }
 }
+
+TEST_F(InsertAndUpdateTest, UpdateToNonExistentKey) {
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.Update<int>("alice", 2);
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Aborted);
+    });
+  }
+}
+
+TEST_F(InsertAndUpdateTest, UpdateToEmptyEntry) {
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.Insert<int>("alice", 1);
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+    db_->Fence();
+  }
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.Delete("alice");
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+    db_->Fence();
+  }
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.Update<int>("alice", 2);
+    db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Aborted);
+    });
+  }
+}
