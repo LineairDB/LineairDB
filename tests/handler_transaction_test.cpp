@@ -47,7 +47,7 @@ TEST_F(HandlerTransactionTest, ExecuteTransaction) {
   {
     auto& tx = db->BeginTransaction();
     tx.Insert("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-             sizeof(int));
+              sizeof(int));
     db->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(LineairDB::TxStatus::Committed, status);
     });

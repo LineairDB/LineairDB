@@ -104,35 +104,6 @@ class Transaction {
 
   /**
    * @brief
-   * Writes a value with a given key.
-   *
-   * @param key
-   * @param value
-   * @param size
-   */
-  /*   void Write(const std::string_view key, const std::byte value[],
-               const size_t size); */
-
-  /**
-   * @brief
-   * Writes an user-defined value with a given key.
-   *
-   * @tparam T
-   * T must be Trivially Copyable.
-   * This is because LineairDB is a Key-value storage but not a object storage.
-   * @param key
-   * @param value
-   */
-  /*   template <typename T>
-    void Write(const std::string_view key, const T& value) {
-      static_assert(std::is_trivially_copyable<T>::value == true,
-                    "LineairDB expects to read/write trivially copyable
-    types."); std::byte buffer[sizeof(T)]; std::memcpy(buffer, &value,
-    sizeof(T)); Write(key, buffer, sizeof(T));
-    }; */
-
-  /**
-   * @brief
    * Inserts a value with a given key.
    *
    * @param key

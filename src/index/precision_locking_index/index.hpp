@@ -45,7 +45,7 @@ class HashTableWithPrecisionLockingIndex {
 
   bool IsEntryEmpty(const std::string_view key) {
     T* entry = point_index_.Get(key);
-    if(entry == nullptr) return false;
+    if (entry == nullptr) return false;
     if (entry->initialized == false) return true;
     return false;
   }

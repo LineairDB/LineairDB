@@ -258,8 +258,9 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
       filesize_is_monotonically_increasing = false;
       break;
     }
-    ASSERT_NO_THROW(
-        { TestHelper::DoTransactions(db_.get(), {Update, Update, Update}); });
+    ASSERT_NO_THROW({
+      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
+    });
 
     auto now = std::chrono::high_resolution_clock::now();
     assert(begin < now);

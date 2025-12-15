@@ -56,7 +56,7 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
       db_.get(),
       {[&](LineairDB::Transaction& tx) {
          tx.Insert("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-                  sizeof(int));
+                   sizeof(int));
        },
        [&](LineairDB::Transaction& tx) {
          auto alice = tx.Read("alice");
@@ -230,7 +230,7 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
       db_.get(),
       {[&](LineairDB::Transaction& tx) {
          tx.Insert("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-                  sizeof(int));
+                   sizeof(int));
        },
        [&](LineairDB::Transaction& tx) {
          auto alice = tx.Read("alice");
