@@ -99,7 +99,7 @@ int main() {
         [](LineairDB::Transaction& tx) {
           auto alice = tx.Read<int>("alice");
           assert(alice.has_value());
-          assert(alice.value() == 1);
+          assert(alice.value() == 10);
         },
         [&](LineairDB::TxStatus s) {});
   }
