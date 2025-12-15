@@ -57,6 +57,18 @@ class HashTableWithPrecisionLockingIndex {
     range_index_.ForceInsert(key);
   }
 
+  bool Insert(const std::string_view key) {
+    bool inserted_range = range_index_.Insert(key);
+    if (!inserted_range) return false;
+    auto* new_entry = new T();
+    bool inserted_point = point_index_.Put(key, new_entry);
+    if (!inserted_point) {
+      delete new_entry;
+      return false;
+    }
+    return true;
+  };
+
   /**
    * @brief Scan with key and values
    *

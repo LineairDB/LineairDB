@@ -99,7 +99,7 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
     }
   }
 
-  auto* index_leaf = current_table_->GetPrimaryIndex().GetOrInsert(key);
+  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
   Snapshot snapshot = {key, nullptr, 0, index_leaf,
                        current_table_->GetTableName()};
 
@@ -112,7 +112,7 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
   }
 }
 
-void Transaction::Impl::Write(const std::string_view key,
+/* void Transaction::Impl::Write(const std::string_view key,
                               const std::byte value[], const size_t size) {
   if (IsAborted()) return;
 
@@ -145,6 +145,55 @@ void Transaction::Impl::Write(const std::string_view key,
   Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
   if (is_rmf) sp.is_read_modify_write = true;
   write_set_.emplace_back(std::move(sp));
+} */
+
+void Transaction::Impl::Insert(const std::string_view key,
+                               const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+
+  auto inserted = current_table_->GetPrimaryIndex().Insert(key);
+  if (!inserted) {
+    Abort();
+    return;
+  }
+
+  this->Update(key, value, size);
+}
+
+void Transaction::Impl::Update(const std::string_view key,
+                               const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
+
+  // TODO: if `size` is larger than Config.internal_buffer_size,
+  // then we have to abort this transaction or throw exception
+  EnsureCurrentTable();
+
+  bool is_rmf = false;
+  for (auto& snapshot : read_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
+      is_rmf = true;
+      snapshot.is_read_modify_write = true;
+      break;
+    }
+  }
+
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key != key ||
+        snapshot.table_name != current_table_->GetTableName())
+      continue;
+    snapshot.data_item_copy.Reset(value, size);
+    if (is_rmf) snapshot.is_read_modify_write = true;
+    return;
+  }
+
+  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
+
+  concurrency_control_->Write(key, value, size, index_leaf);
+  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
+  if (is_rmf) sp.is_read_modify_write = true;
+  write_set_.emplace_back(std::move(sp));
 }
 
 void Transaction::Impl::Delete(const std::string_view key) {
@@ -160,7 +209,7 @@ void Transaction::Impl::Delete(const std::string_view key) {
     Abort();
     return;
   }
-  this->Write(key, nullptr, 0);
+  this->Update(key, nullptr, 0);
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -299,9 +348,17 @@ const std::pair<const std::byte* const, const size_t> Transaction::Read(
     const std::string_view key) {
   return tx_pimpl_->Read(key);
 }
-void Transaction::Write(const std::string_view key, const std::byte value[],
+/* void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
+} */
+void Transaction::Insert(const std::string_view key, const std::byte value[],
+                         const size_t size) {
+  tx_pimpl_->Insert(key, value, size);
+}
+void Transaction::Update(const std::string_view key, const std::byte value[],
+                         const size_t size) {
+  tx_pimpl_->Update(key, value, size);
 }
 void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
 const std::optional<size_t> Transaction::Scan(

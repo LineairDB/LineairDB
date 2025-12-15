@@ -60,6 +60,10 @@ DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
   return item;
 }
 
+bool ConcurrentTable::Insert(const std::string_view key) {
+  return index_->Insert(key);
+}
+
 // return false if a corresponding entry already exists
 bool ConcurrentTable::Put(const std::string_view key, DataItem&& rhs) {
   return index_->Put(key, std::forward<decltype(rhs)>(rhs));

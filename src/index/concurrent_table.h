@@ -47,6 +47,7 @@ class ConcurrentTable {
   std::optional<size_t> Scan(
       const std::string_view begin, const std::string_view end,
       std::function<bool(std::string_view, DataItem&)> operation);
+  bool Insert(const std::string_view key);
 
   bool Delete(const std::string_view key);
 
