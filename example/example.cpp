@@ -30,8 +30,10 @@ int main() {
           auto alice = tx.Read<int>("alice");
           if (alice.has_value()) {
             std::cout << "alice is recovered: " << alice.value() << std::endl;
+            tx.Update<int>("alice", 10);
+          } else {
+            tx.Insert<int>("alice", 10);
           }
-          tx.Update<int>("alice", 10);
         },
         [&](LineairDB::TxStatus s) { status = s; });
 
