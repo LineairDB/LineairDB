@@ -55,8 +55,8 @@ TEST_F(DatabaseTest, ExecuteTransaction) {
   TestHelper::DoTransactions(
       db_.get(),
       {[&](LineairDB::Transaction& tx) {
-         tx.Insert("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-                   sizeof(int));
+         tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
+                  sizeof(int));
        },
        [&](LineairDB::Transaction& tx) {
          auto alice = tx.Read("alice");
@@ -70,7 +70,7 @@ TEST_F(DatabaseTest, ExecuteTransactionWithTemplates) {
   int value_of_alice = 1;
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {
-                                tx.Insert<int>("alice", value_of_alice);
+                                tx.Write<int>("alice", value_of_alice);
                               },
                               [&](LineairDB::Transaction& tx) {
                                 auto alice = tx.Read<int>("alice");
@@ -92,7 +92,7 @@ TEST_F(DatabaseTest, LargeSizeBuffer) {
 
   TestHelper::DoTransactions(
       db_.get(),
-      {[&](LineairDB::Transaction& tx) { tx.Insert("alice", &alice[0], Size); },
+      {[&](LineairDB::Transaction& tx) { tx.Write("alice", &alice[0], Size); },
        [&](LineairDB::Transaction& tx) {
          ASSERT_TRUE(tx.Read<decltype(alice)>("alice").has_value());
        }});
@@ -103,9 +103,9 @@ TEST_F(DatabaseTest, Scan) {
   int bob = 2;
   int carol = 3;
   TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {
-    tx.template Insert<decltype(alice)>("alice", alice);
-    tx.template Insert<decltype(bob)>("bob", bob);
-    tx.template Insert<decltype(carol)>("carol", carol);
+    tx.template Write<decltype(alice)>("alice", alice);
+    tx.template Write<decltype(bob)>("bob", bob);
+    tx.template Write<decltype(carol)>("carol", carol);
   });
   TestHelper::DoTransactions(
       db_.get(), {[&](LineairDB::Transaction& tx) {
@@ -145,7 +145,7 @@ TEST_F(DatabaseTest, Scan) {
 TEST_F(DatabaseTest, SaveAsString) {
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {
-                                tx.Insert<std::string_view>("alice", "value");
+                                tx.Write<std::string_view>("alice", "value");
                               },
                               [&](LineairDB::Transaction& tx) {
                                 auto alice = tx.Read<std::string_view>("alice");
@@ -158,7 +158,7 @@ TEST_F(DatabaseTest, DeleteRemovesKeyAcrossTransactions) {
   int value_of_alice = 123;
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {
-                                tx.Insert<int>("alice", value_of_alice);
+                                tx.Write<int>("alice", value_of_alice);
                               },
                               [&](LineairDB::Transaction& tx) {
                                 auto alice = tx.Read<int>("alice");
@@ -176,7 +176,7 @@ TEST_F(DatabaseTest, UserAbort) {
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {
                                 int value_of_alice = 1;
-                                tx.Insert<int>("alice", value_of_alice);
+                                tx.Write<int>("alice", value_of_alice);
                                 tx.Abort();
                               },
                               [&](LineairDB::Transaction& tx) {
@@ -189,7 +189,7 @@ TEST_F(DatabaseTest, UserAbort) {
 TEST_F(DatabaseTest, ReadYourOwnWrites) {
   int value_of_alice = 1;
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               tx.Insert<int>("alice", value_of_alice);
+                               tx.Write<int>("alice", value_of_alice);
                                auto alice = tx.Read<int>("alice");
                                ASSERT_EQ(value_of_alice, alice.value());
                              }});
@@ -199,7 +199,7 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
   TransactionProcedure insertTenTimes([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     for (size_t idx = 0; idx <= 10; idx++) {
-      tx.Insert<int>("alice" + std::to_string(idx), value);
+      tx.Write<int>("alice" + std::to_string(idx), value);
     }
   });
 
@@ -229,8 +229,8 @@ TEST_F(DatabaseTest, NoConfigTransaction) {
   TestHelper::DoTransactions(
       db_.get(),
       {[&](LineairDB::Transaction& tx) {
-         tx.Insert("alice", reinterpret_cast<std::byte*>(&value_of_alice),
-                   sizeof(int));
+         tx.Write("alice", reinterpret_cast<std::byte*>(&value_of_alice),
+                  sizeof(int));
        },
        [&](LineairDB::Transaction& tx) {
          auto alice = tx.Read("alice");

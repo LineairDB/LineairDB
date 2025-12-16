@@ -75,7 +75,7 @@ TEST_F(DataDefinitionTest, ReadWrite) {
     auto& tx = db_->BeginTransaction();
     bool table_exists = tx.SetTable("users");
     ASSERT_TRUE(table_exists);
-    tx.Insert<int>("user1", 42);
+    tx.Write<int>("user1", 42);
     db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);
     });
@@ -107,8 +107,8 @@ TEST_F(DataDefinitionTest, ConcurrencyControlBetweenMultipleTables) {
     auto& tx1 = db_->BeginTransaction();
     ASSERT_TRUE(tx1.SetTable("users"));
 
-    tx1.Insert<int>("user1", 42);
-    tx1.Insert<int>("user1_only_users", 42);
+    tx1.Write<int>("user1", 42);
+    tx1.Write<int>("user1_only_users", 42);
     tx1_ready = true;
     while (!tx2_ready) std::this_thread::yield();  // Wait for tx2 to be ready
     db_->EndTransaction(tx1, [](auto status) {
@@ -120,7 +120,7 @@ TEST_F(DataDefinitionTest, ConcurrencyControlBetweenMultipleTables) {
     auto& tx2 = db_->BeginTransaction();
     ASSERT_TRUE(tx2.SetTable("accounts"));
 
-    tx2.Insert<int>("user1", 100);
+    tx2.Write<int>("user1", 100);
     tx2_ready = true;
     while (!tx1_ready) std::this_thread::yield();  // Wait for tx1 to be ready
     auto data = tx2.Read<int>("user1_only_users");
@@ -160,11 +160,11 @@ TEST_F(DataDefinitionTest, SetTableAfterWrite) {
   {
     auto& tx = db_->BeginTransaction();
     ASSERT_TRUE(tx.SetTable("users"));
-    tx.Insert<int>("user1", 42);
+    tx.Write<int>("user1", 42);
 
     // Now switch to another table
     ASSERT_TRUE(tx.SetTable("accounts"));
-    tx.Insert<int>("user1", 100);
+    tx.Write<int>("user1", 100);
 
     db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);

@@ -30,10 +30,8 @@ int main() {
           auto alice = tx.Read<int>("alice");
           if (alice.has_value()) {
             std::cout << "alice is recovered: " << alice.value() << std::endl;
-            tx.Update<int>("alice", 10);
-          } else {
-            tx.Insert<int>("alice", 10);
           }
+          tx.Write<int>("alice", 1);
         },
         [&](LineairDB::TxStatus s) { status = s; });
 
@@ -48,12 +46,8 @@ int main() {
 
     // Handler interface: execute a transaction on this thread
     auto& tx = db.BeginTransaction();
-    tx.Insert<int>("bob", 10);
-    tx.Update<int>("bob", 20);
-    auto bob = tx.Read<int>("bob");
-    if (bob.has_value()) {
-      std::cout << "bob is updated: " << bob.value() << std::endl;
-    }
+    tx.Read<int>("alice");
+    tx.Write<int>("alice", 1);
     db.EndTransaction(tx, [&](auto s) { status = s; });
     // Fence: Block-wait until all running transactions are terminated
     db.Fence();
@@ -66,7 +60,7 @@ int main() {
 
     db.ExecuteTransaction(
         [](LineairDB::Transaction& tx) {
-          tx.Insert<int>("carol", 10);
+          tx.Write<int>("carol", 10);
           tx.Delete("carol");
         },
         [&](LineairDB::TxStatus s) { status = s; });
@@ -101,7 +95,7 @@ int main() {
         [](LineairDB::Transaction& tx) {
           auto alice = tx.Read<int>("alice");
           assert(alice.has_value());
-          assert(alice.value() == 10);
+          assert(alice.value() == 1);
         },
         [&](LineairDB::TxStatus s) {});
   }

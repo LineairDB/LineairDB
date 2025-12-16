@@ -25,9 +25,9 @@ TEST_F(ScanDeleteVisibilityTest, ScanShouldExcludeDeletedKeys) {
   // First transaction: insert keys
   {
     auto& tx = db_->BeginTransaction();
-    tx.Insert<int>("alice", 1);
-    tx.Insert<int>("bob", 2);
-    tx.Insert<int>("carol", 3);
+    tx.Write<int>("alice", 1);
+    tx.Write<int>("bob", 2);
+    tx.Write<int>("carol", 3);
     const bool committed = db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);
     });
@@ -76,9 +76,9 @@ TEST_F(ScanDeleteVisibilityTest, ScanShouldExcludeReadYourWriteDeletedKeys) {
   // First transaction: insert keys
   {
     auto& tx = db_->BeginTransaction();
-    tx.Insert<int>("alice", 1);
-    tx.Insert<int>("bob", 2);
-    tx.Insert<int>("carol", 3);
+    tx.Write<int>("alice", 1);
+    tx.Write<int>("bob", 2);
+    tx.Write<int>("carol", 3);
     const bool committed = db_->EndTransaction(tx, [](auto status) {
       ASSERT_EQ(status, LineairDB::TxStatus::Committed);
     });
