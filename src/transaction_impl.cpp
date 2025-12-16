@@ -341,10 +341,6 @@ const std::pair<const std::byte* const, const size_t> Transaction::Read(
     const std::string_view key) {
   return tx_pimpl_->Read(key);
 }
-/* void Transaction::Write(const std::string_view key, const std::byte value[],
-                        const size_t size) {
-  tx_pimpl_->Write(key, value, size);
-} */
 void Transaction::Insert(const std::string_view key, const std::byte value[],
                          const size_t size) {
   tx_pimpl_->Insert(key, value, size);
