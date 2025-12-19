@@ -19,7 +19,6 @@
 #include <lineairdb/transaction.h>
 
 #include <algorithm>
-#include <iostream>
 #include <memory>
 #include <set>
 #include <utility>
@@ -44,6 +43,7 @@ inline std::string BuildQualifiedSKKey(std::string_view table_name,
   k.append(serialized_key);
   return k;
 }
+
 }  // namespace
 
 namespace LineairDB {
@@ -103,7 +103,11 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
   for (auto& snapshot : write_set_) {
     if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name.empty()) {
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        return {nullptr, 0};
+      }
       return std::make_pair(snapshot.data_item_copy.value(),
                             snapshot.data_item_copy.size());
     }
@@ -111,7 +115,11 @@ const std::pair<const std::byte* const, const size_t> Transaction::Impl::Read(
 
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name.empty()) {
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        return {nullptr, 0};
+      }
       return std::make_pair(snapshot.data_item_copy.value(),
                             snapshot.data_item_copy.size());
     }
