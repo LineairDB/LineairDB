@@ -29,23 +29,6 @@
 #include "database_impl.h"
 #include "types/snapshot.hpp"
 
-// ---- Private helpers for SecondaryIndex operations ----
-namespace {
-inline std::string BuildQualifiedSKKey(std::string_view table_name,
-                                       std::string_view index_name,
-                                       std::string_view serialized_key) {
-  std::string k;
-  k.reserve(table_name.size() + index_name.size() + serialized_key.size() + 2);
-  k.append(table_name);
-  k.push_back('#');
-  k.append(index_name);
-  k.push_back('#');
-  k.append(serialized_key);
-  return k;
-}
-
-}  // namespace
-
 namespace LineairDB {
 
 namespace {
