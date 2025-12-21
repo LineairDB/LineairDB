@@ -269,6 +269,7 @@ void Transaction::Impl::WriteSecondaryIndex(
       return;
     }
 
+    index->EnsureRangeEntryForExistingPoint(key);
     snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                                    primary_key_size);
     if (is_rmf) snapshot.is_read_modify_write = true;
@@ -287,6 +288,7 @@ void Transaction::Impl::WriteSecondaryIndex(
     is_rmf = true;
   }
 
+  index->EnsureRangeEntryForExistingPoint(key);
   concurrency_control_->Write(key, primary_key_buffer, primary_key_size,
                               index_leaf);
   Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(),
@@ -697,6 +699,7 @@ void Transaction::Impl::UpdateSecondaryIndex(
       continue;
 
     new_found_in_write_set = true;
+    index->EnsureRangeEntryForExistingPoint(new_secondary_key);
     snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                                    primary_key_size);
     if (is_rmf_new_key) snapshot.is_read_modify_write = true;
@@ -718,6 +721,7 @@ void Transaction::Impl::UpdateSecondaryIndex(
       existing_data_new_key = snapshot.data_item_copy;
       read_set_.emplace_back(std::move(snapshot));
     }
+    index->EnsureRangeEntryForExistingPoint(new_secondary_key);
     existing_data_new_key.AddSecondaryIndexValue(primary_key_buffer,
                                                  primary_key_size);
     concurrency_control_->Write(new_secondary_key, primary_key_buffer,
