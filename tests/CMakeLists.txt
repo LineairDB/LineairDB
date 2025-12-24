@@ -17,6 +17,10 @@
 macro(register_test testfile testfilepath)
   add_executable(${testfile} ${CMAKE_CURRENT_LIST_DIR}/${testfilepath})
   target_link_libraries(${testfile} gtest_main gtest ${PROJECT_NAME})
+  target_include_directories(${testfile} SYSTEM BEFORE PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/googletest/googletest/include>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/googletest/googletest>
+  )
   target_include_directories(${testfile} PRIVATE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/concurrentqueue>

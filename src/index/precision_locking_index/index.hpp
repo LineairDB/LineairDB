@@ -18,6 +18,7 @@
 #ifndef LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_HPP
 #define LINEAIRDB_INDEX_PRECISION_LOCKING_INDEX_HPP
 
+#include <cassert>
 #include <functional>
 #include <optional>
 #include <string_view>
@@ -32,16 +33,60 @@ namespace Index {
 template <typename T>
 class HashTableWithPrecisionLockingIndex {
  public:
+  /**
+   * @brief Entry state matrix:
+   *
+   * | State          | Range | Point | Insert | Delete | Read | Write | Scan  |
+   * |----------------|-------|-------|--------|--------|------|-------|-------|
+   * | EXISTS         | Yes   | Yes   | Fail   | OK     | OK   | OK    | Hit   |
+   * | NOT_EXISTS     | No    | No    | OK     | Fail   | Fail | OK    | Miss  |
+   * | DELETED        | No    | Yes   | OK     | Fail   | Fail | OK    | Miss  |
+   * | INCONSISTENT   | Yes   | No    | N/A    | N/A    | N/A  | N/A   | N/A   |
+   *
+   * - EXISTS: Normal state where entry exists in both indexes
+   * - NOT_EXISTS: Entry doesn't exist in either index
+   * - DELETED: Logically deleted (removed from range but physical entry remains
+   * in point)
+   * - INCONSISTENT: Should never occur (assertion failure if detected)
+   */
+  enum class EntryState {
+    EXISTS,       // Range: Yes, Point: Yes
+    NOT_EXISTS,   // Range: No,  Point: No
+    DELETED,      // Range: No,  Point: Yes (logically deleted)
+    INCONSISTENT  // Range: Yes, Point: No
+  };
+
   HashTableWithPrecisionLockingIndex(Config c, EpochFramework& e)
       : point_index_(c.rehash_threshold), range_index_(e) {}
 
   T* Get(const std::string_view key) { return point_index_.Get(key); }
 
+  /**
+   * @brief Get the current state of an entry
+   * @param key The key to check
+   * @return EntryState The current state of the entry
+   */
+  EntryState GetEntryState(const std::string_view key) {
+    T* point_entry = point_index_.Get(key);
+    bool in_point = (point_entry != nullptr);
+    bool in_range = range_index_.Contains(key);
+
+    if (in_range && in_point) {
+      return EntryState::EXISTS;
+    } else if (!in_range && !in_point) {
+      return EntryState::NOT_EXISTS;
+    } else if (!in_range && in_point) {
+      return EntryState::DELETED;
+    } else {  // in_range && !in_point
+      return EntryState::INCONSISTENT;
+    }
+  }
+
   bool IsEntryNull(const std::string_view key) {
     return point_index_.Get(key) == nullptr;
   }
 
-  bool IsEntryEmpty(std::string_view key) {
+  bool IsEntryEmpty(const std::string_view key) {
     T* entry = point_index_.Get(key);
     if (entry == nullptr || entry->initialized) return false;
     return range_index_.Insert(key);
@@ -67,16 +112,47 @@ class HashTableWithPrecisionLockingIndex {
     range_index_.ForceInsert(key);
   }
 
+  /**
+   * @brief Insert a new entry
+   * @param key The key to insert
+   * @return true if insert succeeds, false otherwise
+   *
+   * Behavior based on entry state:
+   * - EXISTS: Fails (entry already exists)
+   * - NOT_EXISTS: Succeeds (inserts into both indexes)
+   * - DELETED: Succeeds (only adds to range index, point entry already exists)
+   * - INCONSISTENT: Should never occur (assertion failure)
+   */
   bool Insert(const std::string_view key) {
-    bool inserted_range = range_index_.Insert(key);
-    if (!inserted_range) return false;
-    auto* new_entry = new T();
-    bool inserted_point = point_index_.Put(key, new_entry);
-    if (!inserted_point) {
-      delete new_entry;
-      return false;
+    EntryState state = GetEntryState(key);
+
+    switch (state) {
+      case EntryState::EXISTS:
+        // Entry already exists in both indexes - Insert fails
+        return false;
+
+      case EntryState::NOT_EXISTS: {
+        // Put blank entry, then insert into range index
+        auto* new_entry = new T();
+        bool inserted_point = point_index_.Put(key, new_entry);
+        if (!inserted_point) {
+          delete new_entry;
+          return false;
+        }
+
+        return range_index_.Insert(key);
+      }
+
+      case EntryState::DELETED:
+        // Logically deleted - Only need to add back to range index
+        return range_index_.Insert(key);
+
+      case EntryState::INCONSISTENT:
+        assert(false && "Inconsistent entry state detected");
+        break;
     }
-    return true;
+
+    return false;  // Unreachable
   };
 
   /**

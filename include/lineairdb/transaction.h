@@ -105,6 +105,8 @@ class Transaction {
   /**
    * @brief
    * Writes a value with a given key.
+   * Write never fails (equivalent to Upsert).
+   * If the key exists, it updates the value; otherwise, it inserts a new entry.
    *
    * @param key
    * @param value
@@ -135,6 +137,9 @@ class Transaction {
   /**
    * @brief
    * Inserts a value with a given key.
+   * Insert fails when the key already exists.
+   * Use IsAborted() or GetCurrentStatus() to check whether the insertion
+   * succeeds.
    *
    * @param key
    * @param value
@@ -165,6 +170,8 @@ class Transaction {
   /**
    * @brief
    * Updates a value with a given key.
+   * Update fails when the key does not exist.
+   * Use IsAborted() or GetCurrentStatus() to check whether the update succeeds.
    *
    * @param key
    * @param value
