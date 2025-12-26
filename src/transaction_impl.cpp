@@ -158,59 +158,14 @@ void Transaction::Impl::Insert(const std::string_view key,
     return;
   }
 
-  bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName())
-      continue;
-    snapshot.data_item_copy.Reset(value, size);
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
-  }
-
-  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
-
-  concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
-  if (is_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
+  // After successful insertion to index, delegate to Write
+  Write(key, value, size);
 }
 
 void Transaction::Impl::Update(const std::string_view key,
                                const std::byte value[], const size_t size) {
   if (IsAborted()) return;
-
-  // TODO: if `size` is larger than Config.internal_buffer_size,
-  // then we have to abort this transaction or throw exception
   EnsureCurrentTable();
-
-  bool is_rmf = false;
-  for (auto& snapshot : read_set_) {
-    if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
-      is_rmf = true;
-      snapshot.is_read_modify_write = true;
-      break;
-    }
-  }
-
-  for (auto& snapshot : write_set_) {
-    if (snapshot.key != key ||
-        snapshot.table_name != current_table_->GetTableName())
-      continue;
-    snapshot.data_item_copy.Reset(value, size);
-    if (is_rmf) snapshot.is_read_modify_write = true;
-    return;
-  }
 
   auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
   if (index_leaf == nullptr || !index_leaf->IsInitialized()) {
@@ -218,25 +173,27 @@ void Transaction::Impl::Update(const std::string_view key,
     return;
   }
 
-  concurrency_control_->Write(key, value, size, index_leaf);
-  Snapshot sp(key, value, size, index_leaf, current_table_->GetTableName());
-  if (is_rmf) sp.is_read_modify_write = true;
-  write_set_.emplace_back(std::move(sp));
+  // After validation, delegate to Write
+  Write(key, value, size);
 }
 
 void Transaction::Impl::Delete(const std::string_view key) {
   if (IsAborted()) return;
   EnsureCurrentTable();
+
   // Delete() consists of two deletions: removal from the index (physical)
   //   and initialization of the data item (logical).
   // The reason for this design is that we consider Delete() as
   //   a combination of two writes: a write to the index and a write to the data
   //   item.
+
+  // 1. removal from the index
   bool deleted = current_table_->GetPrimaryIndex().Delete(key);
   if (!deleted) {
     Abort();
     return;
   }
+  // 2. initialization of the data item
   this->Update(key, nullptr, 0);
 }
 

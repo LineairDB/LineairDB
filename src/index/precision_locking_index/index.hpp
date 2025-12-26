@@ -70,26 +70,17 @@ class HashTableWithPrecisionLockingIndex {
     T* point_entry = point_index_.Get(key);
     bool in_point = (point_entry != nullptr);
     bool in_range = range_index_.Contains(key);
+    bool deleted = (in_point && point_entry->IsInitialized() == false);
 
-    if (in_range && in_point) {
+    if (in_range && in_point && !deleted) {
       return EntryState::EXISTS;
     } else if (!in_range && !in_point) {
       return EntryState::NOT_EXISTS;
-    } else if (!in_range && in_point) {
+    } else if (deleted) {
       return EntryState::DELETED;
-    } else {  // in_range && !in_point
+    } else {
       return EntryState::INCONSISTENT;
     }
-  }
-
-  bool IsEntryNull(const std::string_view key) {
-    return point_index_.Get(key) == nullptr;
-  }
-
-  bool IsEntryEmpty(const std::string_view key) {
-    T* entry = point_index_.Get(key);
-    if (entry == nullptr || entry->initialized) return false;
-    return range_index_.Insert(key);
   }
 
   /**
@@ -148,7 +139,7 @@ class HashTableWithPrecisionLockingIndex {
         return range_index_.Insert(key);
 
       case EntryState::INCONSISTENT:
-        assert(false && "Inconsistent entry state detected");
+        assert(false && "Inconsistent entry state detected.");
         break;
     }
 

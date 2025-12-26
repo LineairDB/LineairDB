@@ -36,18 +36,39 @@ namespace LineairDB {
  *
  * Data operations:
  *   read: read a data item. #Scan consists of multiple read operations.
- *
  *   write: generate a new version of a data item.
+ *
  * Termination operations:
  *   commit: commit this transaction.
  *   abort:  abort this transaction.
  *
- * Note that the commit operation is implicitly executed by the worker threads
- * running in LineairDB, only when the transaction satisfies Strict
- * Serializability and Recoverability.
- * All methods are thread-safe.
+ * In addition to the above four operations, LineairDB provides some helper
+ * interfaces.
+ *   insert: insert a new data item. (≈ "write" if the key not exists)
+ *   update: update an existing data item. (≈ "write" if the key exists)
+ *   delete: delete an existing data item. (≈ "write" if the key exists)
+ *   scan: scan data items in a given key range. (consists of multiple read
+ * operations)
+ *
+ * All methods are thread-safe, but some operations may fail due to concurrency
+ * control. The following table summarizes the behavior of each operation when
+ * it fails.
+ * |-------------------------------------------------------------------|
+ * | Operation | Failure Behavior                                      |
+ * |-----------|-------------------------------------------------------|
+ * | read      | returns std::nullopt if the key does not exist        |
+ * | write     | always succeeds (like upsert)                         |
+ * | commit    | may fail if the transaction is not serializable       |
+ * | abort     | always succeeds                                       |
+ * | insert    | may fail if the key already exists                    |
+ * | update    | may fail if the key does not exist                    |
+ * | delete    | may fail if the key does not exist                    |
+ * | scan      | may fail if the transaction is not serializable       |
+ * |-------------------------------------------------------------------|
+ *
  * @see [Vossen95] https://doi.org/10.1007/BFb0015267
  **/
+
 class Transaction {
  public:
   /**

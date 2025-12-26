@@ -61,12 +61,7 @@ DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
 }
 
 bool ConcurrentTable::Insert(const std::string_view key) {
-  bool is_entry_null = index_->IsEntryNull(key);
-  if (is_entry_null) {
-    return index_->Insert(key);
-  }
-  bool is_entry_empty = index_->IsEntryEmpty(key);
-  return is_entry_empty;
+  return index_->Insert(key);
 }
 
 // return false if a corresponding entry already exists
