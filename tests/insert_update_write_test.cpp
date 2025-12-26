@@ -19,7 +19,9 @@
  * - Insert fails when the key already exists (transaction should abort)
  */
 TEST(InsertUpdateWriteTest, InsertBehavior) {
-  LineairDB::Database db;
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  LineairDB::Database db(config);
   std::string key = "insert_test_key";
   int value1 = 100;
   int value2 = 200;
@@ -81,7 +83,9 @@ TEST(InsertUpdateWriteTest, InsertBehavior) {
  * - Update succeeds when the key exists
  */
 TEST(InsertUpdateWriteTest, UpdateBehavior) {
-  LineairDB::Database db;
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  LineairDB::Database db(config);
   std::string key = "update_test_key";
   int value1 = 300;
   int value2 = 400;
@@ -156,7 +160,9 @@ TEST(InsertUpdateWriteTest, UpdateBehavior) {
  * - Write updates when the key already exists
  */
 TEST(InsertUpdateWriteTest, WriteBehavior) {
-  LineairDB::Database db;
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  LineairDB::Database db(config);
   std::string key = "write_test_key";
   int value1 = 500;
   int value2 = 600;
