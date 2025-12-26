@@ -89,6 +89,5 @@ bool ConcurrentTable::Delete(const std::string_view key) {
 void ConcurrentTable::WaitForIndexIsLinearizable() {
   index_->WaitForIndexIsLinearizable();
 }
-
 }  // namespace Index
 }  // namespace LineairDB

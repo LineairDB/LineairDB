@@ -36,6 +36,12 @@ class HashTableWithPrecisionLockingIndex {
       : point_index_(c.rehash_threshold), range_index_(e) {}
 
   T* Get(const std::string_view key) { return point_index_.Get(key); }
+  bool HasPointEntry(const std::string_view key) {
+    return point_index_.Get(key) != nullptr;
+  }
+  bool HasRangeEntry(const std::string_view key) {
+    return range_index_.Contains(key);
+  }
 
   /**
    * @note return false if a phantom anomaly has detected.
@@ -54,6 +60,9 @@ class HashTableWithPrecisionLockingIndex {
     auto* new_entry = new T();
     if (!point_index_.Put(key, new_entry))
       delete new_entry;  // already inserted
+    range_index_.ForceInsert(key);
+  }
+  void ForceInsertRange(const std::string_view key) {
     range_index_.ForceInsert(key);
   }
 
