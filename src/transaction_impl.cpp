@@ -167,6 +167,22 @@ void Transaction::Impl::Update(const std::string_view key,
   if (IsAborted()) return;
   EnsureCurrentTable();
 
+  // If key exists in this transaction's write_set_ (e.g., Insert() then
+  // Update() in the same transaction), Update() should succeed even if the
+  // index entry has not been updated yet.
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
+      // If the key was deleted within this transaction, Update should fail.
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        Abort();
+        return;
+      }
+      Write(key, value, size);
+      return;
+    }
+  }
+
   auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
   if (index_leaf == nullptr || !index_leaf->IsInitialized()) {
     Abort();

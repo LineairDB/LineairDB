@@ -243,3 +243,39 @@ TEST(InsertUpdateWriteTest, WriteBehavior) {
   db.Fence();
   ASSERT_TRUE(final_value_correct.load());
 }
+
+TEST(InsertUpdateWriteTest, InsertThenUpdateSameTransaction) {
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  LineairDB::Database db(config);
+
+  std::string key = "insert_then_update_same_tx_key";
+  int value1 = 10;
+  int value2 = 20;
+
+  std::atomic<bool> committed(false);
+  db.ExecuteTransaction(
+      [&](LineairDB::Transaction& tx) {
+        tx.Insert(key, value1);
+        tx.Update(key, value2);
+      },
+      [&](LineairDB::TxStatus status) {
+        if (status == LineairDB::TxStatus::Committed) {
+          committed.store(true);
+        }
+      });
+  db.Fence();
+  ASSERT_TRUE(committed.load());
+
+  std::atomic<bool> verified(false);
+  db.ExecuteTransaction(
+      [&](LineairDB::Transaction& tx) {
+        auto result = tx.Read<int>(key);
+        if (result.has_value() && result.value() == value2) {
+          verified.store(true);
+        }
+      },
+      [](LineairDB::TxStatus) {});
+  db.Fence();
+  ASSERT_TRUE(verified.load());
+}
