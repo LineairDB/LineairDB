@@ -121,6 +121,7 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
 
   return hit;
 };
+
 bool PrecisionLockingIndex::Insert(const std::string_view key) {
   std::shared_lock<decltype(plock_)> p_guard(plock_);
   if (IsInPredicateSet(key)) {
@@ -157,6 +158,13 @@ bool PrecisionLockingIndex::Delete(const std::string_view key) {
 
   return true;
 };
+
+bool PrecisionLockingIndex::Contains(const std::string_view key) {
+  std::shared_lock<decltype(ulock_)> u_guard(ulock_);
+  auto it = container_.find(std::string(key));
+  if (it == container_.end()) return false;
+  return !it->second.is_deleted;
+}
 
 bool PrecisionLockingIndex::IsInPredicateSet(const std::string_view key) {
   void* current_tx = GetCurrentTransactionContext();

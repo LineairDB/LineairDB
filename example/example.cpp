@@ -20,6 +20,9 @@
 #include <iostream>
 
 int main() {
+  /**
+   * Simple Read & Write Interfaces
+   */
   {
     LineairDB::Database db;
     LineairDB::TxStatus status;
@@ -55,9 +58,61 @@ int main() {
   }
 
   {
+    // Instantiate with customized configuration.
+    LineairDB::Config config;
+    config.concurrency_control_protocol =
+        LineairDB::Config::ConcurrencyControl::Silo;
+    config.enable_logging = false;
+    config.enable_recovery = false;
+    config.max_thread = 1;
+
+    LineairDB::Database db(config);
+    // Example of failures: we passed `config` as rvalue and it is nop to modify
+    // this object after instantiation of LineairDB.
+    //    NG: config.max_thread = 10;
+
+    db.ExecuteTransaction(
+        [](LineairDB::Transaction& tx) {
+          auto alice = tx.Read<int>("alice");
+          // Any data item is not recovered
+          assert(!alice.has_value());
+        },
+        [&](LineairDB::TxStatus s) {});
+  }
+
+  /**
+   * Insert, Delete, Update Interfaces
+   */
+  {
     LineairDB::Database db;
     LineairDB::TxStatus status;
 
+    // Insert and Update
+    db.ExecuteTransaction(
+        [](LineairDB::Transaction& tx) {
+          tx.Insert<int>("david", 10);
+          tx.Update<int>("david", 20);
+        },
+        [&](LineairDB::TxStatus s) { status = s; });
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+
+    db.ExecuteTransaction(
+        [](LineairDB::Transaction& tx) {
+          auto david = tx.Read<int>("david");
+          assert(david.has_value());
+          assert(david.value() == 20);
+        },
+        [&](LineairDB::TxStatus s) { status = s; });
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+  }
+
+  {
+    LineairDB::Database db;
+    LineairDB::TxStatus status;
+
+    // Delete
     db.ExecuteTransaction(
         [](LineairDB::Transaction& tx) {
           tx.Write<int>("carol", 10);
@@ -96,29 +151,6 @@ int main() {
           auto alice = tx.Read<int>("alice");
           assert(alice.has_value());
           assert(alice.value() == 1);
-        },
-        [&](LineairDB::TxStatus s) {});
-  }
-
-  {
-    // Instantiate with customized configuration.
-    LineairDB::Config config;
-    config.concurrency_control_protocol =
-        LineairDB::Config::ConcurrencyControl::Silo;
-    config.enable_logging = false;
-    config.enable_recovery = false;
-    config.max_thread = 1;
-
-    LineairDB::Database db(config);
-    // Example of failures: we passed `config` as rvalue and it is nop to modify
-    // this object after instantiation of LineairDB.
-    //    NG: config.max_thread = 10;
-
-    db.ExecuteTransaction(
-        [](LineairDB::Transaction& tx) {
-          auto alice = tx.Read<int>("alice");
-          // Any data item is not recovered
-          assert(!alice.has_value());
         },
         [&](LineairDB::TxStatus s) {});
   }

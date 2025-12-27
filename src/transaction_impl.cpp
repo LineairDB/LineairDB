@@ -147,20 +147,70 @@ void Transaction::Impl::Write(const std::string_view key,
   write_set_.emplace_back(std::move(sp));
 }
 
+void Transaction::Impl::Insert(const std::string_view key,
+                               const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+
+  auto inserted = current_table_->GetPrimaryIndex().Insert(key);
+  if (!inserted) {
+    Abort();
+    return;
+  }
+
+  // After successful insertion to index, delegate to Write
+  Write(key, value, size);
+}
+
+void Transaction::Impl::Update(const std::string_view key,
+                               const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+
+  // If key exists in this transaction's write_set_ (e.g., Insert() then
+  // Update() in the same transaction), Update() should succeed even if the
+  // index entry has not been updated yet.
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
+      // If the key was deleted within this transaction, Update should fail.
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        Abort();
+        return;
+      }
+      Write(key, value, size);
+      return;
+    }
+  }
+
+  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
+  if (index_leaf == nullptr || !index_leaf->IsInitialized()) {
+    Abort();
+    return;
+  }
+
+  // After validation, delegate to Write
+  Write(key, value, size);
+}
+
 void Transaction::Impl::Delete(const std::string_view key) {
   if (IsAborted()) return;
   EnsureCurrentTable();
+
   // Delete() consists of two deletions: removal from the index (physical)
   //   and initialization of the data item (logical).
   // The reason for this design is that we consider Delete() as
   //   a combination of two writes: a write to the index and a write to the data
   //   item.
+
+  // 1. removal from the index
   bool deleted = current_table_->GetPrimaryIndex().Delete(key);
   if (!deleted) {
     Abort();
     return;
   }
-  this->Write(key, nullptr, 0);
+  // 2. initialization of the data item
+  this->Update(key, nullptr, 0);
 }
 
 const std::optional<size_t> Transaction::Impl::Scan(
@@ -302,6 +352,14 @@ const std::pair<const std::byte* const, const size_t> Transaction::Read(
 void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
+}
+void Transaction::Insert(const std::string_view key, const std::byte value[],
+                         const size_t size) {
+  tx_pimpl_->Insert(key, value, size);
+}
+void Transaction::Update(const std::string_view key, const std::byte value[],
+                         const size_t size) {
+  tx_pimpl_->Update(key, value, size);
 }
 void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
 const std::optional<size_t> Transaction::Scan(
