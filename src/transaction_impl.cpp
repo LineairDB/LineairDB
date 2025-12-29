@@ -194,7 +194,8 @@ void Transaction::Impl::Write(const std::string_view key,
   bool is_rmf = false;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key &&
-        snapshot.table_name == current_table_->GetTableName()) {
+        snapshot.table_name == current_table_->GetTableName() &&
+        snapshot.index_name.empty()) {
       is_rmf = true;
       snapshot.is_read_modify_write = true;
       break;
@@ -205,6 +206,7 @@ void Transaction::Impl::Write(const std::string_view key,
     if (snapshot.key != key ||
         snapshot.table_name != current_table_->GetTableName())
       continue;
+    if (!snapshot.index_name.empty()) continue;
     snapshot.data_item_copy.Reset(value, size);
     if (is_rmf) snapshot.is_read_modify_write = true;
     return;
@@ -289,6 +291,7 @@ void Transaction::Impl::WriteSecondaryIndex(
   }
 
   index->EnsureRangeEntryForExistingPoint(key);
+
   concurrency_control_->Write(key, primary_key_buffer, primary_key_size,
                               index_leaf);
   Snapshot sp(key, nullptr, 0, index_leaf, current_table_->GetTableName(),
@@ -346,6 +349,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
   std::set<std::string> write_set_keys;
   for (const auto& snapshot : write_set_) {
     if (snapshot.table_name != current_table_->GetTableName()) continue;
+    if (!snapshot.index_name.empty()) continue;  // base-table scan only
     if (snapshot.key < begin) continue;
     if (end.has_value() && snapshot.key > end.value()) continue;
     write_set_keys.insert(snapshot.key);
@@ -366,6 +370,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
     bool found_in_write_set = false;
     for (const auto& snapshot : write_set_) {
       if (snapshot.table_name != current_table_->GetTableName()) continue;
+      if (!snapshot.index_name.empty()) continue;  // base-table scan only
       if (snapshot.key != key) continue;
 
       found_in_write_set = true;

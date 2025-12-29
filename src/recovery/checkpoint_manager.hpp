@@ -147,7 +147,8 @@ class CPRManager {
                       return true;
                     });
 
-                // Checkpoint Secondary Indices
+                // Temporary: disable checkpointing for secondary indices.
+#if 0
                 table.ForEachSecondaryIndex(
                     [&](const std::string& index_name,
                         Index::SecondaryIndex& sec_index) {
@@ -168,6 +169,7 @@ class CPRManager {
                         return true;
                       });
                     });
+#endif
               });
               records.emplace_back(std::move(record));
 
