@@ -37,18 +37,39 @@ namespace LineairDB {
  *
  * Data operations:
  *   read: read a data item. #Scan consists of multiple read operations.
- *
  *   write: generate a new version of a data item.
+ *
  * Termination operations:
  *   commit: commit this transaction.
  *   abort:  abort this transaction.
  *
- * Note that the commit operation is implicitly executed by the worker threads
- * running in LineairDB, only when the transaction satisfies Strict
- * Serializability and Recoverability.
- * All methods are thread-safe.
+ * In addition to the above four operations, LineairDB provides some helper
+ * interfaces.
+ *   insert: insert a new data item. (≈ "write" if the key not exists)
+ *   update: update an existing data item. (≈ "write" if the key exists)
+ *   delete: delete an existing data item. (≈ "write" if the key exists)
+ *   scan: scan data items in a given key range. (consists of multiple read
+ * operations)
+ *
+ * All methods are thread-safe, but some operations may fail due to concurrency
+ * control. The following table summarizes the behavior of each operation when
+ * it fails.
+ * |-------------------------------------------------------------------|
+ * | Operation | Failure Behavior                                      |
+ * |-----------|-------------------------------------------------------|
+ * | read      | returns std::nullopt if the key does not exist        |
+ * | write     | always succeeds (like upsert)                         |
+ * | commit    | may fail if the transaction is not serializable       |
+ * | abort     | always succeeds                                       |
+ * | insert    | may fail if the key already exists                    |
+ * | update    | may fail if the key does not exist                    |
+ * | delete    | may fail if the key does not exist                    |
+ * | scan      | may fail if the transaction is not serializable       |
+ * |-------------------------------------------------------------------|
+ *
  * @see [Vossen95] https://doi.org/10.1007/BFb0015267
  **/
+
 class Transaction {
  public:
   /**
@@ -131,6 +152,8 @@ class Transaction {
   /**
    * @brief
    * Writes a value with a given key.
+   * Write never fails (equivalent to Upsert).
+   * If the key exists, it updates the value; otherwise, it inserts a new entry.
    *
    * @param key
    * @param value
@@ -183,6 +206,71 @@ class Transaction {
     std::memcpy(buffer, &primary_key, sizeof(T));
     WriteSecondaryIndex(index_name, key, buffer, sizeof(T));
   }
+  /**
+   * @brief
+   * Inserts a value with a given key.
+   * Insert fails when the key already exists.
+   * Use IsAborted() or GetCurrentStatus() to check whether the insertion
+   * succeeds.
+   *
+   * @param key
+   * @param value
+   * @param size
+   */
+  void Insert(const std::string_view key, const std::byte value[],
+              const size_t size);
+
+  /**
+   * @brief
+   * Inserts an user-defined value with a given key.
+   *
+   * @tparam T
+   * T must be Trivially Copyable.
+   * This is because LineairDB is a Key-value storage but not a object storage.
+   * @param key
+   * @param value
+   */
+  template <typename T>
+  void Insert(const std::string_view key, const T& value) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    std::byte buffer[sizeof(T)];
+    std::memcpy(buffer, &value, sizeof(T));
+    Insert(key, buffer, sizeof(T));
+  };
+
+  /**
+   * @brief
+   * Updates a value with a given key.
+   * Update fails when the key does not exist.
+   * Use IsAborted() or GetCurrentStatus() to check whether the update succeeds.
+   *
+   * @param key
+   * @param value
+   * @param size
+   */
+  void Update(const std::string_view key, const std::byte value[],
+              const size_t size);
+
+  /**
+   * @brief
+   * Updates an user-defined value with a given key.
+   *
+   * @tparam T
+   * T must be Trivially Copyable.
+   * This is because LineairDB is a Key-value storage but not a object storage.
+   * @param key
+   * @param value
+   */
+  template <typename T>
+  void Update(const std::string_view key, const T& value) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to read/write trivially copyable types.");
+    std::byte buffer[sizeof(T)];
+    std::memcpy(buffer, &value, sizeof(T));
+    Update(key, buffer, sizeof(T));
+  };
+
   /**
    * @brief
    * Deletes a value with a given key.

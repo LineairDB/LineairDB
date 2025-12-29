@@ -62,6 +62,7 @@ class PrecisionLockingIndex {
   void ForceInsert(const std::string_view key);
   bool Contains(const std::string_view key);
   bool Delete(const std::string_view key);
+  bool Contains(const std::string_view key);
   void WaitForIndexIsLinearizable();
 
  private:
