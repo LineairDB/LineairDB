@@ -52,11 +52,6 @@ class SecondaryIndex {
   }
 
   bool IsUnique() { return index_type_ == 1; }
-  void EnsureRangeEntryForExistingPoint(const std::string_view key) {
-    if (!secondary_index_->HasPointEntry(key)) return;
-    if (secondary_index_->HasRangeEntry(key)) return;
-    secondary_index_->ForceInsertRange(key);
-  }
 
   void WaitForIndexIsLinearizable() {
     secondary_index_->WaitForIndexIsLinearizable();

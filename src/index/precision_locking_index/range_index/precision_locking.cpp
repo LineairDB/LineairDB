@@ -76,7 +76,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
             }
           }
         }
-      }){};
+      }) {};
 
 PrecisionLockingIndex::~PrecisionLockingIndex() {
   manager_stop_flag_.store(true);
@@ -143,14 +143,6 @@ void PrecisionLockingIndex::ForceInsert(const std::string_view key) {
   insert_or_delete_key_set_[epoch].emplace_back(key, false);
   insert_or_delete_key_set_[epoch].back().tx_context =
       GetCurrentTransactionContext();
-}
-
-bool PrecisionLockingIndex::Contains(const std::string_view key) {
-  std::shared_lock<decltype(plock_)> p_guard(plock_);
-  std::shared_lock<decltype(ulock_)> u_guard(ulock_);
-  auto it = container_.find(std::string(key));
-  if (it == container_.end()) return false;
-  return !it->second.is_deleted;
 }
 
 bool PrecisionLockingIndex::Delete(const std::string_view key) {
