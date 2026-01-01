@@ -146,8 +146,7 @@ class CPRManager {
                       data_item.ExclusiveUnlock();
                       return true;
                     });
-
-                // Temporary: disable checkpointing for secondary indices.
+          // Temporary: disable checkpointing for secondary indices.
 #if 0
                 table.ForEachSecondaryIndex(
                     [&](const std::string& index_name,
@@ -198,7 +197,8 @@ class CPRManager {
             checkpoint_completed_epoch_.store(checkpoint_epoch_.load());
             current_phase_.store(Phase::REST);
           }
-        }) {}
+        }) {
+  }
 
   void Stop() {
     stop_.store(true);
