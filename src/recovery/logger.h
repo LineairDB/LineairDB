@@ -21,6 +21,7 @@
 #include <fstream>
 #include <memory>
 #include <msgpack.hpp>
+#include <vector>
 
 #include "logger_base.h"
 #include "types/data_buffer.hpp"
@@ -58,7 +59,9 @@ class Logger {
       std::string buffer;
       TransactionId tid;
       std::string table_name;
-      MSGPACK_DEFINE(key, buffer, tid, table_name);
+      std::string index_name;
+      std::vector<std::string> primary_keys;
+      MSGPACK_DEFINE(key, buffer, tid, table_name, index_name, primary_keys);
     };
 
     EpochNumber epoch;

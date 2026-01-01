@@ -116,6 +116,7 @@ class CPRManager {
               record.epoch = checkpoint_epoch_.load() + 1;
 
               dict_ref_.ForEachTable([&](LineairDB::Table& table) {
+                // Checkpoint Primary Index
                 table.GetPrimaryIndex().ForEach(
                     [&](std::string_view key, LineairDB::DataItem& data_item) {
                       data_item.ExclusiveLock();
@@ -129,6 +130,7 @@ class CPRManager {
                       Logger::LogRecord::KeyValuePair kvp;
                       kvp.table_name = table.GetTableName();
                       kvp.key = key;
+                      // index_name is empty for Primary Index
                       if (data_item.checkpoint_buffer.IsEmpty()) {
                         // this data item holds version which has written before
                         // the point of consistency.
@@ -144,6 +146,29 @@ class CPRManager {
                       data_item.ExclusiveUnlock();
                       return true;
                     });
+          // Temporary: disable checkpointing for secondary indices.
+#if 0
+                table.ForEachSecondaryIndex(
+                    [&](const std::string& index_name,
+                        Index::SecondaryIndex& sec_index) {
+                      sec_index.ForEach([&](std::string_view key,
+                                            LineairDB::DataItem& data_item) {
+                        data_item.ExclusiveLock();
+
+                        Logger::LogRecord::KeyValuePair kvp;
+                        kvp.table_name = table.GetTableName();
+                        kvp.index_name = index_name;
+                        kvp.key = key;
+                        kvp.primary_keys = data_item.primary_keys;
+                        kvp.tid.epoch = record.epoch;
+                        kvp.tid.tid = 0;
+                        record.key_value_pairs.emplace_back(std::move(kvp));
+
+                        data_item.ExclusiveUnlock();
+                        return true;
+                      });
+                    });
+#endif
               });
               records.emplace_back(std::move(record));
 
@@ -172,7 +197,8 @@ class CPRManager {
             checkpoint_completed_epoch_.store(checkpoint_epoch_.load());
             current_phase_.store(Phase::REST);
           }
-        }) {}
+        }) {
+  }
 
   void Stop() {
     stop_.store(true);

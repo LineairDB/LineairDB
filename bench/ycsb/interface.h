@@ -24,36 +24,32 @@
 namespace YCSB {
 namespace Interface {
 
-void Read(LineairDB::Transaction& tx, std::string_view key, std::string_view,
-          void*, size_t) {
+void Read(LineairDB::Transaction& tx, std::string_view key, void*, size_t) {
   tx.Read(key);
 }
 
-void Update(LineairDB::Transaction& tx, std::string_view key, std::string_view,
-            void* payload, size_t size) {
+void Update(LineairDB::Transaction& tx, std::string_view key, void* payload,
+            size_t size) {
   tx.Write(key, reinterpret_cast<std::byte*>(payload), size);
 }
 
 // FIXME discriminate update and insert
-void Insert(LineairDB::Transaction& tx, std::string_view key, std::string_view,
-            void* payload, size_t size) {
-  Update(tx, key, "", payload, size);
+void Insert(LineairDB::Transaction& tx, std::string_view key, void* payload,
+            size_t size) {
+  Update(tx, key, payload, size);
 }
 
 void Scan(LineairDB::Transaction& tx, std::string_view begin,
           std::string_view end, void*, size_t) {
-  // from original: max scan length = 100
-  size_t hit = 0;
-  tx.Scan(begin, end, [&](auto, auto) {
-    hit++;
-    if (100 <= hit) return true;
-    return false;
-  });
+  // No-op: Scan is handled via a lambda in benchmark.cpp with table context.
+  (void)tx;
+  (void)begin;
+  (void)end;
 }
 void ReadModifyWrite(LineairDB::Transaction& tx, std::string_view key,
-                     std::string_view, void* payload, size_t size) {
-  Read(tx, key, "", payload, size);
-  Update(tx, key, "", payload, size);
+                     void* payload, size_t size) {
+  Read(tx, key, payload, size);
+  Update(tx, key, payload, size);
 }
 
 }  // namespace Interface
