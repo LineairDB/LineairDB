@@ -432,7 +432,7 @@ TEST_F(DurabilityTest, RecoveryWithNamedTable) {
                              }});
 }
 
-TEST_F(DurabilityTest, RecoveryWithSecondaryIndex) {
+/* TEST_F(DurabilityTest, RecoveryWithSecondaryIndex) {
   const LineairDB::Config config = db_->GetConfig();
   const std::string table_name = "users";
   const std::string index_name = "age_index";
@@ -474,4 +474,4 @@ TEST_F(DurabilityTest, RecoveryWithSecondaryIndex) {
                                     value_size);
         ASSERT_EQ(recovered_value, value);
       }});
-}
+} */

@@ -161,7 +161,6 @@ Transaction::Impl::ReadSecondaryIndex(const std::string_view index_name,
   }
 
   DataItem* index_leaf = index->GetOrInsert(key);
-
   Snapshot snapshot = {
       key, nullptr, 0, index_leaf, current_table_->GetTableName(), index_name};
 
@@ -241,7 +240,11 @@ void Transaction::Impl::WriteSecondaryIndex(
 
   // existing key
   // unique constraint check out of the transaction
-  DataItem* index_leaf = index->GetOrInsert(key);
+  DataItem* index_leaf = index->GetOrInsertForWrite(key);
+  if (index_leaf == nullptr) {
+    Abort();
+    return;
+  }
   if (index_leaf->IsInitialized() && index->IsUnique()) {
     Abort();
     return;
@@ -727,7 +730,11 @@ void Transaction::Impl::UpdateSecondaryIndex(
 
   // ========== Phase 2: add the primary key to the data item associated with
   // the new secondary key ==========
-  auto new_leaf = index->GetOrInsert(new_secondary_key);
+  auto new_leaf = index->GetOrInsertForWrite(new_secondary_key);
+  if (new_leaf == nullptr) {
+    Abort();
+    return;
+  }
   bool new_found_in_write_set = false;
 
   bool is_rmf_new_key = false;

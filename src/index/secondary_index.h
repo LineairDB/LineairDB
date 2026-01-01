@@ -29,6 +29,13 @@ class SecondaryIndex {
     return item;
   }
 
+  DataItem* GetOrInsertForWrite(std::string_view key) {
+    if (!secondary_index_->EnsureVisibleForSecondaryWrite(key)) return nullptr;
+    auto* item = secondary_index_->Get(key);
+    assert(item != nullptr);
+    return item;
+  }
+
   std::optional<size_t> Scan(std::string_view begin,
                              std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation) {
