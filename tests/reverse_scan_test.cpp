@@ -33,15 +33,14 @@ TEST_F(ReverseScanTest, ScanReverseShouldReturnKeysInReverseOrder) {
     ASSERT_TRUE(committed);
     db_->Fence();
   }
-  
+
   {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
-    auto count =
-        tx.ScanReverse<int>("alice", "carol", [&](auto key, auto) {
-          scanned_keys.push_back(std::string(key));
-          return false;
-        });
+    auto count = tx.ScanReverse<int>("alice", "carol", [&](auto key, auto) {
+      scanned_keys.push_back(std::string(key));
+      return false;
+    });
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(3));
     std::vector<std::string> expected = {"carol", "bob", "alice"};
@@ -164,11 +163,10 @@ TEST_F(ReverseScanTest, ScanReverseShouldStopEarly) {
   {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
-    auto count =
-        tx.ScanReverse<int>("alice", "carol", [&](auto key, auto) {
-          scanned_keys.push_back(std::string(key));
-          return true;
-        });
+    auto count = tx.ScanReverse<int>("alice", "carol", [&](auto key, auto) {
+      scanned_keys.push_back(std::string(key));
+      return true;
+    });
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(1));
     std::vector<std::string> expected = {"carol"};
@@ -194,11 +192,10 @@ TEST_F(ReverseScanTest, ScanReverseWithoutEndShouldIncludeTail) {
   {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
-    auto count =
-        tx.ScanReverse<int>("bob", std::nullopt, [&](auto key, auto) {
-          scanned_keys.push_back(std::string(key));
-          return false;
-        });
+    auto count = tx.ScanReverse<int>("bob", std::nullopt, [&](auto key, auto) {
+      scanned_keys.push_back(std::string(key));
+      return false;
+    });
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(3));
     std::vector<std::string> expected = {"dave", "carol", "bob"};
@@ -222,8 +219,8 @@ TEST_F(ReverseScanTest, ScanReverseWithInvalidRangeShouldReturnNullopt) {
 
   {
     auto& tx = db_->BeginTransaction();
-    auto count =
-        tx.ScanReverse<int>("carol", "alice", [&](auto, auto) { return false; });
+    auto count = tx.ScanReverse<int>("carol", "alice",
+                                     [&](auto, auto) { return false; });
     ASSERT_FALSE(count.has_value());
     db_->EndTransaction(tx, [](auto) {});
   }
