@@ -49,6 +49,8 @@ namespace LineairDB {
  *   delete: delete an existing data item. (≈ "write" if the key exists)
  *   scan: scan data items in a given key range. (consists of multiple read
  * operations)
+ * scan reverse: scan data items in a given key range in reverse lexical
+ * order. (consists of multiple read operations)
  *
  * All methods are thread-safe, but some operations may fail due to concurrency
  * control. The following table summarizes the behavior of each operation when
@@ -64,6 +66,7 @@ namespace LineairDB {
  * | update    | may fail if the key does not exist                    |
  * | delete    | may fail if the key does not exist                    |
  * | scan      | may fail if the transaction is not serializable       |
+ * | scan reverse | may fail if the transaction is not serializable    |
  * |-------------------------------------------------------------------|
  *
  * @see [Vossen95] https://doi.org/10.1007/BFb0015267
@@ -279,6 +282,63 @@ class Transaction {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
     return Scan(begin, end, [&](auto key, auto pair) {
+      const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
+      return operation(key, copy_constructed);
+    });
+  }
+
+  /**
+   * @brief
+   * Get all data items that match the range from the "begin" key to the "end"
+   * key in the reverse lexical order.
+   * The term "get" here means that it is equivalent to the #Read
+   * operation: this operation performs read operations for all the keys.
+   * @param begin
+   *  The lower bound key of the range (inclusive).
+   *  If there exists a data item with this key, LineairDB returns the data
+   *  item.
+   * @param end
+   *  The upper bound key of the range (inclusive).
+   *  If there exists a data item with this key, LineairDB returns the data
+   *  item.
+   * @param operation
+   *  A bool function to be executed iteratively on data items matching the
+   * input range. The arguments of the function are key (std::string_view) and
+   * value (std::pair). Return value (boolean) forces LineairDB to cancel the
+   * scanning operation; when a function returns true at some key, this function
+   * will never be invoked with the next key in the reverse order.
+   * @return std::optional<size_t>
+   *  returns the total number of rows that match the inputted range, if
+   * succeed. Concurrent transactions may aborts this scan operation and returns
+   * std::nullopt_t.
+   *
+   */
+  const std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
+
+  /**
+   * @brief
+   * #ScanReverse operation with user-defined template type in reverse lexical
+   * order.
+   * @tparam T
+   * T must be Trivially Copyable and Constructable.
+   * This is because LineairDB is a Key-value storage but not a object storage.
+   *
+   * @param begin
+   * @param end
+   * @param operation
+   * @return std::optional<size_t>
+   */
+  template <typename T>
+  const std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, T)> operation) {
+    static_assert(std::is_trivially_copyable<T>::value == true,
+                  "LineairDB expects to trivially copyable types.");
+    return ScanReverse(begin, end, [&](auto key, auto pair) {
       const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
       return operation(key, copy_constructed);
     });
