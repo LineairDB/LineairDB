@@ -42,6 +42,12 @@ class SecondaryIndex {
     return secondary_index_->Scan(begin, end, operation);
   }
 
+  std::optional<size_t> ScanReverse(
+      std::string_view begin, std::optional<std::string_view> end,
+      std::function<bool(std::string_view)> operation) {
+    return secondary_index_->ScanReverse(begin, end, operation);
+  }
+
   bool Delete(std::string_view key) {
     // Range-only deletion to hide the key from scans.
     // Point index does not support erase currently.

@@ -87,8 +87,18 @@ class Transaction::Impl {
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
+  const std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
 
   const std::optional<size_t> ScanSecondaryIndex(
+      const std::string_view index_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, const std::vector<std::string>)>
+          operation);
+  const std::optional<size_t> ScanSecondaryIndexReverse(
       const std::string_view index_name, const std::string_view begin,
       const std::optional<std::string_view> end,
       std::function<bool(std::string_view, const std::vector<std::string>)>

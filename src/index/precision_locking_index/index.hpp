@@ -202,6 +202,21 @@ class HashTableWithPrecisionLockingIndex {
     return range_index_.Scan(begin, end, operation);
   };
 
+  std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, T&)> operation) {
+    return ScanReverse(begin, end, [&](std::string_view key) {
+      auto* value = Get(key);
+      return operation(key, *value);
+    });
+  };
+
+  std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view)> operation) {
+    return range_index_.ScanReverse(begin, end, operation);
+  };
+
   void ForEach(std::function<bool(std::string_view, T&)> f) {
     point_index_.ForEach(f);
   };

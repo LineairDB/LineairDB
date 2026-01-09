@@ -322,7 +322,6 @@ class Database::Impl {
       // Primary Index recovery
       table.value()->GetPrimaryIndex().Put(
           recovery_set.key, std::move(recovery_set.data_item_copy));
-#if 0
       // Secondary Index recovery (disabled temporarily)
       Index::SecondaryIndex* idx = nullptr;
       table.value()->GetOrCreateSecondaryIndex(recovery_set.index_name, &idx);
@@ -339,7 +338,6 @@ class Database::Impl {
             "table {1}",
             recovery_set.index_name, recovery_set.table_name);
       }
-#endif
     }
     epoch_framework_.MakeMeOffline();
 
