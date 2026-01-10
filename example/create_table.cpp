@@ -14,22 +14,18 @@
  *   limitations under the License.
  */
 
-#ifndef LINEAIRDB_TYPES_H
-#define LINEAIRDB_TYPES_H
+#include <lineairdb/lineairdb.h>
 
-#include <cstdint>
+#include <cassert>
+#include <iostream>
 
-namespace LineairDB {
+int main() {
+  // Create table example
+  {
+    LineairDB::Database db;
+    LineairDB::TxStatus status;
 
-using EpochNumber = uint32_t;
-
-enum class SecondaryIndexOp : uint8_t {
-  None = 0,
-  Add = 1,
-  Remove = 2,
-  Full = 3,
-};
-
-}  // namespace LineairDB
-
-#endif /* LINEAIRDB_TYPES_H */
+    // Create table
+    bool table_created = db.CreateTable("users");
+  }
+}
