@@ -326,12 +326,67 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldReturnKeysInOrder) {
   }
 }
 
-// ScanSecondaryIndexが早期終了を正しく処理することを確認
+TEST_F(ScanSecondaryIndexTest,
+       ScanReverseShouldReturnPrimaryKeysInReverseOrder) {
+  db_->CreateTable("users");
+  db_->CreateSecondaryIndex("users", "group_index", 0);
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+    std::string pk1 = "user1";
+    std::string pk2 = "user2";
+    std::string pk3 = "user3";
+    tx.Write(pk2, "Bob");
+    tx.Write(pk1, "Alice");
+    tx.Write(pk3, "Carol");
+    tx.WriteSecondaryIndex("group_index", "group",
+                           reinterpret_cast<const std::byte*>(pk2.data()),
+                           pk2.size());
+    tx.WriteSecondaryIndex("group_index", "group",
+                           reinterpret_cast<const std::byte*>(pk1.data()),
+                           pk1.size());
+    tx.WriteSecondaryIndex("group_index", "group",
+                           reinterpret_cast<const std::byte*>(pk3.data()),
+                           pk3.size());
+    const bool committed = db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+    ASSERT_TRUE(committed);
+    db_->Fence();
+  }
+
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.SetTable("users");
+
+    std::vector<std::string> actual_order;
+    auto count = tx.ScanSecondaryIndexReverse(
+        "group_index", "group", "group", [&](auto key, auto primary_keys) {
+          EXPECT_EQ(std::string(key), "group");
+          for (const auto& primary_key : primary_keys) {
+            actual_order.emplace_back(primary_key);
+          }
+          return false;
+        });
+
+    ASSERT_TRUE(count.has_value());
+    ASSERT_EQ(count.value(), 1);
+
+    std::vector<std::string> expected_order = {"user3", "user2", "user1"};
+    ASSERT_EQ(actual_order, expected_order);
+
+    const bool committed = db_->EndTransaction(tx, [](auto status) {
+      ASSERT_EQ(status, LineairDB::TxStatus::Committed);
+    });
+    ASSERT_TRUE(committed);
+  }
+}
+
 TEST_F(ScanSecondaryIndexTest, ScanShouldStopAtCorrectPosition) {
   db_->CreateTable("users");
   db_->CreateSecondaryIndex("users", "name_index", 0);
 
-  // インデックスにキーを挿入
   {
     auto& tx = db_->BeginTransaction();
     tx.SetTable("users");
@@ -357,7 +412,6 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldStopAtCorrectPosition) {
     db_->Fence();
   }
 
-  // 新しいキーを追加して早期終了でScan
   {
     auto& tx = db_->BeginTransaction();
     tx.SetTable("users");
@@ -384,9 +438,8 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldStopAtCorrectPosition) {
         "name_index", "alice", "zzz", [&](auto key, auto) {
           scanned_keys.push_back(std::string(key));
 
-          // "carol"（ソート順で3番目）の後で停止
           if (key == "carol") {
-            return true;  // スキャンを停止
+            return true; 
           }
           return false;
         });
@@ -394,7 +447,6 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldStopAtCorrectPosition) {
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), 3);  // alice, bob, carol
 
-    // alice, bob, carol（順序通り）のみスキャンされたことを確認
     std::vector<std::string> expected = {"alice", "bob", "carol"};
     ASSERT_EQ(scanned_keys, expected);
 
@@ -404,10 +456,6 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldStopAtCorrectPosition) {
     ASSERT_TRUE(committed);
   }
 }
-
-// ============================================================
-// 新規テスト: Delete Visibility（削除の可視性）
-// ============================================================
 
 // 別トランザクションで削除されたキーがScanSecondaryIndexから除外されることを確認
 TEST_F(ScanSecondaryIndexTest, ScanShouldExcludeDeletedKeys) {

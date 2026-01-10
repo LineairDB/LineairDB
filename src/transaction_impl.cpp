@@ -706,6 +706,7 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndexReverse(
       for (const auto& pk : snapshot.data_item_copy.primary_keys) {
         primary_keys.emplace_back(pk);
       }
+      std::reverse(primary_keys.begin(), primary_keys.end());
 
       if (primary_keys.empty()) {
         found_in_write_set = true;
@@ -731,6 +732,7 @@ const std::optional<size_t> Transaction::Impl::ScanSecondaryIndexReverse(
             reinterpret_cast<const char*>(primary_key.first),
             primary_key.second);
       }
+      std::reverse(primary_keys.begin(), primary_keys.end());
 
       if (primary_keys.empty()) continue;
 
