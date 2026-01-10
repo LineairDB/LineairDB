@@ -206,8 +206,7 @@ class CPRManager {
             checkpoint_completed_epoch_.store(checkpoint_epoch_.load());
             current_phase_.store(Phase::REST);
           }
-        }) {
-  }
+        }) {}
 
   void Stop() {
     stop_.store(true);

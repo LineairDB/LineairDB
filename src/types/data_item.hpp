@@ -104,8 +104,8 @@ struct DataItem {
 
   void AddSecondaryIndexValue(const std::byte* v, size_t s) {
     std::string new_key(reinterpret_cast<const char*>(v), s);
-    auto it = std::lower_bound(primary_keys.begin(), primary_keys.end(),
-                               new_key);
+    auto it =
+        std::lower_bound(primary_keys.begin(), primary_keys.end(), new_key);
     if (it != primary_keys.end() && *it == new_key) return;
     primary_keys.insert(it, std::move(new_key));
     initialized = buffer.size != 0 || !primary_keys.empty();
@@ -113,8 +113,8 @@ struct DataItem {
 
   void RemoveSecondaryIndexValue(const std::byte* v, size_t s) {
     const std::string target(reinterpret_cast<const char*>(v), s);
-    auto it = std::lower_bound(primary_keys.begin(), primary_keys.end(),
-                               target);
+    auto it =
+        std::lower_bound(primary_keys.begin(), primary_keys.end(), target);
     if (it == primary_keys.end() || *it != target) return;
     primary_keys.erase(it);
     initialized = buffer.size != 0 || !primary_keys.empty();

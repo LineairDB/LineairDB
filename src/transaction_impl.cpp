@@ -278,8 +278,7 @@ void Transaction::Impl::WriteSecondaryIndex(
 
     snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                                    primary_key_size);
-    snapshot.RecordSecondaryIndexDelta(primary_key_view,
-                                       SecondaryIndexOp::Add);
+    snapshot.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Add);
     if (is_rmf) snapshot.is_read_modify_write = true;
     return;
   }
@@ -647,8 +646,7 @@ void Transaction::Impl::DeleteSecondaryIndex(
     Snapshot sp(secondary_key, nullptr, 0, index_leaf,
                 current_table_->GetTableName(), index_name);
     sp.data_item_copy = existing_data;
-    sp.RecordSecondaryIndexDelta(primary_key_view,
-                                 SecondaryIndexOp::Remove);
+    sp.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Remove);
     if (is_rmf) sp.is_read_modify_write = true;
     write_set_.emplace_back(std::move(sp));
   }
@@ -739,8 +737,7 @@ void Transaction::Impl::UpdateSecondaryIndex(
     Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
                 current_table_->GetTableName(), index_name);
     sp.data_item_copy = existing_data_old_key;
-    sp.RecordSecondaryIndexDelta(primary_key_view,
-                                 SecondaryIndexOp::Remove);
+    sp.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Remove);
     if (is_rmf_old_key) sp.is_read_modify_write = true;
     write_set_.emplace_back(std::move(sp));
   }
@@ -777,8 +774,7 @@ void Transaction::Impl::UpdateSecondaryIndex(
     new_found_in_write_set = true;
     snapshot.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                                    primary_key_size);
-    snapshot.RecordSecondaryIndexDelta(primary_key_view,
-                                       SecondaryIndexOp::Add);
+    snapshot.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Add);
     if (is_rmf_new_key) snapshot.is_read_modify_write = true;
     break;
   }

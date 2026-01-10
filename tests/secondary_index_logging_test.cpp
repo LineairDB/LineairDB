@@ -138,8 +138,7 @@ bool WaitForCheckpointFile(const LineairDB::Config& conf,
   const auto checkpoint_path = fs::path(conf.work_dir) / "checkpoint.log";
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   while (std::chrono::steady_clock::now() < deadline) {
-    if (fs::exists(checkpoint_path) &&
-        fs::file_size(checkpoint_path) > 0) {
+    if (fs::exists(checkpoint_path) && fs::file_size(checkpoint_path) > 0) {
       return true;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -233,8 +232,7 @@ TEST_F(SecondaryIndexLoggingTest,
     auto& tx = db_->BeginTransaction();
     ASSERT_TRUE(tx.SetTable(table_name));
     for (size_t s = 0; s < secondary_keys; ++s) {
-      const size_t pk_index =
-          secondary_keys * primary_keys_per_secondary + s;
+      const size_t pk_index = secondary_keys * primary_keys_per_secondary + s;
       const std::string primary_key = MakeFixedPrimaryKey(pk_index);
       const std::string value = "value_" + primary_key;
       tx.Write(primary_key, reinterpret_cast<const std::byte*>(value.data()),
@@ -253,9 +251,9 @@ TEST_F(SecondaryIndexLoggingTest,
   ASSERT_GT(stats.record_count, 0u);
   EXPECT_EQ(stats.primary_keys_count, 0u);
   std::cout << "[SecondaryIndexLogStats] secondary_entries="
-            << stats.record_count << " secondary_pk_count="
-            << stats.primary_keys_count << " secondary_pk_bytes="
-            << stats.primary_keys_bytes << std::endl;
+            << stats.record_count
+            << " secondary_pk_count=" << stats.primary_keys_count
+            << " secondary_pk_bytes=" << stats.primary_keys_bytes << std::endl;
 }
 
 TEST_F(SecondaryIndexLoggingTest, RecoveryWithSecondaryIndexWithoutCheckpoint) {
@@ -297,22 +295,21 @@ TEST_F(SecondaryIndexLoggingTest, RecoveryWithSecondaryIndexWithoutCheckpoint) {
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               ASSERT_TRUE(tx.SetTable(table_name));
-                               auto results =
-                                   tx.ReadSecondaryIndex(index_name, index_key);
-                               std::set<std::string> recovered;
-                               for (const auto& entry : results) {
-                                 const auto* ptr = entry.first;
-                                 const auto size = entry.second;
-                                 recovered.emplace(
-                                     reinterpret_cast<const char*>(ptr), size);
-                               }
-                               ASSERT_EQ(recovered.size(), primary_keys.size());
-                               for (const auto& expected : primary_keys) {
-                                 ASSERT_TRUE(recovered.count(expected));
-                               }
-                             }});
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        ASSERT_TRUE(tx.SetTable(table_name));
+        auto results = tx.ReadSecondaryIndex(index_name, index_key);
+        std::set<std::string> recovered;
+        for (const auto& entry : results) {
+          const auto* ptr = entry.first;
+          const auto size = entry.second;
+          recovered.emplace(reinterpret_cast<const char*>(ptr), size);
+        }
+        ASSERT_EQ(recovered.size(), primary_keys.size());
+        for (const auto& expected : primary_keys) {
+          ASSERT_TRUE(recovered.count(expected));
+        }
+      }});
 }
 
 TEST_F(SecondaryIndexLoggingTest,
@@ -359,22 +356,20 @@ TEST_F(SecondaryIndexLoggingTest,
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               ASSERT_TRUE(tx.SetTable(table_name));
-                               auto results =
-                                   tx.ReadSecondaryIndex(index_name, index_key);
-                               std::set<std::string> recovered;
-                               for (const auto& entry : results) {
-                                 recovered.emplace(
-                                     reinterpret_cast<const char*>(entry.first),
-                                     entry.second);
-                               }
-                               ASSERT_EQ(recovered.size(),
-                                         primary_keys_before.size());
-                               for (const auto& expected : primary_keys_before) {
-                                 ASSERT_TRUE(recovered.count(expected));
-                               }
-                             }});
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        ASSERT_TRUE(tx.SetTable(table_name));
+        auto results = tx.ReadSecondaryIndex(index_name, index_key);
+        std::set<std::string> recovered;
+        for (const auto& entry : results) {
+          recovered.emplace(reinterpret_cast<const char*>(entry.first),
+                            entry.second);
+        }
+        ASSERT_EQ(recovered.size(), primary_keys_before.size());
+        for (const auto& expected : primary_keys_before) {
+          ASSERT_TRUE(recovered.count(expected));
+        }
+      }});
 }
 
 TEST_F(SecondaryIndexLoggingTest, SecondaryIndexAddTimingRecorded) {

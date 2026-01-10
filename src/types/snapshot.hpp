@@ -61,8 +61,7 @@ struct Snapshot {
         return;
       }
     }
-    secondary_index_deltas.push_back(
-        {std::string(primary_key), op});
+    secondary_index_deltas.push_back({std::string(primary_key), op});
   }
 
   static bool Compare(Snapshot& left, Snapshot& right) {

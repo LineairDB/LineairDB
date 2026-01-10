@@ -176,7 +176,8 @@ void ThreadLocalLogger::TruncateLogs(
   new_file.flush();
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  const auto working_log_filename = GetWorkingLogFileName(my_storage->thread_id);
+  const auto working_log_filename =
+      GetWorkingLogFileName(my_storage->thread_id);
   if (rename(working_log_filename.c_str(),
              GetLogFileName(my_storage->thread_id).c_str())) {
     SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
