@@ -18,6 +18,7 @@
 #ifndef LINEAIRDB_DATA_ITEM_HPP
 #define LINEAIRDB_DATA_ITEM_HPP
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstring>
@@ -41,6 +42,8 @@ struct DataItem {
   // std::stringのvectorを保持する
   // lineairdvkeyみたいなエイリアス
   std::vector<std::string> primary_keys;
+  std::vector<std::string> checkpoint_primary_keys;
+  bool checkpoint_primary_keys_captured;
   /* std::unique_ptr<std::vector<DataBuffer>> sec_idx_buffers; */
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
@@ -52,14 +55,21 @@ struct DataItem {
   bool IsInitialized() const { return initialized; }
 
   DataItem()
-      : transaction_id(0), initialized(false), pivot_object(NWRPivotObject()) {}
+      : transaction_id(0),
+        initialized(false),
+        checkpoint_primary_keys_captured(false),
+        pivot_object(NWRPivotObject()) {}
   DataItem(const std::byte* v, size_t s, TransactionId tid = 0)
-      : transaction_id(tid), initialized(true), pivot_object(NWRPivotObject()) {
+      : transaction_id(tid),
+        initialized(true),
+        checkpoint_primary_keys_captured(false),
+        pivot_object(NWRPivotObject()) {
     Reset(v, s);
   }
   DataItem(const DataItem& rhs)
       : transaction_id(rhs.transaction_id.load()),
         initialized(rhs.initialized),
+        checkpoint_primary_keys_captured(false),
         pivot_object(NWRPivotObject()) {
     buffer.Reset(rhs.buffer);
     /* if (rhs.sec_idx_buffers) {
@@ -94,29 +104,45 @@ struct DataItem {
 
   void AddSecondaryIndexValue(const std::byte* v, size_t s) {
     std::string new_key(reinterpret_cast<const char*>(v), s);
-    for (const auto& pk : primary_keys) {
-      if (pk == new_key) return;
-    }
-    primary_keys.push_back(std::move(new_key));
+    auto it = std::lower_bound(primary_keys.begin(), primary_keys.end(),
+                               new_key);
+    if (it != primary_keys.end() && *it == new_key) return;
+    primary_keys.insert(it, std::move(new_key));
     initialized = buffer.size != 0 || !primary_keys.empty();
   }
 
   void RemoveSecondaryIndexValue(const std::byte* v, size_t s) {
     const std::string target(reinterpret_cast<const char*>(v), s);
-    for (auto it = primary_keys.begin(); it != primary_keys.end(); ++it) {
-      if (*it == target) {
-        primary_keys.erase(it);
-        initialized = buffer.size != 0 || !primary_keys.empty();
-        break;
-      }
-    }
+    auto it = std::lower_bound(primary_keys.begin(), primary_keys.end(),
+                               target);
+    if (it == primary_keys.end() || *it != target) return;
+    primary_keys.erase(it);
+    initialized = buffer.size != 0 || !primary_keys.empty();
   }
 
   void CopyLiveVersionToStableVersion() {
-    if (!checkpoint_buffer.IsEmpty()) return;  // snapshot is already taken
     // There is an assumption that this thread can `exclusively` access this
     // data item.
-    checkpoint_buffer.Reset(buffer);
+    if (checkpoint_buffer.IsEmpty()) {
+      checkpoint_buffer.Reset(buffer);
+    }
+    if (!checkpoint_primary_keys_captured) {
+      checkpoint_primary_keys = primary_keys;
+      checkpoint_primary_keys_captured = true;
+    }
+  }
+
+  bool HasCheckpointPrimaryKeys() const {
+    return checkpoint_primary_keys_captured;
+  }
+
+  const std::vector<std::string>& GetCheckpointPrimaryKeys() const {
+    return checkpoint_primary_keys;
+  }
+
+  void ClearCheckpointPrimaryKeys() {
+    checkpoint_primary_keys.clear();
+    checkpoint_primary_keys_captured = false;
   }
 
   void ExclusiveLock() {

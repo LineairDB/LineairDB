@@ -157,11 +157,23 @@ class CPRManager {
                         kvp.table_name = table.GetTableName();
                         kvp.index_name = index_name;
                         kvp.key = key;
-                        kvp.primary_keys = data_item.primary_keys;
+                        const auto& primary_keys =
+                            data_item.HasCheckpointPrimaryKeys()
+                                ? data_item.GetCheckpointPrimaryKeys()
+                                : data_item.primary_keys;
+                        if (primary_keys.empty()) {
+                          data_item.ClearCheckpointPrimaryKeys();
+                          data_item.ExclusiveUnlock();
+                          return true;
+                        }
+                        kvp.primary_keys = primary_keys;
+                        kvp.secondary_op =
+                            static_cast<uint8_t>(SecondaryIndexOp::Full);
                         kvp.tid.epoch = record.epoch;
                         kvp.tid.tid = 0;
                         record.key_value_pairs.emplace_back(std::move(kvp));
 
+                        data_item.ClearCheckpointPrimaryKeys();
                         data_item.ExclusiveUnlock();
                         return true;
                       });

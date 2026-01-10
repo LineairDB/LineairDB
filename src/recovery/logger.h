@@ -61,7 +61,10 @@ class Logger {
       std::string table_name;
       std::string index_name;
       std::vector<std::string> primary_keys;
-      MSGPACK_DEFINE(key, buffer, tid, table_name, index_name, primary_keys);
+      uint8_t secondary_op = 0;
+      std::string secondary_primary_key;
+      MSGPACK_DEFINE(key, buffer, tid, table_name, index_name, primary_keys,
+                     secondary_op, secondary_primary_key);
     };
 
     EpochNumber epoch;

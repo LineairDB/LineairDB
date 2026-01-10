@@ -315,28 +315,27 @@ class Database::Impl {
           std::max(highest_epoch,
                    recovery_set.data_item_copy.transaction_id.load().epoch);
 
-      if (!recovery_set.index_name.empty()) {
-        // Temporary: skip recovery for secondary index entries.
-        continue;
-      }
-      // Primary Index recovery
-      table.value()->GetPrimaryIndex().Put(
-          recovery_set.key, std::move(recovery_set.data_item_copy));
-      // Secondary Index recovery (disabled temporarily)
-      Index::SecondaryIndex* idx = nullptr;
-      table.value()->GetOrCreateSecondaryIndex(recovery_set.index_name, &idx);
-      if (idx != nullptr) {
-        idx->Put(recovery_set.key, std::move(recovery_set.data_item_copy));
-        SPDLOG_DEBUG(
-            "  Recovery: Secondary index '{0}' restored key '{1}' with {2} "
-            "primary keys",
-            recovery_set.index_name, recovery_set.key,
-            recovery_set.data_item_copy.primary_keys.size());
+      if (recovery_set.index_name.empty()) {
+        // Primary Index recovery
+        table.value()->GetPrimaryIndex().Put(
+            recovery_set.key, std::move(recovery_set.data_item_copy));
       } else {
-        SPDLOG_ERROR(
-            "Recovery failed: Could not create secondary index {0} for "
-            "table {1}",
-            recovery_set.index_name, recovery_set.table_name);
+        // Secondary Index recovery
+        Index::SecondaryIndex* idx = nullptr;
+        table.value()->GetOrCreateSecondaryIndex(recovery_set.index_name, &idx);
+        if (idx != nullptr) {
+          idx->Put(recovery_set.key, std::move(recovery_set.data_item_copy));
+          SPDLOG_DEBUG(
+              "  Recovery: Secondary index '{0}' restored key '{1}' with {2} "
+              "primary keys",
+              recovery_set.index_name, recovery_set.key,
+              recovery_set.data_item_copy.primary_keys.size());
+        } else {
+          SPDLOG_ERROR(
+              "Recovery failed: Could not create secondary index {0} for "
+              "table {1}",
+              recovery_set.index_name, recovery_set.table_name);
+        }
       }
     }
     epoch_framework_.MakeMeOffline();

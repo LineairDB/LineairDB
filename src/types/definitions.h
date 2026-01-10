@@ -23,6 +23,13 @@ namespace LineairDB {
 
 using EpochNumber = uint32_t;
 
+enum class SecondaryIndexOp : uint8_t {
+  None = 0,
+  Add = 1,
+  Remove = 2,
+  Full = 3,
+};
+
 }  // namespace LineairDB
 
 #endif /* LINEAIRDB_TYPES_H */
