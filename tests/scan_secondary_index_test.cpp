@@ -439,7 +439,7 @@ TEST_F(ScanSecondaryIndexTest, ScanShouldStopAtCorrectPosition) {
           scanned_keys.push_back(std::string(key));
 
           if (key == "carol") {
-            return true; 
+            return true;
           }
           return false;
         });
