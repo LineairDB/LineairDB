@@ -64,7 +64,13 @@ struct Snapshot {
     secondary_index_deltas.push_back({std::string(primary_key), op});
   }
 
-  static bool Compare(Snapshot& left, Snapshot& right) {
+  static bool Compare(const Snapshot& left, const Snapshot& right) {
+    if (left.table_name != right.table_name) {
+      return left.table_name < right.table_name;
+    }
+    if (left.index_name != right.index_name) {
+      return left.index_name < right.index_name;
+    }
     return left.key < right.key;
   }
 };
