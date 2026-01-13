@@ -40,8 +40,14 @@ struct Snapshot {
   Snapshot(const Snapshot&) = default;
   Snapshot& operator=(const Snapshot&) = default;
 
-  static bool Compare(Snapshot& left, Snapshot& right) {
-    return left.key < right.key;
+  static bool Compare(const Snapshot& left, const Snapshot& right) {
+    if (left.table_name != right.table_name) {
+      return left.table_name < right.table_name;
+    }
+    if (left.key != right.key) {
+      return left.key < right.key;
+    }
+    return left.index_cache < right.index_cache;
   }
 };
 
