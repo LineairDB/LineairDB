@@ -59,14 +59,20 @@ TEST_F(IndexTest, Scan) {
 }
 
 TEST_F(IndexTest, AlphabeticalOrdering) {
-  auto& tx = db_->BeginTransaction();
-  auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
-  ASSERT_FALSE(count.has_value());
+  {
+    auto& tx = db_->BeginTransaction();
+    auto count = tx.Scan("carol", "alice", [&](auto, auto) { return false; });
+    ASSERT_FALSE(count.has_value());
+    db_->EndTransaction(tx, [](auto) {});
+  }
 
-  count = tx.Scan("carol", "zzz", [&](auto, auto) { return false; });
-  ASSERT_TRUE(count.has_value());
-  ASSERT_EQ(size_t(1), count.value());
-  db_->EndTransaction(tx, [](auto) {});
+  {
+    auto& tx = db_->BeginTransaction();
+    auto count = tx.Scan("carol", "zzz", [&](auto, auto) { return false; });
+    ASSERT_TRUE(count.has_value());
+    ASSERT_EQ(size_t(1), count.value());
+    db_->EndTransaction(tx, [](auto) {});
+  }
 }
 
 TEST_F(IndexTest, ScanViaTemplate) {
@@ -120,5 +126,59 @@ TEST_F(IndexTest, ScanWithPhantomAvoidance) {
        }});
   if (committed == 2 && first.has_value() && second.has_value()) {
     ASSERT_EQ(first, second);
+  }
+}
+
+TEST_F(IndexTest, Delete) {
+  {
+    auto& tx = db_->BeginTransaction();
+    tx.Delete("bob");
+    db_->EndTransaction(tx, [](auto) {});
+  }
+  db_->Fence();
+
+  {
+    auto& tx = db_->BeginTransaction();
+    auto count = tx.Scan("alice", "carol", [&](auto key, auto) {
+      EXPECT_TRUE(key == "alice" || key == "carol");
+      EXPECT_FALSE(key == "bob");
+      return false;
+    });
+    ASSERT_TRUE(count.has_value());
+    ASSERT_EQ(size_t(2), count.value());
+    db_->EndTransaction(tx, [](auto) {});
+  }
+}
+
+TEST_F(IndexTest, FenceShouldMakeAllInsertionsVisible) {
+  {  // blocker: make index busy
+    auto& tx = db_->BeginTransaction();
+    for (volatile size_t i = 0; i < 1000; i++) {
+      tx.Write<int>("ZZZZ blocker" + std::to_string(i), i);
+    }
+
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  int eve = 5;
+  {  // TX 1: insert "eve"
+    auto& tx = db_->BeginTransaction();
+    tx.Write<int>("eve", eve);
+    db_->EndTransaction(tx, [](auto) {});
+  }
+
+  db_->Fence();  // Make sure that TX 1 (and the blocker) is visible to
+                 // following transactions
+
+  {  // TX 2: read "eve" via Scan
+    auto& tx = db_->BeginTransaction();
+    auto count = tx.Scan("alice", "eve", [&](auto key, auto) {
+      EXPECT_TRUE(key == "alice" || key == "bob" || key == "carol" ||
+                  key == "eve");
+      return false;
+    });
+    ASSERT_TRUE(count.has_value());
+    ASSERT_EQ(size_t(4), count.value());
+    db_->EndTransaction(tx, [](auto) {});
   }
 }

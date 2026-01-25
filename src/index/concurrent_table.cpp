@@ -60,6 +60,10 @@ DataItem* ConcurrentTable::GetOrInsert(const std::string_view key) {
   return item;
 }
 
+bool ConcurrentTable::Insert(const std::string_view key) {
+  return index_->Insert(key);
+}
+
 // return false if a corresponding entry already exists
 bool ConcurrentTable::Put(const std::string_view key, DataItem&& rhs) {
   return index_->Put(key, std::forward<decltype(rhs)>(rhs));
@@ -81,6 +85,14 @@ std::optional<size_t> ConcurrentTable::Scan(
     std::function<bool(std::string_view, DataItem&)> operation) {
   return index_->Scan(begin, end, operation);
 };
+
+bool ConcurrentTable::Delete(const std::string_view key) {
+  return index_->Delete(key);
+};
+
+void ConcurrentTable::WaitForIndexIsLinearizable() {
+  index_->WaitForIndexIsLinearizable();
+}
 
 }  // namespace Index
 }  // namespace LineairDB

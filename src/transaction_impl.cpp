@@ -19,6 +19,7 @@
 #include <lineairdb/transaction.h>
 
 #include <memory>
+#include <set>
 #include <utility>
 
 #include "concurrency_control/concurrency_control_base.h"
@@ -29,11 +30,19 @@
 
 namespace LineairDB {
 
+namespace {
+thread_local void* current_transaction_context = nullptr;
+}
+
+void* GetCurrentTransactionContext() { return current_transaction_context; }
+
 Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
     : current_status_(TxStatus::Running),
       db_pimpl_(db_pimpl),
       config_ref_(db_pimpl_->GetConfig()),
       current_table_(nullptr) {
+  current_transaction_context = this;
+
   TransactionReferences&& tx = {read_set_, write_set_,
                                 db_pimpl_->epoch_framework_, current_status_};
 
@@ -64,7 +73,7 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
   }
 }
 
-Transaction::Impl::~Impl() noexcept = default;
+Transaction::Impl::~Impl() noexcept { current_transaction_context = nullptr; }
 
 TxStatus Transaction::Impl::GetCurrentStatus() { return current_status_; }
 
@@ -138,22 +147,160 @@ void Transaction::Impl::Write(const std::string_view key,
   write_set_.emplace_back(std::move(sp));
 }
 
+void Transaction::Impl::Insert(const std::string_view key,
+                               const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+
+  auto inserted = current_table_->GetPrimaryIndex().Insert(key);
+  if (!inserted) {
+    Abort();
+    return;
+  }
+
+  // After successful insertion to index, delegate to Write
+  Write(key, value, size);
+}
+
+void Transaction::Impl::Update(const std::string_view key,
+                               const std::byte value[], const size_t size) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+
+  // If key exists in this transaction's write_set_ (e.g., Insert() then
+  // Update() in the same transaction), Update() should succeed even if the
+  // index entry has not been updated yet.
+  for (auto& snapshot : write_set_) {
+    if (snapshot.key == key &&
+        snapshot.table_name == current_table_->GetTableName()) {
+      // If the key was deleted within this transaction, Update should fail.
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        Abort();
+        return;
+      }
+      Write(key, value, size);
+      return;
+    }
+  }
+
+  auto* index_leaf = current_table_->GetPrimaryIndex().Get(key);
+  if (index_leaf == nullptr || !index_leaf->IsInitialized()) {
+    Abort();
+    return;
+  }
+
+  // After validation, delegate to Write
+  Write(key, value, size);
+}
+
+void Transaction::Impl::Delete(const std::string_view key) {
+  if (IsAborted()) return;
+  EnsureCurrentTable();
+
+  // Delete() consists of two deletions: removal from the index (physical)
+  //   and initialization of the data item (logical).
+  // The reason for this design is that we consider Delete() as
+  //   a combination of two writes: a write to the index and a write to the data
+  //   item.
+
+  // 1. removal from the index
+  bool deleted = current_table_->GetPrimaryIndex().Delete(key);
+  if (!deleted) {
+    Abort();
+    return;
+  }
+  // 2. initialization of the data item
+  this->Update(key, nullptr, 0);
+}
+
 const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
         operation) {
   EnsureCurrentTable();
-  auto result = current_table_->GetPrimaryIndex().Scan(
+
+  // Note: In this Scan implementation, nullptr indicates that the key is
+  // deleted or does not exist. SQL NULL values should be handled within the
+  // byte array value, not by nullptr.
+
+  // Step 1: Collect keys from index
+  std::set<std::string> index_keys;
+  auto index_result = current_table_->GetPrimaryIndex().Scan(
       begin, end, [&](std::string_view key) {
-        const auto read_result = Read(key);
-        if (IsAborted()) return true;
-        return operation(key, read_result);
+        index_keys.insert(std::string(key));
+        return false;  // Continue to collect all keys
       });
-  if (!result.has_value()) {
+
+  if (!index_result.has_value()) {
     Abort();
+    return std::nullopt;
   }
-  return result;
+
+  // Step 2: Collect keys from write_set
+  std::set<std::string> write_set_keys;
+  for (const auto& snapshot : write_set_) {
+    if (snapshot.table_name != current_table_->GetTableName()) continue;
+    if (snapshot.key < begin) continue;
+    if (end.has_value() && snapshot.key > end.value()) continue;
+    write_set_keys.insert(snapshot.key);
+  }
+
+  // Step 3: Merge and sort all keys (std::set automatically keeps them sorted)
+  std::set<std::string> all_keys;
+  all_keys.insert(index_keys.begin(), index_keys.end());
+  all_keys.insert(write_set_keys.begin(), write_set_keys.end());
+
+  // Step 4: Process keys in sorted order
+  size_t total_count = 0;
+  for (const auto& key : all_keys) {
+    if (IsAborted()) return std::nullopt;
+
+    // Check if key is in write_set
+    // if the key exists, use write_set data (without Transaction#Read)
+    bool found_in_write_set = false;
+    for (const auto& snapshot : write_set_) {
+      if (snapshot.table_name != current_table_->GetTableName()) continue;
+      if (snapshot.key != key) continue;
+
+      found_in_write_set = true;
+
+      // If the key is deleted within this transaction, break the loop
+      if (!snapshot.data_item_copy.IsInitialized()) {
+        break;
+      }
+
+      std::pair<const void*, const size_t> value_pair = {
+          snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+      bool stop_scan = operation(key, value_pair);
+      total_count++;
+      if (stop_scan) return total_count;
+
+      break;
+    }
+
+    // If not in write_set, invoke Transaction#Read to get the value
+    if (!found_in_write_set) {
+      const auto read_result = Read(key);
+      // The pair "nullptr, 0" means deleted (or uninitialized) data. See
+      // include/lineairdb/transaction.h
+      const bool is_uninitialized =
+          read_result.first == nullptr && read_result.second == 0;
+
+      // If the data item exists, continue scanning with the data
+      if (!is_uninitialized) {
+        bool stop_scan = operation(key, read_result);
+        total_count++;
+        if (stop_scan) return total_count;
+      }
+    }
+  }
+
+  // TODO: we now only consider the insertion, but we should consider the case
+  // for deletions in write_set, when the lineairdb supports delete operation as
+  // the public interface of transaction.h.
+
+  return total_count;
 };
 
 void Transaction::Impl::Abort() {
@@ -206,6 +353,15 @@ void Transaction::Write(const std::string_view key, const std::byte value[],
                         const size_t size) {
   tx_pimpl_->Write(key, value, size);
 }
+void Transaction::Insert(const std::string_view key, const std::byte value[],
+                         const size_t size) {
+  tx_pimpl_->Insert(key, value, size);
+}
+void Transaction::Update(const std::string_view key, const std::byte value[],
+                         const size_t size) {
+  tx_pimpl_->Update(key, value, size);
+}
+void Transaction::Delete(const std::string_view key) { tx_pimpl_->Delete(key); }
 const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,

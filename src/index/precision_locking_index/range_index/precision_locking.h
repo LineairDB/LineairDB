@@ -61,6 +61,8 @@ class PrecisionLockingIndex {
   bool Insert(const std::string_view key);
   void ForceInsert(const std::string_view key);
   bool Delete(const std::string_view key);
+  bool Contains(const std::string_view key);
+  void WaitForIndexIsLinearizable();
 
  private:
   bool IsInPredicateSet(const std::string_view);
@@ -70,15 +72,17 @@ class PrecisionLockingIndex {
   struct Predicate {
     std::string begin;
     std::optional<std::string> end;
+    void* tx_context;
     Predicate(std::string_view b, std::optional<std::string_view> e)
-        : begin(b), end(e) {}
+        : begin(b), end(e), tx_context(nullptr) {}
   };
 
   struct InsertOrDeleteEvent {
     std::string key;
     bool is_delete_event;
+    void* tx_context;
     InsertOrDeleteEvent(std::string_view k, bool i)
-        : key(k), is_delete_event(i) {}
+        : key(k), is_delete_event(i), tx_context(nullptr) {}
   };
 
   struct IndexItem {
@@ -97,6 +101,7 @@ class PrecisionLockingIndex {
   ROWEXRangeIndexContainer container_;
   EpochFramework& epoch_manager_ref_;
   std::atomic<bool> manager_stop_flag_;
+  std::atomic<EpochNumber> last_processed_epoch_{0};
   std::thread manager_;
 };
 }  // namespace Index
