@@ -147,6 +147,31 @@ class HashTableWithPrecisionLockingIndex {
   };
 
   /**
+   * @brief Ensure the key is visible in range index for secondary writes.
+   * @return true on success, false if phantom anomaly is detected.
+   */
+  bool EnsureVisibleForSecondaryWrite(const std::string_view key) {
+    T* point_entry = point_index_.Get(key);
+    const bool in_range = range_index_.Contains(key);
+
+    if (point_entry == nullptr) {
+      auto* new_entry = new T();
+      bool inserted_point = point_index_.Put(key, new_entry);
+      if (!inserted_point) {
+        delete new_entry;
+        point_entry = point_index_.Get(key);
+        if (point_entry == nullptr) return false;
+      }
+      if (!in_range) return range_index_.Insert(key);
+      return true;
+    }
+
+    if (!point_entry->IsInitialized()) return range_index_.Insert(key);
+    if (!in_range) return range_index_.Insert(key);
+    return true;
+  };
+
+  /**
    * @brief Scan with key and values
    *
    * @param begin Starting point of the range. Matching entry is included.
@@ -175,6 +200,21 @@ class HashTableWithPrecisionLockingIndex {
                              const std::optional<std::string_view> end,
                              std::function<bool(std::string_view)> operation) {
     return range_index_.Scan(begin, end, operation);
+  };
+
+  std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, T&)> operation) {
+    return ScanReverse(begin, end, [&](std::string_view key) {
+      auto* value = Get(key);
+      return operation(key, *value);
+    });
+  };
+
+  std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view)> operation) {
+    return range_index_.ScanReverse(begin, end, operation);
   };
 
   void ForEach(std::function<bool(std::string_view, T&)> f) {

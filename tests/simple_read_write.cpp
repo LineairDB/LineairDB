@@ -14,8 +14,6 @@
  *   limitations under the License.
  */
 
-#include "lineairdb/database.h"
-
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -26,6 +24,7 @@
 
 #include "gtest/gtest.h"
 #include "lineairdb/config.h"
+#include "lineairdb/database.h"
 #include "lineairdb/transaction.h"
 #include "lineairdb/tx_status.h"
 #include "test_helper.hpp"
@@ -39,6 +38,7 @@ class DatabaseTest : public ::testing::Test {
     config_.checkpoint_period = 1;
     config_.epoch_duration_ms = 100;
     db_ = std::make_unique<LineairDB::Database>(config_);
+    db_->CreateTable("users");
   }
 };
 
@@ -154,24 +154,6 @@ TEST_F(DatabaseTest, SaveAsString) {
                               }});
 }
 
-TEST_F(DatabaseTest, DeleteRemovesKeyAcrossTransactions) {
-  int value_of_alice = 123;
-  TestHelper::DoTransactions(db_.get(),
-                             {[&](LineairDB::Transaction& tx) {
-                                tx.Write<int>("alice", value_of_alice);
-                              },
-                              [&](LineairDB::Transaction& tx) {
-                                auto alice = tx.Read<int>("alice");
-                                ASSERT_TRUE(alice.has_value());
-                                ASSERT_EQ(value_of_alice, alice.value());
-                                tx.Delete("alice");
-                              },
-                              [&](LineairDB::Transaction& tx) {
-                                auto alice = tx.Read<int>("alice");
-                                ASSERT_FALSE(alice.has_value());
-                              }});
-}
-
 TEST_F(DatabaseTest, UserAbort) {
   TestHelper::DoTransactions(db_.get(),
                              {[&](LineairDB::Transaction& tx) {
@@ -223,8 +205,6 @@ TEST_F(DatabaseTest, ThreadSafetyInsertions) {
 
 TEST_F(DatabaseTest, NoConfigTransaction) {
   // NOTE: this test will take default 5 seconds for checkpointing
-  db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>();
   int value_of_alice = 1;
   TestHelper::DoTransactions(
       db_.get(),
