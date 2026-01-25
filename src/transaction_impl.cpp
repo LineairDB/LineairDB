@@ -253,13 +253,13 @@ void Transaction::Impl::WriteSecondaryIndex(
   }
 
   bool is_rmf = false;
-  DataItem existing_data;
+  const DataItem* base_data = nullptr;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == key &&
         snapshot.table_name == current_table_->GetTableName() &&
         snapshot.index_name == index_name) {
       is_rmf = true;
-      existing_data = snapshot.data_item_copy;
+      base_data = &snapshot.data_item_copy;
       snapshot.is_read_modify_write = true;
       break;
     }
@@ -291,7 +291,7 @@ void Transaction::Impl::WriteSecondaryIndex(
     snapshot.is_read_modify_write = true;
 
     read_set_.emplace_back(std::move(snapshot));
-    existing_data = snapshot.data_item_copy;
+    base_data = &read_set_.back().data_item_copy;
     is_rmf = true;
   }
 
@@ -301,7 +301,7 @@ void Transaction::Impl::WriteSecondaryIndex(
               index_name);
 
   if (is_rmf) sp.is_read_modify_write = true;
-  sp.data_item_copy = existing_data;
+  sp.data_item_copy = *base_data;
   sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
                                            primary_key_size);
   sp.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Add);
@@ -766,13 +766,13 @@ void Transaction::Impl::DeleteSecondaryIndex(
   bool found_in_write_set = false;
 
   bool is_rmf = false;
-  DataItem existing_data;
+  const DataItem* base_data = nullptr;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == secondary_key &&
         snapshot.table_name == current_table_->GetTableName() &&
         snapshot.index_name == index_name) {
       is_rmf = true;
-      existing_data = snapshot.data_item_copy;
+      base_data = &snapshot.data_item_copy;
       snapshot.is_read_modify_write = true;
       break;
     }
@@ -809,22 +809,22 @@ void Transaction::Impl::DeleteSecondaryIndex(
 
       snapshot.data_item_copy =
           concurrency_control_->Read(secondary_key, index_leaf);
-      existing_data = snapshot.data_item_copy;
       read_set_.emplace_back(std::move(snapshot));
+      base_data = &read_set_.back().data_item_copy;
     }
-    existing_data.RemoveSecondaryIndexValue(primary_key_buffer,
-                                            primary_key_size);
+    Snapshot sp(secondary_key, nullptr, 0, index_leaf,
+                current_table_->GetTableName(), index_name);
+    sp.data_item_copy = *base_data;
+    sp.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                primary_key_size);
 
-    if (existing_data.primary_keys.empty()) {
+    if (sp.data_item_copy.primary_keys.empty()) {
       if (!index->Delete(secondary_key)) {
         Abort();
         return;
       }
     }
 
-    Snapshot sp(secondary_key, nullptr, 0, index_leaf,
-                current_table_->GetTableName(), index_name);
-    sp.data_item_copy = existing_data;
     sp.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Remove);
     if (is_rmf) sp.is_read_modify_write = true;
     write_set_.emplace_back(std::move(sp));
@@ -852,13 +852,13 @@ void Transaction::Impl::UpdateSecondaryIndex(
   bool old_found_in_write_set = false;
 
   bool is_rmf_old_key = false;
-  DataItem existing_data_old_key;
+  const DataItem* base_data_old_key = nullptr;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == old_secondary_key &&
         snapshot.table_name == current_table_->GetTableName() &&
         snapshot.index_name == index_name) {
       is_rmf_old_key = true;
-      existing_data_old_key = snapshot.data_item_copy;
+      base_data_old_key = &snapshot.data_item_copy;
       snapshot.is_read_modify_write = true;
       break;
     }
@@ -898,13 +898,16 @@ void Transaction::Impl::UpdateSecondaryIndex(
 
       snapshot.data_item_copy =
           concurrency_control_->Read(old_secondary_key, old_leaf);
-      existing_data_old_key = snapshot.data_item_copy;
       read_set_.emplace_back(std::move(snapshot));
+      base_data_old_key = &read_set_.back().data_item_copy;
     }
-    existing_data_old_key.RemoveSecondaryIndexValue(primary_key_buffer,
-                                                    primary_key_size);
+    Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
+                current_table_->GetTableName(), index_name);
+    sp.data_item_copy = *base_data_old_key;
+    sp.data_item_copy.RemoveSecondaryIndexValue(primary_key_buffer,
+                                                primary_key_size);
 
-    if (existing_data_old_key.primary_keys.empty()) {
+    if (sp.data_item_copy.primary_keys.empty()) {
       if (!index->Delete(old_secondary_key)) {
         Abort();
         return;
@@ -913,9 +916,6 @@ void Transaction::Impl::UpdateSecondaryIndex(
 
     concurrency_control_->Write(old_secondary_key, primary_key_buffer,
                                 primary_key_size, old_leaf);
-    Snapshot sp(old_secondary_key, nullptr, 0, old_leaf,
-                current_table_->GetTableName(), index_name);
-    sp.data_item_copy = existing_data_old_key;
     sp.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Remove);
     if (is_rmf_old_key) sp.is_read_modify_write = true;
     write_set_.emplace_back(std::move(sp));
@@ -931,14 +931,14 @@ void Transaction::Impl::UpdateSecondaryIndex(
   bool new_found_in_write_set = false;
 
   bool is_rmf_new_key = false;
-  DataItem existing_data_new_key;
+  const DataItem* base_data_new_key = nullptr;
   for (auto& snapshot : read_set_) {
     if (snapshot.key == new_secondary_key &&
         snapshot.table_name == current_table_->GetTableName() &&
         snapshot.index_name == index_name) {
       is_rmf_new_key = true;
       snapshot.is_read_modify_write = true;
-      existing_data_new_key = snapshot.data_item_copy;
+      base_data_new_key = &snapshot.data_item_copy;
       break;
     }
   }
@@ -970,17 +970,17 @@ void Transaction::Impl::UpdateSecondaryIndex(
 
       snapshot.data_item_copy =
           concurrency_control_->Read(new_secondary_key, new_leaf);
-      existing_data_new_key = snapshot.data_item_copy;
       read_set_.emplace_back(std::move(snapshot));
+      base_data_new_key = &read_set_.back().data_item_copy;
     }
-    existing_data_new_key.AddSecondaryIndexValue(primary_key_buffer,
-                                                 primary_key_size);
+    Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
+                current_table_->GetTableName(), index_name);
+    sp.data_item_copy = *base_data_new_key;
+    sp.data_item_copy.AddSecondaryIndexValue(primary_key_buffer,
+                                             primary_key_size);
     concurrency_control_->Write(new_secondary_key, primary_key_buffer,
                                 primary_key_size, new_leaf);
 
-    Snapshot sp(new_secondary_key, nullptr, 0, new_leaf,
-                current_table_->GetTableName(), index_name);
-    sp.data_item_copy = existing_data_new_key;
     sp.RecordSecondaryIndexDelta(primary_key_view, SecondaryIndexOp::Add);
     if (is_rmf_new_key) sp.is_read_modify_write = true;
 
