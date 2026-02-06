@@ -71,13 +71,8 @@ class Transaction::Impl {
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
-          operation);
-
-  const std::optional<size_t> ScanReverse(
-      const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view,
-                         const std::pair<const void*, const size_t>)>
-          operation);
+          operation,
+      Transaction::ScanOption option);
 
   void Abort();
   bool Precommit();

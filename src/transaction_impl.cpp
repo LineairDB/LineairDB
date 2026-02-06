@@ -217,7 +217,8 @@ const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
-        operation) {
+        operation,
+    Transaction::ScanOption option) {
   EnsureCurrentTable();
 
   // Note: In this Scan implementation, nullptr indicates that the key is
@@ -251,47 +252,79 @@ const std::optional<size_t> Transaction::Impl::Scan(
   all_keys.insert(index_keys.begin(), index_keys.end());
   all_keys.insert(write_set_keys.begin(), write_set_keys.end());
 
-  // Step 4: Process keys in sorted order
+  // Step 4: Process keys in sorted order (or reverse sorted order)
   size_t total_count = 0;
-  for (const auto& key : all_keys) {
-    if (IsAborted()) return std::nullopt;
+  if (option.order == Transaction::ScanOption::REVERSE) {
+    for (auto it = all_keys.rbegin(); it != all_keys.rend(); ++it) {
+      if (IsAborted()) return std::nullopt;
 
-    // Check if key is in write_set
-    // if the key exists, use write_set data (without Transaction#Read)
-    bool found_in_write_set = false;
-    for (const auto& snapshot : write_set_) {
-      if (snapshot.table_name != current_table_->GetTableName()) continue;
-      if (snapshot.key != key) continue;
+      const auto& key = *it;
+      bool found_in_write_set = false;
+      for (const auto& snapshot : write_set_) {
+        if (snapshot.table_name != current_table_->GetTableName()) continue;
+        if (snapshot.key != key) continue;
 
-      found_in_write_set = true;
+        found_in_write_set = true;
 
-      // If the key is deleted within this transaction, break the loop
-      if (!snapshot.data_item_copy.IsInitialized()) {
+        if (!snapshot.data_item_copy.IsInitialized()) {
+          break;
+        }
+
+        std::pair<const void*, const size_t> value_pair = {
+            snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+        bool stop_scan = operation(key, value_pair);
+        total_count++;
+        if (stop_scan) return total_count;
+
         break;
       }
 
-      std::pair<const void*, const size_t> value_pair = {
-          snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
-      bool stop_scan = operation(key, value_pair);
-      total_count++;
-      if (stop_scan) return total_count;
+      if (!found_in_write_set) {
+        const auto read_result = Read(key);
+        const bool is_uninitialized =
+            read_result.first == nullptr && read_result.second == 0;
 
-      break;
+        if (!is_uninitialized) {
+          bool stop_scan = operation(key, read_result);
+          total_count++;
+          if (stop_scan) return total_count;
+        }
+      }
     }
+  } else {
+    for (const auto& key : all_keys) {
+      if (IsAborted()) return std::nullopt;
 
-    // If not in write_set, invoke Transaction#Read to get the value
-    if (!found_in_write_set) {
-      const auto read_result = Read(key);
-      // The pair "nullptr, 0" means deleted (or uninitialized) data. See
-      // include/lineairdb/transaction.h
-      const bool is_uninitialized =
-          read_result.first == nullptr && read_result.second == 0;
+      bool found_in_write_set = false;
+      for (const auto& snapshot : write_set_) {
+        if (snapshot.table_name != current_table_->GetTableName()) continue;
+        if (snapshot.key != key) continue;
 
-      // If the data item exists, continue scanning with the data
-      if (!is_uninitialized) {
-        bool stop_scan = operation(key, read_result);
+        found_in_write_set = true;
+
+        if (!snapshot.data_item_copy.IsInitialized()) {
+          break;
+        }
+
+        std::pair<const void*, const size_t> value_pair = {
+            snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+        bool stop_scan = operation(key, value_pair);
         total_count++;
         if (stop_scan) return total_count;
+
+        break;
+      }
+
+      if (!found_in_write_set) {
+        const auto read_result = Read(key);
+        const bool is_uninitialized =
+            read_result.first == nullptr && read_result.second == 0;
+
+        if (!is_uninitialized) {
+          bool stop_scan = operation(key, read_result);
+          total_count++;
+          if (stop_scan) return total_count;
+        }
       }
     }
   }
@@ -299,79 +332,6 @@ const std::optional<size_t> Transaction::Impl::Scan(
   // TODO: we now only consider the insertion, but we should consider the case
   // for deletions in write_set, when the lineairdb supports delete operation as
   // the public interface of transaction.h.
-
-  return total_count;
-};
-
-const std::optional<size_t> Transaction::Impl::ScanReverse(
-    const std::string_view begin, const std::optional<std::string_view> end,
-    std::function<bool(std::string_view,
-                       const std::pair<const void*, const size_t>)>
-        operation) {
-  EnsureCurrentTable();
-
-  std::set<std::string> index_keys;
-  auto index_result = current_table_->GetPrimaryIndex().ScanReverse(
-      begin, end, [&](std::string_view key) {
-        index_keys.insert(std::string(key));
-        return false;
-      });
-
-  if (!index_result.has_value()) {
-    Abort();
-    return std::nullopt;
-  }
-
-  std::set<std::string> write_set_keys;
-  for (const auto& snapshot : write_set_) {
-    if (snapshot.table_name != current_table_->GetTableName()) continue;
-    if (snapshot.key < begin) continue;
-    if (end.has_value() && snapshot.key > end.value()) continue;
-    write_set_keys.insert(snapshot.key);
-  }
-
-  std::set<std::string> all_keys;
-  all_keys.insert(index_keys.begin(), index_keys.end());
-  all_keys.insert(write_set_keys.begin(), write_set_keys.end());
-
-  size_t total_count = 0;
-  for (auto it = all_keys.rbegin(); it != all_keys.rend(); ++it) {
-    if (IsAborted()) return std::nullopt;
-
-    const auto& key = *it;
-    bool found_in_write_set = false;
-    for (const auto& snapshot : write_set_) {
-      if (snapshot.table_name != current_table_->GetTableName()) continue;
-      if (snapshot.key != key) continue;
-
-      found_in_write_set = true;
-
-      if (!snapshot.data_item_copy.IsInitialized()) {
-        break;
-      }
-
-      std::pair<const void*, const size_t> value_pair = {
-          snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
-      bool stop_scan = operation(key, value_pair);
-      total_count++;
-      if (stop_scan) return total_count;
-
-      break;
-    }
-
-    if (!found_in_write_set) {
-      const auto read_result = Read(key);
-      const bool is_uninitialized =
-          read_result.first == nullptr && read_result.second == 0;
-
-      if (!is_uninitialized) {
-        bool stop_scan = operation(key, read_result);
-        total_count++;
-        if (stop_scan) return total_count;
-      }
-    }
-  }
-
   return total_count;
 };
 
@@ -438,15 +398,9 @@ const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
-        operation) {
-  return tx_pimpl_->Scan(begin, end, operation);
-};
-const std::optional<size_t> Transaction::ScanReverse(
-    const std::string_view begin, const std::optional<std::string_view> end,
-    std::function<bool(std::string_view,
-                       const std::pair<const void*, const size_t>)>
-        operation) {
-  return tx_pimpl_->ScanReverse(begin, end, operation);
+        operation,
+    Transaction::ScanOption option) {
+  return tx_pimpl_->Scan(begin, end, operation, option);
 };
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::SetTable(const std::string_view table_name) {

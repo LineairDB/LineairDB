@@ -86,18 +86,6 @@ std::optional<size_t> ConcurrentTable::Scan(
   return index_->Scan(begin, end, operation);
 };
 
-std::optional<size_t> ConcurrentTable::ScanReverse(
-    const std::string_view begin, const std::optional<std::string_view> end,
-    std::function<bool(std::string_view)> operation) {
-  return index_->ScanReverse(begin, end, operation);
-};
-
-std::optional<size_t> ConcurrentTable::ScanReverse(
-    const std::string_view begin, const std::string_view end,
-    std::function<bool(std::string_view, DataItem&)> operation) {
-  return index_->ScanReverse(begin, end, operation);
-};
-
 bool ConcurrentTable::Delete(const std::string_view key) {
   return index_->Delete(key);
 };

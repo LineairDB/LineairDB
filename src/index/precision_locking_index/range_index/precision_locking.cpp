@@ -122,46 +122,6 @@ std::optional<size_t> PrecisionLockingIndex::Scan(
   return hit;
 };
 
-std::optional<size_t> PrecisionLockingIndex::ScanReverse(
-    const std::string_view b, const std::optional<std::string_view> e,
-    std::function<bool(std::string_view)> operation) {
-  size_t hit = 0;
-  const auto begin = std::string(b);
-  auto end = begin;
-  if (e.has_value()) {
-    end = std::string(e.value());
-    if (end < begin) return std::nullopt;
-  }
-
-  std::lock_guard<decltype(plock_)> p_guard(plock_);
-  std::shared_lock<decltype(ulock_)> u_guard(ulock_);
-  if (IsOverlapWithInsertOrDelete(b, e)) {
-    return std::nullopt;
-  }
-
-  {
-    auto it = container_.end();
-    auto it_end = container_.lower_bound(begin);
-    if (e.has_value()) {
-      it = container_.upper_bound(end);
-    }
-    for (; it != it_end;) {
-      --it;
-      if (it->second.is_deleted) continue;
-      hit++;
-      auto cancel = operation(it->first);
-      if (cancel) break;
-    }
-  }
-
-  const auto epoch = epoch_manager_ref_.GetMyThreadLocalEpoch();
-
-  predicate_list_[epoch].emplace_back(b, e);
-  predicate_list_[epoch].back().tx_context = GetCurrentTransactionContext();
-
-  return hit;
-};
-
 bool PrecisionLockingIndex::Insert(const std::string_view key) {
   std::shared_lock<decltype(plock_)> p_guard(plock_);
   if (IsInPredicateSet(key)) {
