@@ -153,13 +153,13 @@ int main() {
     std::vector<std::string> scanned_keys;
     db.ExecuteTransaction(
         [&](LineairDB::Transaction& tx) {
-          auto count = tx.Scan<int>(
-              "eve", "george",
-              [&](auto key, auto) {
-                scanned_keys.push_back(std::string(key));
-                return false;
-              },
-              {LineairDB::Transaction::ScanOption::REVERSE});
+          auto count =
+              tx.Scan<int>("eve", "george",
+                           [&](auto key, auto) {
+                             scanned_keys.push_back(std::string(key));
+                             return false;
+                           },
+                           {LineairDB::Transaction::ScanOption::REVERSE});
           assert(count.has_value());
         },
         [&](LineairDB::TxStatus s) { status = s; });

@@ -292,10 +292,13 @@ class Transaction {
       ScanOption option = ScanOption()) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
-    return Scan(begin, end, [&](auto key, auto pair) {
-      const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
-      return operation(key, copy_constructed);
-    }, option);
+    return Scan(
+        begin, end,
+        [&](auto key, auto pair) {
+          const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
+          return operation(key, copy_constructed);
+        },
+        option);
   }
 
   /**
