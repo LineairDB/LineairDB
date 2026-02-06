@@ -49,6 +49,8 @@ namespace LineairDB {
  *   delete: delete an existing data item. (≈ "write" if the key exists)
  *   scan: scan data items in a given key range. (consists of multiple read
  * operations)
+ * scan reverse: scan data items in a given key range in reverse lexical
+ * order. (consists of multiple read operations)
  *
  * All methods are thread-safe, but some operations may fail due to concurrency
  * control. The following table summarizes the behavior of each operation when
@@ -64,6 +66,7 @@ namespace LineairDB {
  * | update    | may fail if the key does not exist                    |
  * | delete    | may fail if the key does not exist                    |
  * | scan      | may fail if the transaction is not serializable       |
+ * | scan reverse | may fail if the transaction is not serializable    |
  * |-------------------------------------------------------------------|
  *
  * @see [Vossen95] https://doi.org/10.1007/BFb0015267
@@ -71,6 +74,12 @@ namespace LineairDB {
 
 class Transaction {
  public:
+  struct ScanOption {
+    enum Order { ALPHABETICAL, REVERSE };
+    Order order;
+    constexpr ScanOption(Order order = Order::ALPHABETICAL) : order(order) {}
+  };
+
   /**
    * @brief Get the current transaction status.
    * For transactions such that GetCurrentStatus() returns TxStatus::Aborted,
@@ -231,7 +240,7 @@ class Transaction {
   /**
    * @brief
    * Get all data items that match the range from the "begin" key to the "end"
-   * key in the lexical order.
+   * key in the order specified by ScanOption.
    * The term "get" here means that it is equivalent to the #Read
    * operation: this operation performs read operations for all the keys.
    * @param begin
@@ -248,6 +257,8 @@ class Transaction {
    * value (std::pair). Return value (boolean) forces LineairDB to cancel the
    * scanning operation; when a function returns true at some key, this function
    * will never be invoked with the next key.
+   * @param option
+   *  Scanning order. The default is ScanOption::ALPHABETICAL.
    * @return std::optional<size_t>
    *  returns the total number of rows that match the inputted range, if
    * succeed. Concurrent transactions may aborts this scan operation and returns
@@ -258,7 +269,8 @@ class Transaction {
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
-          operation);
+          operation,
+      ScanOption option = ScanOption());
 
   /**
    * @brief
@@ -270,18 +282,23 @@ class Transaction {
    * @param begin
    * @param end
    * @param operation
+   * @param option
    * @return std::optional<size_t>
    */
   template <typename T>
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view, T)> operation) {
+      std::function<bool(std::string_view, T)> operation,
+      ScanOption option = ScanOption()) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
-    return Scan(begin, end, [&](auto key, auto pair) {
-      const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
-      return operation(key, copy_constructed);
-    });
+    return Scan(
+        begin, end,
+        [&](auto key, auto pair) {
+          const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
+          return operation(key, copy_constructed);
+        },
+        option);
   }
 
   /**
