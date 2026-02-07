@@ -18,9 +18,9 @@ class Table {
   Table(EpochFramework& epoch_framework, const Config& config,
         std::string_view table_name);
 
-  bool CreateSecondaryIndex(const std::string_view index_name,
-                            [[maybe_unused]] const Index::SecondaryIndexType
-                                index_type) {
+  bool CreateSecondaryIndex(
+      const std::string_view index_name,
+      [[maybe_unused]] const Index::SecondaryIndexType index_type) {
     std::unique_lock<std::shared_mutex> lk(table_lock_);
     if (secondary_indices_.count(std::string(index_name))) {
       return false;

@@ -286,9 +286,14 @@ void Transaction::Impl::WriteSecondaryIndex(
   }
 
   if (!is_rmf) {
-    Snapshot snapshot = {
-        key,       nullptr, 0, index_leaf, current_table_->GetTableName(),
-        index_name, 0, index_type};
+    Snapshot snapshot = {key,
+                         nullptr,
+                         0,
+                         index_leaf,
+                         current_table_->GetTableName(),
+                         index_name,
+                         0,
+                         index_type};
     snapshot.data_item_copy = concurrency_control_->Read(key, index_leaf);
     snapshot.is_read_modify_write = true;
 
@@ -807,9 +812,14 @@ void Transaction::Impl::DeleteSecondaryIndex(
   // case B: old_key is not in write_set
   if (!found_in_write_set) {
     if (!is_rmf) {
-      Snapshot snapshot = {
-          secondary_key, nullptr, 0, index_leaf, current_table_->GetTableName(),
-          index_name, 0, index_type};
+      Snapshot snapshot = {secondary_key,
+                           nullptr,
+                           0,
+                           index_leaf,
+                           current_table_->GetTableName(),
+                           index_name,
+                           0,
+                           index_type};
 
       snapshot.data_item_copy =
           concurrency_control_->Read(secondary_key, index_leaf);

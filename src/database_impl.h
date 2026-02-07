@@ -325,8 +325,8 @@ class Database::Impl {
       } else {
         // Secondary Index recovery
         Index::SecondaryIndex* idx = nullptr;
-        table.value()->GetOrCreateSecondaryIndex(
-            recovery_set.index_name, recovery_set.index_type, &idx);
+        table.value()->GetOrCreateSecondaryIndex(recovery_set.index_name,
+                                                 recovery_set.index_type, &idx);
         if (idx != nullptr) {
           idx->Put(recovery_set.key, std::move(recovery_set.data_item_copy));
           SPDLOG_DEBUG(

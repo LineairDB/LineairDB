@@ -16,7 +16,8 @@ TEST(SecondaryIndexTypeTest, DictUniqueBitControlsUniqueCheck) {
   const auto non_unique = SecondaryIndexType::FromRaw(0x08u);
   EXPECT_FALSE(non_unique.IsUnique());
 
-  const auto unique = SecondaryIndexType::FromRaw(SecondaryIndexType::kDictUnique);
+  const auto unique =
+      SecondaryIndexType::FromRaw(SecondaryIndexType::kDictUnique);
   EXPECT_TRUE(unique.IsUnique());
 
   const auto unique_with_extra_bits =

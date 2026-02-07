@@ -62,8 +62,8 @@ TEST_F(UniqueSecondaryIndexTest, DictUniqueFlagRejectsDuplicateSecondaryKey) {
                                       "email_idx", "alice@example.com");
   ASSERT_EQ(status1, LineairDB::TxStatus::Committed);
 
-  const auto status2 = WriteSecondary(db, "users", "user2", "Bob",
-                                      "email_idx", "alice@example.com");
+  const auto status2 = WriteSecondary(db, "users", "user2", "Bob", "email_idx",
+                                      "alice@example.com");
   EXPECT_EQ(status2, LineairDB::TxStatus::Aborted);
 }
 
