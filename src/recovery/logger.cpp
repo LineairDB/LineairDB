@@ -19,6 +19,7 @@
 #include <glob.h>
 #include <lineairdb/config.h>
 
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -26,6 +27,7 @@
 #include <iostream>
 #include <memory>
 #include <msgpack.hpp>
+#include <unordered_map>
 #include <util/logger.hpp>
 
 #include "impl/thread_local_logger.h"
@@ -143,6 +145,65 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   if (checkpoint_file_exists) logfiles.push_back(checkpoint_filename);
   WriteSetType recovery_set;
   recovery_set.clear();
+  struct SecondaryOpKey {
+    std::string table_name;
+    std::string index_name;
+    uint32_t index_type;
+    std::string secondary_key;
+    std::string primary_key;
+    bool operator==(const SecondaryOpKey& rhs) const {
+      return table_name == rhs.table_name && index_name == rhs.index_name &&
+             index_type == rhs.index_type &&
+             secondary_key == rhs.secondary_key &&
+             primary_key == rhs.primary_key;
+    }
+  };
+  struct SecondaryOpKeyHash {
+    size_t operator()(const SecondaryOpKey& key) const {
+      const std::hash<std::string> hasher;
+      size_t seed = hasher(key.table_name);
+      seed ^= hasher(key.index_name) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= std::hash<uint32_t>{}(key.index_type) + 0x9e3779b9 + (seed << 6) +
+              (seed >> 2);
+      seed ^=
+          hasher(key.secondary_key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= hasher(key.primary_key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+    }
+  };
+  struct SecondaryOpState {
+    TransactionId tid;
+    SecondaryIndexOp op;
+  };
+  struct SecondaryGroupKey {
+    std::string table_name;
+    std::string index_name;
+    uint32_t index_type;
+    std::string secondary_key;
+    bool operator==(const SecondaryGroupKey& rhs) const {
+      return table_name == rhs.table_name && index_name == rhs.index_name &&
+             index_type == rhs.index_type && secondary_key == rhs.secondary_key;
+    }
+  };
+  struct SecondaryGroupKeyHash {
+    size_t operator()(const SecondaryGroupKey& key) const {
+      const std::hash<std::string> hasher;
+      size_t seed = hasher(key.table_name);
+      seed ^= hasher(key.index_name) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= std::hash<uint32_t>{}(key.index_type) + 0x9e3779b9 + (seed << 6) +
+              (seed >> 2);
+      seed ^=
+          hasher(key.secondary_key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+    }
+  };
+  struct SecondaryGroupValue {
+    TransactionId max_tid{};
+    std::vector<std::string> primary_keys;
+  };
+
+  std::unordered_map<SecondaryOpKey, SecondaryOpState, SecondaryOpKeyHash>
+      secondary_latest;
 
   for (auto filename : logfiles) {
     std::ifstream file(filename, std::ifstream::in | std::ifstream::binary);
@@ -160,6 +221,10 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
     SPDLOG_DEBUG(" Start recovery from {0}", filename);
 
     LogRecords log_records;
+    size_t primary_inserts = 0;
+    size_t primary_updates = 0;
+    size_t secondary_full_entries = 0;
+    size_t secondary_delta_entries = 0;
     size_t offset = 0;
     for (;;) {
       if (offset == buffer.size()) break;
@@ -180,11 +245,43 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
         return recovery_set;
       }
 
+      auto ensure_initialized = [](LineairDB::DataItem& data_item) {
+        data_item.initialized = !data_item.primary_keys.empty();
+      };
       for (auto& log_record : log_records) {
         assert(0 < log_record.epoch);
         if (filename == checkpoint_filename ||
             log_record.epoch <= durable_epoch) {
           for (auto& kvp : log_record.key_value_pairs) {
+            const auto op = static_cast<SecondaryIndexOp>(kvp.secondary_op);
+            const bool is_secondary_index =
+                !kvp.index_name.empty() || op != SecondaryIndexOp::None ||
+                !kvp.primary_keys.empty() ||
+                !kvp.secondary_primary_key.empty() || kvp.index_type != 0;
+            if (is_secondary_index) {
+              if (op == SecondaryIndexOp::Full) {
+                for (const auto& pk : kvp.primary_keys) {
+                  SecondaryOpKey op_key{kvp.table_name, kvp.index_name,
+                                        kvp.index_type, kvp.key, pk};
+                  auto it = secondary_latest.find(op_key);
+                  if (it == secondary_latest.end() ||
+                      it->second.tid < kvp.tid) {
+                    secondary_latest[op_key] = {kvp.tid, SecondaryIndexOp::Add};
+                  }
+                }
+                secondary_full_entries += kvp.primary_keys.size();
+              } else if (!kvp.secondary_primary_key.empty()) {
+                SecondaryOpKey op_key{kvp.table_name, kvp.index_name,
+                                      kvp.index_type, kvp.key,
+                                      kvp.secondary_primary_key};
+                auto it = secondary_latest.find(op_key);
+                if (it == secondary_latest.end() || it->second.tid < kvp.tid) {
+                  secondary_latest[op_key] = {kvp.tid, op};
+                }
+                secondary_delta_entries++;
+              }
+              continue;
+            }
             const std::byte* kvp_value_ptr =
                 kvp.buffer.empty()
                     ? nullptr
@@ -192,34 +289,88 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
             const size_t kvp_value_size = kvp.buffer.size();
             bool not_found = true;
             for (auto& item : recovery_set) {
-              if (item.key == kvp.key) {
+              if (item.key == kvp.key && item.table_name == kvp.table_name &&
+                  item.index_name == kvp.index_name) {
                 not_found = false;
                 if (item.data_item_copy.transaction_id.load() < kvp.tid) {
                   item.data_item_copy.Reset(kvp_value_ptr, kvp_value_size,
                                             kvp.tid);
                   item.table_name = kvp.table_name;
+                  item.index_name = kvp.index_name;
+                  item.index_type =
+                      Index::SecondaryIndexType::FromRaw(kvp.index_type);
+                  if (is_secondary_index) {
+                    item.data_item_copy.primary_keys = kvp.primary_keys;
+                    ensure_initialized(item.data_item_copy);
+                  }
 
-                  SPDLOG_DEBUG(
-                      "    update-> key {0}, version {1} in epoch {2} in table "
-                      "{3}",
-                      kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
+                  primary_updates++;
                 }
               }
             }
             if (not_found) {
-              SPDLOG_DEBUG(
-                  "    insert-> key {0}, version {1} in epoch {2} in table {3}",
-                  kvp.key, kvp.tid.tid, kvp.tid.epoch, kvp.table_name);
-              Snapshot snapshot = {kvp.key, kvp_value_ptr,  kvp_value_size,
-                                   nullptr, kvp.table_name, kvp.tid};
+              Snapshot snapshot = {
+                  kvp.key,
+                  reinterpret_cast<std::byte*>(kvp.buffer.data()),
+                  kvp.buffer.size(),
+                  nullptr,
+                  kvp.table_name,
+                  kvp.index_name,
+                  kvp.tid,
+                  Index::SecondaryIndexType::FromRaw(kvp.index_type),
+              };
+              if (is_secondary_index) {
+                snapshot.data_item_copy.primary_keys = kvp.primary_keys;
+                ensure_initialized(snapshot.data_item_copy);
+              }
               recovery_set.emplace_back(std::move(snapshot));
+              primary_inserts++;
             }
           }
         }
       }
     }
 
+    if (primary_inserts || primary_updates || secondary_full_entries ||
+        secondary_delta_entries) {
+      SPDLOG_DEBUG(
+          "  Recovery summary: primary inserts {0}, updates {1}, "
+          "secondary full entries {2}, secondary delta entries {3}",
+          primary_inserts, primary_updates, secondary_full_entries,
+          secondary_delta_entries);
+    }
     SPDLOG_DEBUG(" Close filename {0}", filename);
+  }
+
+  std::unordered_map<SecondaryGroupKey, SecondaryGroupValue,
+                     SecondaryGroupKeyHash>
+      grouped_secondary;
+  for (const auto& [op_key, state] : secondary_latest) {
+    if (state.op != SecondaryIndexOp::Add) continue;
+    SecondaryGroupKey group_key{op_key.table_name, op_key.index_name,
+                                op_key.index_type, op_key.secondary_key};
+    auto& entry = grouped_secondary[group_key];
+    entry.primary_keys.emplace_back(op_key.primary_key);
+    if (entry.max_tid < state.tid) {
+      entry.max_tid = state.tid;
+    }
+  }
+
+  for (auto& [group_key, entry] : grouped_secondary) {
+    if (entry.primary_keys.empty()) continue;
+    std::sort(entry.primary_keys.begin(), entry.primary_keys.end());
+    Snapshot snapshot = {
+        group_key.secondary_key,
+        nullptr,
+        0,
+        nullptr,
+        group_key.table_name,
+        group_key.index_name,
+        entry.max_tid,
+        Index::SecondaryIndexType::FromRaw(group_key.index_type)};
+    snapshot.data_item_copy.primary_keys = std::move(entry.primary_keys);
+    snapshot.data_item_copy.Reset(nullptr, 0, entry.max_tid);
+    recovery_set.emplace_back(std::move(snapshot));
   }
   return recovery_set;
 }

@@ -56,13 +56,33 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     record.epoch = epoch;
 
     for (auto& snapshot : ws_ref) {
-      Logger::LogRecord::KeyValuePair kvp;
-      kvp.key = snapshot.key;
-      kvp.buffer = snapshot.data_item_copy.buffer.toString();
-      kvp.tid = snapshot.data_item_copy.transaction_id.load();
-      kvp.table_name = snapshot.table_name;
+      if (snapshot.index_name.empty()) {
+        Logger::LogRecord::KeyValuePair kvp;
+        kvp.key = snapshot.key;
+        kvp.buffer = snapshot.data_item_copy.buffer.toString();
+        kvp.tid = snapshot.data_item_copy.transaction_id.load();
+        kvp.table_name = snapshot.table_name;
+        kvp.index_name = snapshot.index_name;
+        kvp.index_type = snapshot.index_type.Raw();
+        kvp.primary_keys = snapshot.data_item_copy.primary_keys;
+        kvp.secondary_op = static_cast<uint8_t>(SecondaryIndexOp::None);
+        record.key_value_pairs.emplace_back(std::move(kvp));
+        continue;
+      }
 
-      record.key_value_pairs.emplace_back(std::move(kvp));
+      if (snapshot.secondary_index_deltas.empty()) continue;
+      for (const auto& delta : snapshot.secondary_index_deltas) {
+        Logger::LogRecord::KeyValuePair kvp;
+        kvp.key = snapshot.key;
+        kvp.buffer = snapshot.data_item_copy.buffer.toString();
+        kvp.tid = snapshot.data_item_copy.transaction_id.load();
+        kvp.table_name = snapshot.table_name;
+        kvp.index_name = snapshot.index_name;
+        kvp.index_type = snapshot.index_type.Raw();
+        kvp.secondary_op = static_cast<uint8_t>(delta.op);
+        kvp.secondary_primary_key = delta.primary_key;
+        record.key_value_pairs.emplace_back(std::move(kvp));
+      }
     }
   }
   auto* my_storage = thread_key_storage_.Get();
@@ -158,7 +178,9 @@ void ThreadLocalLogger::TruncateLogs(
   new_file.flush();
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(log_filename.c_str(),
+  const auto working_log_filename =
+      GetWorkingLogFileName(my_storage->thread_id);
+  if (rename(working_log_filename.c_str(),
              GetLogFileName(my_storage->thread_id).c_str())) {
     SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
                  errno);

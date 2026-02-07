@@ -23,6 +23,7 @@
 #include <chrono>
 #include <filesystem>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -42,6 +43,7 @@ class DurabilityTest : public ::testing::Test {
     config_.enable_checkpointing = true;
     config_.checkpoint_period = 1;
     db_ = std::make_unique<LineairDB::Database>(config_);
+    db_->CreateTable("users");
   }
 };
 
@@ -429,3 +431,47 @@ TEST_F(DurabilityTest, RecoveryWithNamedTable) {
                                ASSERT_FALSE(data.has_value());
                              }});
 }
+
+/* TEST_F(DurabilityTest, RecoveryWithSecondaryIndex) {
+  const LineairDB::Config config = db_->GetConfig();
+  const std::string table_name = "users";
+  const std::string index_name = "age_index";
+  const std::string index_key = "age:30";
+  const std::string primary_key = "user1";
+  const std::string value = "Alice";
+
+  ASSERT_TRUE(db_->CreateSecondaryIndex(table_name, index_name, 0));
+
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        ASSERT_TRUE(tx.SetTable(table_name));
+        tx.Write(primary_key, reinterpret_cast<const std::byte*>(value.data()),
+                 value.size());
+        tx.WriteSecondaryIndex(
+            index_name, index_key,
+            reinterpret_cast<const std::byte*>(primary_key.data()),
+            primary_key.size());
+      }});
+  db_->Fence();
+
+  db_.reset(nullptr);
+  db_ = std::make_unique<LineairDB::Database>(config);
+
+  TestHelper::DoTransactions(
+      db_.get(), {[&](LineairDB::Transaction& tx) {
+        ASSERT_TRUE(tx.SetTable(table_name));
+
+        auto primary_keys = tx.ReadSecondaryIndex(index_name, index_key);
+        ASSERT_EQ(primary_keys.size(), 1);
+        const auto& [pk_ptr, pk_size] = primary_keys[0];
+        std::string recovered_pk(reinterpret_cast<const char*>(pk_ptr),
+                                 pk_size);
+        ASSERT_EQ(recovered_pk, primary_key);
+
+        auto [value_ptr, value_size] = tx.Read(primary_key);
+        ASSERT_TRUE(value_ptr != nullptr);
+        std::string recovered_value(reinterpret_cast<const char*>(value_ptr),
+                                    value_size);
+        ASSERT_EQ(recovered_value, value);
+      }});
+} */

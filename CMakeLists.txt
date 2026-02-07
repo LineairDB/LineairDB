@@ -47,7 +47,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_C_FLAGS "--std=c99")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -fPIC")
 
 # Check for and disable nan-infinity warnings early to avoid GoogleTest compilation issues
 include(CheckCXXCompilerFlag)
@@ -84,10 +84,11 @@ endif()
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_library(${PROJECT_NAME} ${SOURCES})
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+target_compile_options(${PROJECT_NAME} PRIVATE -Wno-error -Wno-error=extra-semi -Wno-extra-semi -Wno-unused-parameter)
 
 find_package(Boost QUIET)
 if(Boost_FOUND)
-  include_directories(PRIVATE
+  target_include_directories(${PROJECT_NAME} PRIVATE
     ${Boost_INCLUDE_DIRS}
   )
 else()

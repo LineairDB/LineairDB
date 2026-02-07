@@ -1,22 +1,42 @@
 #include "table/table.h"
 
+#include <shared_mutex>
 #include <string_view>
+#include <tuple>
+#include <utility>
 
 #include "index/concurrent_table.h"
 #include "lineairdb/config.h"
 #include "util/epoch_framework.hpp"
+// #include "index/secondary_index.h"  // now included from table.h
 
 namespace LineairDB {
-
 Table::Table(EpochFramework& epoch_framework, const Config& config,
              std::string_view table_name)
-    : primary_index_(epoch_framework, config), table_name_(table_name) {}
+    : epoch_framework_(epoch_framework),
+      config_(config),
+      primary_index_(epoch_framework, config),
+      table_name_(table_name) {}
+
+Index::SecondaryIndex* Table::GetSecondaryIndex(
+    const std::string_view index_name) {
+  std::shared_lock<std::shared_mutex> lk(table_lock_);
+  auto it = secondary_indices_.find(std::string(index_name));
+  if (it == secondary_indices_.end()) {
+    return nullptr;
+  }
+  return it->second.get();
+}
 
 const std::string& Table::GetTableName() const { return table_name_; }
 Index::ConcurrentTable& Table::GetPrimaryIndex() { return primary_index_; }
 
 void Table::WaitForIndexIsLinearizable() {
   primary_index_.WaitForIndexIsLinearizable();
+  // Also wait for all secondary indexes to be linearizable
+  ForEachSecondaryIndex([](const std::string&, Index::SecondaryIndex& index) {
+    index.WaitForIndexIsLinearizable();
+  });
 }
 
 }  // namespace LineairDB

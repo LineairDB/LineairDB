@@ -36,6 +36,34 @@ struct DataBuffer {
     if (value != nullptr) delete[] value;
   }
 
+  DataBuffer(DataBuffer&& other) noexcept
+      : value(other.value), size(other.size) {
+    other.value = nullptr;
+    other.size = 0;
+  }
+
+  DataBuffer& operator=(DataBuffer&& other) noexcept {
+    if (this != &other) {
+      delete[] value;
+      value = other.value;
+      size = other.size;
+      other.value = nullptr;
+      other.size = 0;
+    }
+    return *this;
+  }
+
+  DataBuffer(const DataBuffer& other) : value(nullptr), size(0) {
+    Reset(other.value, other.size);
+  }
+
+  DataBuffer& operator=(const DataBuffer& other) {
+    if (this != &other) {
+      Reset(other.value, other.size);
+    }
+    return *this;
+  }
+
   void Reset(const std::byte* v, const size_t s) {
     if (v == nullptr) {
       delete[] value;

@@ -34,8 +34,10 @@
 
 namespace YCSB {
 
-void PopulateDatabase(LineairDB::Database&, YCSB::Workload&, size_t);
-rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&, bool);
+void PopulateDatabase(LineairDB::Database&, YCSB::Workload&, size_t,
+                      std::string_view);
+rapidjson::Document RunBenchmark(LineairDB::Database&, YCSB::Workload&, bool,
+                                 std::string_view);
 
 }  // namespace YCSB
 
@@ -86,6 +88,8 @@ int main(int argc, char** argv) {
        cxxopts::value<size_t>()->default_value("2000"))  //
       ("o,output", "Output JSON filename",
        cxxopts::value<std::string>()->default_value("ycsb_result.json"))  //
+      ("T,table", "Target table name",
+       cxxopts::value<std::string>()->default_value("users"))  //
       ;
 
   auto result = options.parse(argc, argv);
@@ -109,6 +113,8 @@ int main(int argc, char** argv) {
   LineairDB::Database db(config);
 
   const auto use_handler = result["handler"].as<bool>();
+  const auto table = result["table"].as<std::string>();
+  db.CreateTable(table);
 
   /** Configure the workload **/
   auto workload_type = result["workload"].as<std::string>();
@@ -123,10 +129,11 @@ int main(int argc, char** argv) {
   workload.measurement_duration = result["duration"].as<size_t>();
 
   /** Populate the table **/
-  YCSB::PopulateDatabase(db, workload, std::thread::hardware_concurrency());
+  YCSB::PopulateDatabase(db, workload, std::thread::hardware_concurrency(),
+                         table);
 
   /** Run the benchmark **/
-  auto result_json = YCSB::RunBenchmark(db, workload, use_handler);
+  auto result_json = YCSB::RunBenchmark(db, workload, use_handler, table);
   auto& allocator = result_json.GetAllocator();
 
   result_json.AddMember("workload",

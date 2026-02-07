@@ -25,6 +25,8 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "table/table.h"
@@ -58,10 +60,23 @@ class Transaction::Impl {
   ~Impl() noexcept;
 
   TxStatus GetCurrentStatus();
+  /*     const std::pair<const std::byte* const, const size_t> Read(
+          const std::string_view key);  */
   const std::pair<const std::byte* const, const size_t> Read(
       const std::string_view key);
+
+  std::vector<std::pair<const std::byte* const, const size_t>>
+  ReadSecondaryIndex(const std::string_view index_name,
+                     const std::string_view key);
+
+  /*   void Write(const std::string_view key, const std::byte value[],
+               const size_t size); */
   void Write(const std::string_view key, const std::byte value[],
              const size_t size);
+  void WriteSecondaryIndex(const std::string_view index_name,
+                           const std::string_view key,
+                           const std::byte primary_key_buffer[],
+                           const size_t primary_key_size);
   void Insert(const std::string_view key, const std::byte value[],
               const size_t size);
   void Update(const std::string_view key, const std::byte value[],
@@ -72,6 +87,35 @@ class Transaction::Impl {
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation);
+  const std::optional<size_t> ScanReverse(
+      const std::string_view begin, const std::optional<std::string_view> end,
+      std::function<bool(std::string_view,
+                         const std::pair<const void*, const size_t>)>
+          operation);
+
+  const std::optional<size_t> ScanSecondaryIndex(
+      const std::string_view index_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, const std::vector<std::string>)>
+          operation);
+  const std::optional<size_t> ScanSecondaryIndexReverse(
+      const std::string_view index_name, const std::string_view begin,
+      const std::optional<std::string_view> end,
+      std::function<bool(std::string_view, const std::vector<std::string>)>
+          operation);
+
+  void DeleteSecondaryIndex(const std::string_view index_name,
+                            const std::string_view secondary_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
+
+  void UpdateSecondaryIndex(const std::string_view index_name,
+                            const std::string_view old_secondary_key,
+                            const std::string_view new_secondary_key,
+                            const std::byte primary_key_buffer[],
+                            const size_t primary_key_size);
+
+  bool ValidateSKNotNull();
 
   void Abort();
   bool Precommit();
@@ -95,6 +139,16 @@ class Transaction::Impl {
 
   ReadSetType read_set_;
   WriteSetType write_set_;
+  struct NotNullProgress {
+    size_t remainingWrites;
+    std::unordered_set<std::string> satisfiedIndexNames;
+  };
+  // Tracks, per table and per primary key, how many NOT NULL secondary-key
+  // writes are still required before commit can succeed.
+  std::unordered_map<std::string,
+                     std::unordered_map<std::string, NotNullProgress>>
+      remainingNotNullSkWrites_;
+
   Table* current_table_;
 };
 
