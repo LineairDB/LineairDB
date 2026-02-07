@@ -1,6 +1,7 @@
 #pragma once
 
 #include "index/concurrent_table.h"
+#include "index/secondary_index_type.h"
 #include "util/epoch_framework.hpp"
 
 namespace LineairDB {
@@ -9,7 +10,7 @@ namespace Index {
 class SecondaryIndex {
  public:
   SecondaryIndex(EpochFramework& epoch_framework, Config config = Config(),
-                 uint index_type = 0,
+                 SecondaryIndexType index_type = SecondaryIndexType(),
                  [[maybe_unused]] WriteSetType recovery_set = WriteSetType())
       : index_type_(index_type) {
     secondary_index_ =
@@ -64,14 +65,16 @@ class SecondaryIndex {
     return secondary_index_->Put(key, std::forward<DataItem>(value));
   }
 
-  bool IsUnique() { return index_type_ == 1; }
+  bool IsUnique() { return index_type_.IsUnique(); }
+
+  SecondaryIndexType GetIndexType() const { return index_type_; }
 
   void WaitForIndexIsLinearizable() {
     secondary_index_->WaitForIndexIsLinearizable();
   }
 
  private:
-  uint index_type_;
+  SecondaryIndexType index_type_;
   std::unique_ptr<HashTableWithPrecisionLockingIndex<DataItem>>
       secondary_index_;
 };

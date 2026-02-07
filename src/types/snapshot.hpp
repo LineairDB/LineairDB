@@ -24,6 +24,7 @@
 
 #include "data_item.hpp"
 #include "definitions.h"
+#include "index/secondary_index_type.h"
 
 namespace LineairDB {
 
@@ -34,6 +35,7 @@ struct Snapshot {
   bool is_read_modify_write;
   std::string table_name;
   std::string index_name;
+  Index::SecondaryIndexType index_type;
   struct SecondaryIndexDelta {
     std::string primary_key;
     SecondaryIndexOp op;
@@ -42,12 +44,14 @@ struct Snapshot {
 
   Snapshot(const std::string_view k, const std::byte v[], const size_t s,
            DataItem* const i, std::string_view tn, std::string_view in,
-           const TransactionId ver = 0)
+           const TransactionId ver = 0,
+           Index::SecondaryIndexType it = Index::SecondaryIndexType())
       : key(k),
         index_cache(i),
         is_read_modify_write(false),
         table_name(tn),
-        index_name(in) {
+        index_name(in),
+        index_type(it) {
     if (v != nullptr) data_item_copy.Reset(v, s, ver);
   }
   Snapshot(const Snapshot&) = default;

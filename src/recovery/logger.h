@@ -60,11 +60,12 @@ class Logger {
       TransactionId tid;
       std::string table_name;
       std::string index_name;
+      uint32_t index_type = 0;
       std::vector<std::string> primary_keys;
       uint8_t secondary_op = 0;
       std::string secondary_primary_key;
-      MSGPACK_DEFINE(key, buffer, tid, table_name, index_name, primary_keys,
-                     secondary_op, secondary_primary_key);
+      MSGPACK_DEFINE(key, buffer, tid, table_name, index_name, index_type,
+                     primary_keys, secondary_op, secondary_primary_key);
     };
 
     EpochNumber epoch;

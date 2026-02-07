@@ -19,7 +19,8 @@ class Table {
         std::string_view table_name);
 
   bool CreateSecondaryIndex(const std::string_view index_name,
-                            [[maybe_unused]] const uint index_type) {
+                            [[maybe_unused]] const Index::SecondaryIndexType
+                                index_type) {
     std::unique_lock<std::shared_mutex> lk(table_lock_);
     if (secondary_indices_.count(std::string(index_name))) {
       return false;
@@ -53,6 +54,7 @@ class Table {
   }
 
   bool GetOrCreateSecondaryIndex(const std::string_view index_name,
+                                 const Index::SecondaryIndexType index_type,
                                  Index::SecondaryIndex** out_index) {
     std::unique_lock<std::shared_mutex> lk(table_lock_);
     auto it = secondary_indices_.find(std::string(index_name));
@@ -60,9 +62,8 @@ class Table {
       *out_index = it->second.get();
       return false;
     }
-    // Create new index with default type (0 = non-unique)
-    auto new_index =
-        std::make_unique<Index::SecondaryIndex>(epoch_framework_, config_, 0);
+    auto new_index = std::make_unique<Index::SecondaryIndex>(
+        epoch_framework_, config_, index_type);
     *out_index = new_index.get();
     secondary_indices_[std::string(index_name)] = std::move(new_index);
     return true;

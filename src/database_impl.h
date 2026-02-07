@@ -270,7 +270,10 @@ class Database::Impl {
     if (!it.has_value()) {
       return false;
     }
-    return it.value()->CreateSecondaryIndex(index_name, index_type);
+    return it.value()->CreateSecondaryIndex(
+        index_name,
+        Index::SecondaryIndexType::FromRaw(
+            static_cast<Index::SecondaryIndexType::RawType>(index_type)));
   }
 
   std::optional<Table*> GetTable(const std::string_view table_name) {
@@ -322,7 +325,8 @@ class Database::Impl {
       } else {
         // Secondary Index recovery
         Index::SecondaryIndex* idx = nullptr;
-        table.value()->GetOrCreateSecondaryIndex(recovery_set.index_name, &idx);
+        table.value()->GetOrCreateSecondaryIndex(
+            recovery_set.index_name, recovery_set.index_type, &idx);
         if (idx != nullptr) {
           idx->Put(recovery_set.key, std::move(recovery_set.data_item_copy));
           SPDLOG_DEBUG(

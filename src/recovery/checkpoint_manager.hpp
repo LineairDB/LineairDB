@@ -156,6 +156,7 @@ class CPRManager {
                         Logger::LogRecord::KeyValuePair kvp;
                         kvp.table_name = table.GetTableName();
                         kvp.index_name = index_name;
+                        kvp.index_type = sec_index.GetIndexType().Raw();
                         kvp.key = key;
                         const auto& primary_keys =
                             data_item.HasCheckpointPrimaryKeys()

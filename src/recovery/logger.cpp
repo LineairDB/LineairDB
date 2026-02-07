@@ -148,10 +148,12 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   struct SecondaryOpKey {
     std::string table_name;
     std::string index_name;
+    uint32_t index_type;
     std::string secondary_key;
     std::string primary_key;
     bool operator==(const SecondaryOpKey& rhs) const {
       return table_name == rhs.table_name && index_name == rhs.index_name &&
+             index_type == rhs.index_type &&
              secondary_key == rhs.secondary_key &&
              primary_key == rhs.primary_key;
     }
@@ -161,6 +163,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
       const std::hash<std::string> hasher;
       size_t seed = hasher(key.table_name);
       seed ^= hasher(key.index_name) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= std::hash<uint32_t>{}(key.index_type) + 0x9e3779b9 +
+              (seed << 6) + (seed >> 2);
       seed ^=
           hasher(key.secondary_key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
       seed ^= hasher(key.primary_key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
@@ -174,9 +178,11 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   struct SecondaryGroupKey {
     std::string table_name;
     std::string index_name;
+    uint32_t index_type;
     std::string secondary_key;
     bool operator==(const SecondaryGroupKey& rhs) const {
       return table_name == rhs.table_name && index_name == rhs.index_name &&
+             index_type == rhs.index_type &&
              secondary_key == rhs.secondary_key;
     }
   };
@@ -185,6 +191,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
       const std::hash<std::string> hasher;
       size_t seed = hasher(key.table_name);
       seed ^= hasher(key.index_name) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= std::hash<uint32_t>{}(key.index_type) + 0x9e3779b9 +
+              (seed << 6) + (seed >> 2);
       seed ^=
           hasher(key.secondary_key) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
       return seed;
@@ -249,12 +257,13 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
             const auto op = static_cast<SecondaryIndexOp>(kvp.secondary_op);
             const bool is_secondary_index =
                 !kvp.index_name.empty() || op != SecondaryIndexOp::None ||
-                !kvp.primary_keys.empty() || !kvp.secondary_primary_key.empty();
+                !kvp.primary_keys.empty() || !kvp.secondary_primary_key.empty() ||
+                kvp.index_type != 0;
             if (is_secondary_index) {
               if (op == SecondaryIndexOp::Full) {
                 for (const auto& pk : kvp.primary_keys) {
-                  SecondaryOpKey op_key{kvp.table_name, kvp.index_name, kvp.key,
-                                        pk};
+                  SecondaryOpKey op_key{kvp.table_name, kvp.index_name,
+                                        kvp.index_type, kvp.key, pk};
                   auto it = secondary_latest.find(op_key);
                   if (it == secondary_latest.end() ||
                       it->second.tid < kvp.tid) {
@@ -263,7 +272,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                 }
                 secondary_full_entries += kvp.primary_keys.size();
               } else if (!kvp.secondary_primary_key.empty()) {
-                SecondaryOpKey op_key{kvp.table_name, kvp.index_name, kvp.key,
+                SecondaryOpKey op_key{kvp.table_name, kvp.index_name,
+                                      kvp.index_type, kvp.key,
                                       kvp.secondary_primary_key};
                 auto it = secondary_latest.find(op_key);
                 if (it == secondary_latest.end() || it->second.tid < kvp.tid) {
@@ -288,6 +298,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                                             kvp.tid);
                   item.table_name = kvp.table_name;
                   item.index_name = kvp.index_name;
+                  item.index_type =
+                      Index::SecondaryIndexType::FromRaw(kvp.index_type);
                   if (is_secondary_index) {
                     item.data_item_copy.primary_keys = kvp.primary_keys;
                     ensure_initialized(item.data_item_copy);
@@ -306,6 +318,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
                   kvp.table_name,
                   kvp.index_name,
                   kvp.tid,
+                  Index::SecondaryIndexType::FromRaw(kvp.index_type),
               };
               if (is_secondary_index) {
                 snapshot.data_item_copy.primary_keys = kvp.primary_keys;
@@ -336,6 +349,7 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
   for (const auto& [op_key, state] : secondary_latest) {
     if (state.op != SecondaryIndexOp::Add) continue;
     SecondaryGroupKey group_key{op_key.table_name, op_key.index_name,
+                                op_key.index_type,
                                 op_key.secondary_key};
     auto& entry = grouped_secondary[group_key];
     entry.primary_keys.emplace_back(op_key.primary_key);
@@ -349,7 +363,8 @@ WriteSetType Logger::GetRecoverySetFromLogs(const EpochNumber durable_epoch) {
     std::sort(entry.primary_keys.begin(), entry.primary_keys.end());
     Snapshot snapshot = {
         group_key.secondary_key, nullptr,      0, nullptr, group_key.table_name,
-        group_key.index_name,    entry.max_tid};
+        group_key.index_name,    entry.max_tid,
+        Index::SecondaryIndexType::FromRaw(group_key.index_type)};
     snapshot.data_item_copy.primary_keys = std::move(entry.primary_keys);
     snapshot.data_item_copy.Reset(nullptr, 0, entry.max_tid);
     recovery_set.emplace_back(std::move(snapshot));

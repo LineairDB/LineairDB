@@ -63,6 +63,7 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
         kvp.tid = snapshot.data_item_copy.transaction_id.load();
         kvp.table_name = snapshot.table_name;
         kvp.index_name = snapshot.index_name;
+        kvp.index_type = snapshot.index_type.Raw();
         kvp.primary_keys = snapshot.data_item_copy.primary_keys;
         kvp.secondary_op = static_cast<uint8_t>(SecondaryIndexOp::None);
         record.key_value_pairs.emplace_back(std::move(kvp));
@@ -77,6 +78,7 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
         kvp.tid = snapshot.data_item_copy.transaction_id.load();
         kvp.table_name = snapshot.table_name;
         kvp.index_name = snapshot.index_name;
+        kvp.index_type = snapshot.index_type.Raw();
         kvp.secondary_op = static_cast<uint8_t>(delta.op);
         kvp.secondary_primary_key = delta.primary_key;
         record.key_value_pairs.emplace_back(std::move(kvp));
