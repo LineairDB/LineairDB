@@ -42,7 +42,8 @@ TEST_F(ReverseScanTest, ScanReverseShouldReturnKeysInReverseOrder) {
                                 scanned_keys.push_back(std::string(key));
                                 return false;
                               },
-                              {LineairDB::Transaction::ScanOption::REVERSE});
+                              {LineairDB::Transaction::ScanOption::Order::
+                                   ALPHABETICAL_DESC});
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(3));
     std::vector<std::string> expected = {"carol", "bob", "alice"};
@@ -92,7 +93,8 @@ TEST_F(ReverseScanTest, ScanReverseShouldExcludeDeletedKeys) {
                                 }
                                 return false;
                               },
-                              {LineairDB::Transaction::ScanOption::REVERSE});
+                              {LineairDB::Transaction::ScanOption::Order::
+                                   ALPHABETICAL_DESC});
 
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(2));  // bob should be excluded
@@ -136,7 +138,8 @@ TEST_F(ReverseScanTest, ScanReverseShouldExcludeReadYourWriteDeletedKeys) {
                                 }
                                 return false;
                               },
-                              {LineairDB::Transaction::ScanOption::REVERSE});
+                              {LineairDB::Transaction::ScanOption::Order::
+                                   ALPHABETICAL_DESC});
 
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(2));  // bob should be excluded
@@ -172,7 +175,8 @@ TEST_F(ReverseScanTest, ScanReverseShouldStopEarly) {
                                 scanned_keys.push_back(std::string(key));
                                 return true;
                               },
-                              {LineairDB::Transaction::ScanOption::REVERSE});
+                              {LineairDB::Transaction::ScanOption::Order::
+                                   ALPHABETICAL_DESC});
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(1));
     std::vector<std::string> expected = {"carol"};
@@ -203,7 +207,8 @@ TEST_F(ReverseScanTest, ScanReverseWithoutEndShouldIncludeTail) {
                                 scanned_keys.push_back(std::string(key));
                                 return false;
                               },
-                              {LineairDB::Transaction::ScanOption::REVERSE});
+                              {LineairDB::Transaction::ScanOption::Order::
+                                   ALPHABETICAL_DESC});
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(3));
     std::vector<std::string> expected = {"dave", "carol", "bob"};
@@ -229,7 +234,8 @@ TEST_F(ReverseScanTest, ScanReverseWithInvalidRangeShouldReturnNullopt) {
     auto& tx = db_->BeginTransaction();
     auto count =
         tx.Scan<int>("carol", "alice", [&](auto, auto) { return false; },
-                     {LineairDB::Transaction::ScanOption::REVERSE});
+                     {LineairDB::Transaction::ScanOption::Order::
+                          ALPHABETICAL_DESC});
     ASSERT_FALSE(count.has_value());
     db_->EndTransaction(tx, [](auto) {});
   }

@@ -252,81 +252,59 @@ const std::optional<size_t> Transaction::Impl::Scan(
   all_keys.insert(index_keys.begin(), index_keys.end());
   all_keys.insert(write_set_keys.begin(), write_set_keys.end());
 
-  // Step 4: Process keys in sorted order (or reverse sorted order)
+  // Step 4: Process keys in the requested order.
   size_t total_count = 0;
-  if (option.order == Transaction::ScanOption::REVERSE) {
-    for (auto it = all_keys.rbegin(); it != all_keys.rend(); ++it) {
-      if (IsAborted()) return std::nullopt;
+  auto process_key = [&](const std::string& key) -> std::optional<bool> {
+    if (IsAborted()) return std::nullopt;
 
-      const auto& key = *it;
-      bool found_in_write_set = false;
-      for (const auto& snapshot : write_set_) {
-        if (snapshot.table_name != current_table_->GetTableName()) continue;
-        if (snapshot.key != key) continue;
+    bool found_in_write_set = false;
+    for (const auto& snapshot : write_set_) {
+      if (snapshot.table_name != current_table_->GetTableName()) continue;
+      if (snapshot.key != key) continue;
 
-        found_in_write_set = true;
+      found_in_write_set = true;
 
-        if (!snapshot.data_item_copy.IsInitialized()) {
-          break;
-        }
-
-        std::pair<const void*, const size_t> value_pair = {
-            snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
-        bool stop_scan = operation(key, value_pair);
-        total_count++;
-        if (stop_scan) return total_count;
-
+      if (!snapshot.data_item_copy.IsInitialized()) {
         break;
       }
 
-      if (!found_in_write_set) {
-        const auto read_result = Read(key);
-        const bool is_uninitialized =
-            read_result.first == nullptr && read_result.second == 0;
-
-        if (!is_uninitialized) {
-          bool stop_scan = operation(key, read_result);
-          total_count++;
-          if (stop_scan) return total_count;
-        }
-      }
+      std::pair<const void*, const size_t> value_pair = {
+          snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
+      bool stop_scan = operation(key, value_pair);
+      total_count++;
+      return stop_scan;
     }
-  } else {
-    for (const auto& key : all_keys) {
-      if (IsAborted()) return std::nullopt;
 
-      bool found_in_write_set = false;
-      for (const auto& snapshot : write_set_) {
-        if (snapshot.table_name != current_table_->GetTableName()) continue;
-        if (snapshot.key != key) continue;
+    if (!found_in_write_set) {
+      const auto read_result = Read(key);
+      const bool is_uninitialized =
+          read_result.first == nullptr && read_result.second == 0;
 
-        found_in_write_set = true;
-
-        if (!snapshot.data_item_copy.IsInitialized()) {
-          break;
-        }
-
-        std::pair<const void*, const size_t> value_pair = {
-            snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
-        bool stop_scan = operation(key, value_pair);
+      if (!is_uninitialized) {
+        bool stop_scan = operation(key, read_result);
         total_count++;
-        if (stop_scan) return total_count;
-
-        break;
-      }
-
-      if (!found_in_write_set) {
-        const auto read_result = Read(key);
-        const bool is_uninitialized =
-            read_result.first == nullptr && read_result.second == 0;
-
-        if (!is_uninitialized) {
-          bool stop_scan = operation(key, read_result);
-          total_count++;
-          if (stop_scan) return total_count;
-        }
+        return stop_scan;
       }
     }
+
+    return false;
+  };
+
+  switch (option.scan_order) {
+    case Transaction::ScanOption::Order::ALPHABETICAL:
+      for (const auto& key : all_keys) {
+        auto result = process_key(key);
+        if (!result.has_value()) return std::nullopt;
+        if (result.value()) return total_count;
+      }
+      break;
+    case Transaction::ScanOption::Order::ALPHABETICAL_DESC:
+      for (auto it = all_keys.rbegin(); it != all_keys.rend(); ++it) {
+        auto result = process_key(*it);
+        if (!result.has_value()) return std::nullopt;
+        if (result.value()) return total_count;
+      }
+      break;
   }
 
   // TODO: we now only consider the insertion, but we should consider the case

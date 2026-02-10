@@ -49,8 +49,8 @@ namespace LineairDB {
  *   delete: delete an existing data item. (≈ "write" if the key exists)
  *   scan: scan data items in a given key range. (consists of multiple read
  * operations)
- * scan reverse: scan data items in a given key range in reverse lexical
- * order. (consists of multiple read operations)
+ *   scan reverse: scan data items in a given key range in reverse lexical
+ * order.
  *
  * All methods are thread-safe, but some operations may fail due to concurrency
  * control. The following table summarizes the behavior of each operation when
@@ -66,7 +66,6 @@ namespace LineairDB {
  * | update    | may fail if the key does not exist                    |
  * | delete    | may fail if the key does not exist                    |
  * | scan      | may fail if the transaction is not serializable       |
- * | scan reverse | may fail if the transaction is not serializable    |
  * |-------------------------------------------------------------------|
  *
  * @see [Vossen95] https://doi.org/10.1007/BFb0015267
@@ -75,9 +74,8 @@ namespace LineairDB {
 class Transaction {
  public:
   struct ScanOption {
-    enum Order { ALPHABETICAL, REVERSE };
-    Order order;
-    constexpr ScanOption(Order order = Order::ALPHABETICAL) : order(order) {}
+    enum class Order { ALPHABETICAL, ALPHABETICAL_DESC };
+    Order scan_order = Order::ALPHABETICAL;
   };
 
   /**
@@ -258,7 +256,7 @@ class Transaction {
    * scanning operation; when a function returns true at some key, this function
    * will never be invoked with the next key.
    * @param option
-   *  Scanning order. The default is ScanOption::ALPHABETICAL.
+   *  Scanning order. The default is ScanOption::Order::ALPHABETICAL.
    * @return std::optional<size_t>
    *  returns the total number of rows that match the inputted range, if
    * succeed. Concurrent transactions may aborts this scan operation and returns
@@ -270,7 +268,7 @@ class Transaction {
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
           operation,
-      ScanOption option = ScanOption());
+      ScanOption option = ScanOption{ScanOption::Order::ALPHABETICAL});
 
   /**
    * @brief
@@ -289,7 +287,7 @@ class Transaction {
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view, T)> operation,
-      ScanOption option = ScanOption()) {
+      ScanOption option = ScanOption{ScanOption::Order::ALPHABETICAL}) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
     return Scan(

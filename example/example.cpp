@@ -159,7 +159,8 @@ int main() {
                              scanned_keys.push_back(std::string(key));
                              return false;
                            },
-                           {LineairDB::Transaction::ScanOption::REVERSE});
+                           {LineairDB::Transaction::ScanOption::Order::
+                                ALPHABETICAL_DESC});
           assert(count.has_value());
         },
         [&](LineairDB::TxStatus s) { status = s; });
