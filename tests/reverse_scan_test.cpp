@@ -37,13 +37,13 @@ TEST_F(ReverseScanTest, ScanReverseShouldReturnKeysInReverseOrder) {
   {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
-    auto count = tx.Scan<int>("alice", "carol",
-                              [&](auto key, auto) {
-                                scanned_keys.push_back(std::string(key));
-                                return false;
-                              },
-                              {LineairDB::Transaction::ScanOption::Order::
-                                   ALPHABETICAL_DESC});
+    auto count = tx.Scan<int>(
+        "alice", "carol",
+        [&](auto key, auto) {
+          scanned_keys.push_back(std::string(key));
+          return false;
+        },
+        {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(3));
     std::vector<std::string> expected = {"carol", "bob", "alice"};
@@ -82,19 +82,19 @@ TEST_F(ReverseScanTest, ScanReverseShouldExcludeDeletedKeys) {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
 
-    auto count = tx.Scan<int>("alice", "carol",
-                              [&](auto key, auto value) {
-                                scanned_keys.push_back(std::string(key));
-                                if (key == "alice") {
-                                  EXPECT_EQ(value, 1);
-                                }
-                                if (key == "carol") {
-                                  EXPECT_EQ(value, 3);
-                                }
-                                return false;
-                              },
-                              {LineairDB::Transaction::ScanOption::Order::
-                                   ALPHABETICAL_DESC});
+    auto count = tx.Scan<int>(
+        "alice", "carol",
+        [&](auto key, auto value) {
+          scanned_keys.push_back(std::string(key));
+          if (key == "alice") {
+            EXPECT_EQ(value, 1);
+          }
+          if (key == "carol") {
+            EXPECT_EQ(value, 3);
+          }
+          return false;
+        },
+        {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
 
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(2));  // bob should be excluded
@@ -127,19 +127,19 @@ TEST_F(ReverseScanTest, ScanReverseShouldExcludeReadYourWriteDeletedKeys) {
 
     std::vector<std::string> scanned_keys;
 
-    auto count = tx.Scan<int>("alice", "carol",
-                              [&](auto key, auto value) {
-                                scanned_keys.push_back(std::string(key));
-                                if (key == "alice") {
-                                  EXPECT_EQ(value, 1);
-                                }
-                                if (key == "carol") {
-                                  EXPECT_EQ(value, 3);
-                                }
-                                return false;
-                              },
-                              {LineairDB::Transaction::ScanOption::Order::
-                                   ALPHABETICAL_DESC});
+    auto count = tx.Scan<int>(
+        "alice", "carol",
+        [&](auto key, auto value) {
+          scanned_keys.push_back(std::string(key));
+          if (key == "alice") {
+            EXPECT_EQ(value, 1);
+          }
+          if (key == "carol") {
+            EXPECT_EQ(value, 3);
+          }
+          return false;
+        },
+        {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
 
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(2));  // bob should be excluded
@@ -170,13 +170,13 @@ TEST_F(ReverseScanTest, ScanReverseShouldStopEarly) {
   {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
-    auto count = tx.Scan<int>("alice", "carol",
-                              [&](auto key, auto) {
-                                scanned_keys.push_back(std::string(key));
-                                return true;
-                              },
-                              {LineairDB::Transaction::ScanOption::Order::
-                                   ALPHABETICAL_DESC});
+    auto count = tx.Scan<int>(
+        "alice", "carol",
+        [&](auto key, auto) {
+          scanned_keys.push_back(std::string(key));
+          return true;
+        },
+        {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(1));
     std::vector<std::string> expected = {"carol"};
@@ -202,13 +202,13 @@ TEST_F(ReverseScanTest, ScanReverseWithoutEndShouldIncludeTail) {
   {
     auto& tx = db_->BeginTransaction();
     std::vector<std::string> scanned_keys;
-    auto count = tx.Scan<int>("bob", std::nullopt,
-                              [&](auto key, auto) {
-                                scanned_keys.push_back(std::string(key));
-                                return false;
-                              },
-                              {LineairDB::Transaction::ScanOption::Order::
-                                   ALPHABETICAL_DESC});
+    auto count = tx.Scan<int>(
+        "bob", std::nullopt,
+        [&](auto key, auto) {
+          scanned_keys.push_back(std::string(key));
+          return false;
+        },
+        {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
     ASSERT_TRUE(count.has_value());
     ASSERT_EQ(count.value(), size_t(3));
     std::vector<std::string> expected = {"dave", "carol", "bob"};
@@ -232,10 +232,9 @@ TEST_F(ReverseScanTest, ScanReverseWithInvalidRangeShouldReturnNullopt) {
 
   {
     auto& tx = db_->BeginTransaction();
-    auto count =
-        tx.Scan<int>("carol", "alice", [&](auto, auto) { return false; },
-                     {LineairDB::Transaction::ScanOption::Order::
-                          ALPHABETICAL_DESC});
+    auto count = tx.Scan<int>(
+        "carol", "alice", [&](auto, auto) { return false; },
+        {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
     ASSERT_FALSE(count.has_value());
     db_->EndTransaction(tx, [](auto) {});
   }
