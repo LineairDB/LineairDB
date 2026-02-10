@@ -252,11 +252,13 @@ const std::optional<size_t> Transaction::Impl::Scan(
   all_keys.insert(index_keys.begin(), index_keys.end());
   all_keys.insert(write_set_keys.begin(), write_set_keys.end());
 
-  // Step 4: Process keys in the requested order.
+  // Step 4: Process keys in sorted order (or reverse sorted order)
   size_t total_count = 0;
   auto process_key = [&](const std::string& key) -> std::optional<bool> {
     if (IsAborted()) return std::nullopt;
 
+    // Check if key is in write_set
+    // if the key exists, use write_set data (without Transaction#Read)
     bool found_in_write_set = false;
     for (const auto& snapshot : write_set_) {
       if (snapshot.table_name != current_table_->GetTableName()) continue;
@@ -264,6 +266,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
 
       found_in_write_set = true;
 
+      // If the key is deleted within this transaction, break the loop
       if (!snapshot.data_item_copy.IsInitialized()) {
         break;
       }
@@ -275,11 +278,15 @@ const std::optional<size_t> Transaction::Impl::Scan(
       return stop_scan;
     }
 
+    // If not in write_set, invoke Transaction#Read to get the value
     if (!found_in_write_set) {
       const auto read_result = Read(key);
+      // The pair "nullptr, 0" means deleted (or uninitialized) data. See
+      // include/lineairdb/transaction.h
       const bool is_uninitialized =
           read_result.first == nullptr && read_result.second == 0;
 
+      // If the data item exists, continue scanning with the data
       if (!is_uninitialized) {
         bool stop_scan = operation(key, read_result);
         total_count++;
