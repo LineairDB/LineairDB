@@ -217,7 +217,8 @@ const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
-        operation) {
+        operation,
+    Transaction::ScanOption option) {
   EnsureCurrentTable();
 
   // Note: In this Scan implementation, nullptr indicates that the key is
@@ -251,9 +252,9 @@ const std::optional<size_t> Transaction::Impl::Scan(
   all_keys.insert(index_keys.begin(), index_keys.end());
   all_keys.insert(write_set_keys.begin(), write_set_keys.end());
 
-  // Step 4: Process keys in sorted order
+  // Step 4: Process keys in sorted order (or reverse sorted order)
   size_t total_count = 0;
-  for (const auto& key : all_keys) {
+  auto process_key = [&](const std::string& key) -> std::optional<bool> {
     if (IsAborted()) return std::nullopt;
 
     // Check if key is in write_set
@@ -274,9 +275,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
           snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
       bool stop_scan = operation(key, value_pair);
       total_count++;
-      if (stop_scan) return total_count;
-
-      break;
+      return stop_scan;
     }
 
     // If not in write_set, invoke Transaction#Read to get the value
@@ -291,15 +290,33 @@ const std::optional<size_t> Transaction::Impl::Scan(
       if (!is_uninitialized) {
         bool stop_scan = operation(key, read_result);
         total_count++;
-        if (stop_scan) return total_count;
+        return stop_scan;
       }
     }
+
+    return false;
+  };
+
+  switch (option.scan_order) {
+    case Transaction::ScanOption::Order::ALPHABETICAL:
+      for (const auto& key : all_keys) {
+        auto result = process_key(key);
+        if (!result.has_value()) return std::nullopt;
+        if (result.value()) return total_count;
+      }
+      break;
+    case Transaction::ScanOption::Order::ALPHABETICAL_DESC:
+      for (auto it = all_keys.rbegin(); it != all_keys.rend(); ++it) {
+        auto result = process_key(*it);
+        if (!result.has_value()) return std::nullopt;
+        if (result.value()) return total_count;
+      }
+      break;
   }
 
   // TODO: we now only consider the insertion, but we should consider the case
   // for deletions in write_set, when the lineairdb supports delete operation as
   // the public interface of transaction.h.
-
   return total_count;
 };
 
@@ -366,8 +383,9 @@ const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
-        operation) {
-  return tx_pimpl_->Scan(begin, end, operation);
+        operation,
+    Transaction::ScanOption option) {
+  return tx_pimpl_->Scan(begin, end, operation, option);
 };
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::SetTable(const std::string_view table_name) {

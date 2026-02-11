@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <iostream>
+#include <string>
+#include <vector>
 
 int main() {
   /**
@@ -130,6 +132,41 @@ int main() {
         [&](LineairDB::TxStatus s) { status = s; });
     db.Fence();
     assert(status == LineairDB::TxStatus::Committed);
+  }
+
+  // Reverse scan via ScanOption
+  {
+    LineairDB::Database db;
+    LineairDB::TxStatus status;
+
+    db.ExecuteTransaction(
+        [](LineairDB::Transaction& tx) {
+          tx.Insert<int>("eve", 10);
+          tx.Insert<int>("frank", 20);
+          tx.Insert<int>("george", 30);
+        },
+        [&](LineairDB::TxStatus s) { status = s; });
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+
+    // Scan proceeds from upper bound (end) down to lower bound (begin).
+    std::vector<std::string> scanned_keys;
+    db.ExecuteTransaction(
+        [&](LineairDB::Transaction& tx) {
+          auto count = tx.Scan<int>(
+              "eve", "george",
+              [&](auto key, auto) {
+                scanned_keys.push_back(std::string(key));
+                return false;
+              },
+              {LineairDB::Transaction::ScanOption::Order::ALPHABETICAL_DESC});
+          assert(count.has_value());
+        },
+        [&](LineairDB::TxStatus s) { status = s; });
+    db.Fence();
+    assert(status == LineairDB::TxStatus::Committed);
+    std::vector<std::string> expected = {"george", "frank", "eve"};
+    assert(scanned_keys == expected);
   }
 
   {
