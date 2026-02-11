@@ -47,10 +47,8 @@ namespace LineairDB {
  *   insert: insert a new data item. (≈ "write" if the key not exists)
  *   update: update an existing data item. (≈ "write" if the key exists)
  *   delete: delete an existing data item. (≈ "write" if the key exists)
- *   scan: scan data items in a given key range. (consists of multiple read
- * operations)
- *   scan reverse: scan data items in a given key range in reverse lexical
- * order.
+ *   scan: scan data items in a given key range in lexical or reverse lexical
+ * order. (consists of multiple read operations)
  *
  * All methods are thread-safe, but some operations may fail due to concurrency
  * control. The following table summarizes the behavior of each operation when
