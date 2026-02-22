@@ -47,8 +47,8 @@ namespace LineairDB {
  *   insert: insert a new data item. (≈ "write" if the key not exists)
  *   update: update an existing data item. (≈ "write" if the key exists)
  *   delete: delete an existing data item. (≈ "write" if the key exists)
- *   scan: scan data items in a given key range. (consists of multiple read
- * operations)
+ *   scan: scan data items in a given key range in lexical or reverse lexical
+ * order. (consists of multiple read operations)
  *
  * All methods are thread-safe, but some operations may fail due to concurrency
  * control. The following table summarizes the behavior of each operation when
@@ -230,8 +230,17 @@ class Transaction {
 
   /**
    * @brief
+   * Scanning option.
+   */
+  struct ScanOption {
+    enum class Order { ALPHABETICAL, ALPHABETICAL_DESC };
+    Order order = Order::ALPHABETICAL;
+  };
+
+  /**
+   * @brief
    * Get all data items that match the range from the "begin" key to the "end"
-   * key in the lexical order.
+   * key in the order specified by ScanOption.
    * The term "get" here means that it is equivalent to the #Read
    * operation: this operation performs read operations for all the keys.
    * @param begin
@@ -248,6 +257,8 @@ class Transaction {
    * value (std::pair). Return value (boolean) forces LineairDB to cancel the
    * scanning operation; when a function returns true at some key, this function
    * will never be invoked with the next key.
+   * @param option
+   *  Scanning order. The default is ScanOption::Order::ALPHABETICAL.
    * @return std::optional<size_t>
    *  returns the total number of rows that match the inputted range, if
    * succeed. Concurrent transactions may aborts this scan operation and returns
@@ -258,7 +269,8 @@ class Transaction {
       const std::string_view begin, const std::optional<std::string_view> end,
       std::function<bool(std::string_view,
                          const std::pair<const void*, const size_t>)>
-          operation);
+          operation,
+      ScanOption option = ScanOption{ScanOption::Order::ALPHABETICAL});
 
   /**
    * @brief
@@ -270,18 +282,23 @@ class Transaction {
    * @param begin
    * @param end
    * @param operation
+   * @param option
    * @return std::optional<size_t>
    */
   template <typename T>
   const std::optional<size_t> Scan(
       const std::string_view begin, const std::optional<std::string_view> end,
-      std::function<bool(std::string_view, T)> operation) {
+      std::function<bool(std::string_view, T)> operation,
+      ScanOption option = ScanOption{ScanOption::Order::ALPHABETICAL}) {
     static_assert(std::is_trivially_copyable<T>::value == true,
                   "LineairDB expects to trivially copyable types.");
-    return Scan(begin, end, [&](auto key, auto pair) {
-      const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
-      return operation(key, copy_constructed);
-    });
+    return Scan(
+        begin, end,
+        [&](auto key, auto pair) {
+          const T copy_constructed = *reinterpret_cast<const T*>(pair.first);
+          return operation(key, copy_constructed);
+        },
+        option);
   }
 
   /**
