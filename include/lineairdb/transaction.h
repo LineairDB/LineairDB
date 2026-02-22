@@ -71,7 +71,6 @@ namespace LineairDB {
 
 class Transaction {
  public:
-
   /**
    * @brief Get the current transaction status.
    * For transactions such that GetCurrentStatus() returns TxStatus::Aborted,

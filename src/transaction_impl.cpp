@@ -249,7 +249,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
     write_set_keys.insert(snapshot.key);
   }
 
-　　　　// Step 3: Merge keys and sort them based on ScanOption::order
+  // Step 3: Merge keys and sort them based on ScanOption::order
   std::set<std::string> all_keys;
   all_keys.insert(index_keys.begin(), index_keys.end());
   all_keys.insert(write_set_keys.begin(), write_set_keys.end());
