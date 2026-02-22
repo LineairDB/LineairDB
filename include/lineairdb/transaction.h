@@ -71,10 +71,6 @@ namespace LineairDB {
 
 class Transaction {
  public:
-  struct ScanOption {
-    enum class Order { ALPHABETICAL, ALPHABETICAL_DESC };
-    Order scan_order = Order::ALPHABETICAL;
-  };
 
   /**
    * @brief Get the current transaction status.
@@ -232,6 +228,15 @@ class Transaction {
    * @param key
    */
   void Delete(const std::string_view key);
+
+  /**
+   * @brief
+   * Scanning option.
+   */
+  struct ScanOption {
+    enum class Order { ALPHABETICAL, ALPHABETICAL_DESC };
+    Order order = Order::ALPHABETICAL;
+  };
 
   /**
    * @brief
