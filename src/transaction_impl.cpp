@@ -18,9 +18,11 @@
 
 #include <lineairdb/transaction.h>
 
+#include <algorithm>
 #include <memory>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "concurrency_control/concurrency_control_base.h"
 #include "concurrency_control/impl/silo_nwr.hpp"
@@ -217,7 +219,8 @@ const std::optional<size_t> Transaction::Impl::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
-        operation) {
+        operation,
+    Transaction::ScanOption option) {
   EnsureCurrentTable();
 
   // Note: In this Scan implementation, nullptr indicates that the key is
@@ -246,14 +249,23 @@ const std::optional<size_t> Transaction::Impl::Scan(
     write_set_keys.insert(snapshot.key);
   }
 
-  // Step 3: Merge and sort all keys (std::set automatically keeps them sorted)
+  // Step 3: Merge keys and sort them based on ScanOption::order
   std::set<std::string> all_keys;
   all_keys.insert(index_keys.begin(), index_keys.end());
   all_keys.insert(write_set_keys.begin(), write_set_keys.end());
 
-  // Step 4: Process keys in sorted order
+  std::vector<std::string> ordered_keys(all_keys.begin(), all_keys.end());
+  const bool is_desc =
+      option.order == Transaction::ScanOption::Order::ALPHABETICAL_DESC;
+  auto key_comparator = [is_desc](const std::string& lhs,
+                                  const std::string& rhs) {
+    return is_desc ? lhs > rhs : lhs < rhs;
+  };
+  std::sort(ordered_keys.begin(), ordered_keys.end(), key_comparator);
+
+  // Step 4: Process keys in selected order
   size_t total_count = 0;
-  for (const auto& key : all_keys) {
+  auto process_key = [&](const std::string& key) -> std::optional<bool> {
     if (IsAborted()) return std::nullopt;
 
     // Check if key is in write_set
@@ -274,9 +286,7 @@ const std::optional<size_t> Transaction::Impl::Scan(
           snapshot.data_item_copy.value(), snapshot.data_item_copy.size()};
       bool stop_scan = operation(key, value_pair);
       total_count++;
-      if (stop_scan) return total_count;
-
-      break;
+      return stop_scan;
     }
 
     // If not in write_set, invoke Transaction#Read to get the value
@@ -291,16 +301,27 @@ const std::optional<size_t> Transaction::Impl::Scan(
       if (!is_uninitialized) {
         bool stop_scan = operation(key, read_result);
         total_count++;
-        if (stop_scan) return total_count;
+        return stop_scan;
       }
     }
-  }
+
+    return false;
+  };
+
+  auto process_keys_in_order =
+      [&](const std::vector<std::string>& keys) -> std::optional<size_t> {
+    for (const auto& key : keys) {
+      auto result = process_key(key);
+      if (!result.has_value()) return std::nullopt;
+      if (result.value()) return total_count;
+    }
+    return total_count;
+  };
 
   // TODO: we now only consider the insertion, but we should consider the case
   // for deletions in write_set, when the lineairdb supports delete operation as
   // the public interface of transaction.h.
-
-  return total_count;
+  return process_keys_in_order(ordered_keys);
 };
 
 void Transaction::Impl::Abort() {
@@ -366,8 +387,9 @@ const std::optional<size_t> Transaction::Scan(
     const std::string_view begin, const std::optional<std::string_view> end,
     std::function<bool(std::string_view,
                        const std::pair<const void*, const size_t>)>
-        operation) {
-  return tx_pimpl_->Scan(begin, end, operation);
+        operation,
+    Transaction::ScanOption option) {
+  return tx_pimpl_->Scan(begin, end, operation, option);
 };
 void Transaction::Abort() { tx_pimpl_->Abort(); }
 bool Transaction::SetTable(const std::string_view table_name) {
