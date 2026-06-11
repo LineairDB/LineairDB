@@ -9,11 +9,21 @@ on:
 jobs:
   build:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         compiler: [g++, clang++]
         build: [Debug, Release]
+        sanitizer: [none]
+        include:
+          - os: ubuntu-latest
+            compiler: clang++
+            build: Debug
+            sanitizer: asan
+          - os: ubuntu-latest
+            compiler: clang++
+            build: Debug
+            sanitizer: tsan
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -37,7 +47,13 @@ jobs:
           BUILDTYPE: ${{ matrix.build }}
         run: |
           mkdir -p build; cd $_
-          cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
+          SAN_FLAGS=""
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            SAN_FLAGS="-DCMAKE_CXX_FLAGS=\"-fsanitize=address -fno-omit-frame-pointer\" -DCMAKE_EXE_LINKER_FLAGS=\"-fsanitize=address\" -DCMAKE_SHARED_LINKER_FLAGS=\"-fsanitize=address\""
+          elif [ "${{ matrix.sanitizer }}" = "tsan" ]; then
+            SAN_FLAGS="-DCMAKE_CXX_FLAGS=\"-fsanitize=thread\" -DCMAKE_EXE_LINKER_FLAGS=\"-fsanitize=thread\" -DCMAKE_SHARED_LINKER_FLAGS=\"-fsanitize=thread\""
+          fi
+          cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE) $SAN_FLAGS
           make
           sudo make install
 
