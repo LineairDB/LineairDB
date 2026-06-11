@@ -54,7 +54,7 @@ jobs:
             export CXXFLAGS="-fsanitize=thread"
             export LDFLAGS="-fsanitize=thread"
           fi
-          cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
+          cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE) -DBUILD_SANITIZER=OFF
           make
           sudo make install
 
