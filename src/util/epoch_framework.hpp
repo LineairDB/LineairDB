@@ -64,20 +64,17 @@ class EpochFramework {
 
   EpochNumber GetGlobalEpoch() const { return global_epoch_.load(); }
   EpochNumber GetMyThreadLocalEpoch() {
-    auto* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    auto* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     return my_epoch->load(std::memory_order_acquire);
   }
 
   void SetMyThreadLocalEpoch(const EpochNumber epoch) {
-    auto* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    auto* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     my_epoch->store(epoch, std::memory_order_release);
   }
 
   EpochNumber MakeMeOnline() {
-    auto* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    auto* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     assert(my_epoch->load(std::memory_order_relaxed) == THREAD_OFFLINE);
     EpochNumber val = GetGlobalEpoch();
     my_epoch->store(val, std::memory_order_release);
@@ -85,8 +82,7 @@ class EpochFramework {
   }
 
   void MakeMeOffline() {
-    auto* my_epoch =
-        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    auto* my_epoch = tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
     assert(my_epoch->load(std::memory_order_relaxed) != THREAD_OFFLINE);
     my_epoch->store(THREAD_OFFLINE, std::memory_order_release);
   }

@@ -82,7 +82,9 @@ void ThreadPool::StopAcceptingTransactions() {
 void ThreadPool::ResumeAcceptingTransactions() {
   stop_.store(false, std::memory_order_release);
 }
-void ThreadPool::Shutdown() { shutdown_.store(true, std::memory_order_release); }
+void ThreadPool::Shutdown() {
+  shutdown_.store(true, std::memory_order_release);
+}
 
 bool ThreadPool::Enqueue(std::function<void()>&& job) {
   if (stop_.load(std::memory_order_acquire)) return false;
