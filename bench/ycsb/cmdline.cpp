@@ -84,6 +84,8 @@ int main(int argc, char** argv) {
        cxxopts::value<bool>()->default_value("false"))  //
       ("d,duration", "Measurement duration of this benchmark (milliseconds)",
        cxxopts::value<size_t>()->default_value("2000"))  //
+      ("L,latency", "Measure transaction latency",
+       cxxopts::value<bool>()->default_value("false"))  //
       ("o,output", "Output JSON filename",
        cxxopts::value<std::string>()->default_value("ycsb_result.json"))  //
       ;
@@ -106,7 +108,6 @@ int main(int argc, char** argv) {
   config.epoch_duration_ms = result["epoch"].as<size_t>();
   config.checkpoint_period = result["checkpoint_interval"].as<size_t>();
   config.rehash_threshold = result["rehash_threshold"].as<double>();
-  LineairDB::Database db(config);
 
   const auto use_handler = result["handler"].as<bool>();
 
@@ -121,13 +122,79 @@ int main(int argc, char** argv) {
   workload.payload_size = result["payload"].as<size_t>();
   workload.client_thread_size = result["clients"].as<size_t>();
   workload.measurement_duration = result["duration"].as<size_t>();
+  workload.measure_latency = result["latency"].as<bool>();
 
-  /** Populate the table **/
-  YCSB::PopulateDatabase(db, workload, std::thread::hardware_concurrency());
+  rapidjson::Document result_json(rapidjson::kObjectType);
 
-  /** Run the benchmark **/
-  auto result_json = YCSB::RunBenchmark(db, workload, use_handler);
+  {
+    // Scope the Database instance so that its destructor (which joins the
+    // checkpoint manager thread and WAL flush thread) completes *before* we
+    // read /proc/self/io for write_bytes.  This is critical for Checkpoint
+    // durability where writes happen on a background thread.
+    LineairDB::Database db(config);
+
+    /** Populate the table **/
+    YCSB::PopulateDatabase(db, workload, std::thread::hardware_concurrency());
+
+    /** Run the benchmark **/
+    result_json = YCSB::RunBenchmark(db, workload, use_handler);
+
+  }  // <-- db destructs here: checkpoint thread joined, WAL flushed
+
+  // Now read write_bytes from /proc/self/io after all background I/O is done.
+  uint64_t write_bytes = 0;
+  {
+    std::ifstream proc_io("/proc/self/io");
+    if (proc_io.is_open()) {
+      std::string line;
+      while (std::getline(proc_io, line)) {
+        if (line.rfind("write_bytes:", 0) == 0) {
+          write_bytes = std::stoull(line.substr(12));
+          break;
+        }
+      }
+    }
+  }
+
+  // Update the JSON with the final write_bytes and derived metrics.
   auto& allocator = result_json.GetAllocator();
+  uint64_t total_commits = result_json["commits"].GetUint64();
+  uint64_t payload_size  = workload.payload_size;
+  uint64_t recordcount   = workload.recordcount;
+
+  // Compute average key length dynamically based on record count
+  double avg_key_len = 0.0;
+  if (recordcount > 0) {
+    uint64_t total_key_chars = 0;
+    for (uint64_t i = 0; i < recordcount; ++i) {
+      total_key_chars += std::to_string(i).length();
+    }
+    avg_key_len = static_cast<double>(total_key_chars) / recordcount;
+  } else {
+    avg_key_len = 5.0; // fallback
+  }
+
+  // Calculate the average number of write operations per transaction based on workload
+  double write_proportion = (static_cast<double>(workload.update_proportion) +
+                             static_cast<double>(workload.insert_proportion) +
+                             static_cast<double>(workload.rmw_proportion)) / 100.0;
+  double avg_writes_per_tx = workload.reps_per_txn * write_proportion;
+  double logical_bytes_per_tx = avg_writes_per_tx * (avg_key_len + payload_size);
+
+  // write_bytes_per_commit: bytes written to storage per committed transaction
+  double write_bytes_per_commit = (total_commits > 0)
+      ? static_cast<double>(write_bytes) / total_commits
+      : 0.0;
+
+  // write_amplification_factor: bytes written per commit / logical bytes written per commit
+  double write_amplification_factor = (logical_bytes_per_tx > 0.0)
+      ? write_bytes_per_commit / logical_bytes_per_tx
+      : 0.0;
+
+  // Overwrite the sentinel write_bytes value set in RunBenchmark
+  result_json["write_bytes"].SetUint64(write_bytes);
+  result_json.AddMember("write_bytes_per_commit", write_bytes_per_commit, allocator);
+  result_json.AddMember("write_amplification_factor", write_amplification_factor, allocator);
 
   result_json.AddMember("workload",
                         rapidjson::Value(workload_type.c_str(), allocator),
