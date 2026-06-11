@@ -63,25 +63,32 @@ class EpochFramework {
   void SetGlobalEpoch(const EpochNumber epoch) { global_epoch_.store(epoch); }
 
   EpochNumber GetGlobalEpoch() const { return global_epoch_.load(); }
-  EpochNumber& GetMyThreadLocalEpoch() {
-    EpochNumber* my_epoch =
+  EpochNumber GetMyThreadLocalEpoch() {
+    auto* my_epoch =
         tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
-    return *my_epoch;
+    return my_epoch->load(std::memory_order_acquire);
+  }
+
+  void SetMyThreadLocalEpoch(const EpochNumber epoch) {
+    auto* my_epoch =
+        tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
+    my_epoch->store(epoch, std::memory_order_release);
   }
 
   EpochNumber MakeMeOnline() {
-    EpochNumber* my_epoch =
+    auto* my_epoch =
         tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
-    assert(*my_epoch == THREAD_OFFLINE);
-    *my_epoch = GetGlobalEpoch();
-    return *my_epoch;
+    assert(my_epoch->load(std::memory_order_relaxed) == THREAD_OFFLINE);
+    EpochNumber val = GetGlobalEpoch();
+    my_epoch->store(val, std::memory_order_release);
+    return val;
   }
 
   void MakeMeOffline() {
-    EpochNumber* my_epoch =
+    auto* my_epoch =
         tls_.Get<EpochNumber>([]() { return THREAD_OFFLINE; });
-    assert(*my_epoch != THREAD_OFFLINE);
-    *my_epoch = THREAD_OFFLINE;
+    assert(my_epoch->load(std::memory_order_relaxed) != THREAD_OFFLINE);
+    my_epoch->store(THREAD_OFFLINE, std::memory_order_release);
   }
 
   EpochNumber Sync() {
@@ -115,8 +122,8 @@ class EpochFramework {
  public:
   uint32_t GetSmallestEpoch() {
     uint32_t min_epoch = THREAD_OFFLINE;
-    tls_.ForEach([&](const EpochNumber* local_epoch) {
-      const EpochNumber e = *local_epoch;
+    tls_.ForEach([&](const std::atomic<EpochNumber>* local_epoch) {
+      const EpochNumber e = local_epoch->load(std::memory_order_acquire);
       if (0 < e && e < min_epoch) {
         min_epoch = e;
       }
@@ -147,7 +154,7 @@ class EpochFramework {
   std::atomic<EpochNumber> global_epoch_;
   const std::function<void(EpochNumber)> publish_target_;
   std::thread epoch_writer_;
-  ThreadKeyStorage<EpochNumber> tls_;
+  ThreadKeyStorage<std::atomic<EpochNumber>> tls_;
 };
 
 }  // namespace LineairDB

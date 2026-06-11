@@ -178,7 +178,7 @@ class Database::Impl {
     callback_manager_.ExecuteCallbacks(current_epoch);
   }
 
-  const EpochNumber& GetMyThreadLocalEpoch() {
+  EpochNumber GetMyThreadLocalEpoch() {
     return epoch_framework_.GetMyThreadLocalEpoch();
   }
 
@@ -278,8 +278,7 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
-    auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-    local_epoch = durable_epoch;
+    epoch_framework_.SetMyThreadLocalEpoch(durable_epoch);
 
     highest_epoch = std::max(highest_epoch, durable_epoch);
     auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);

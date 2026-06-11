@@ -48,8 +48,8 @@ class ThreadPool {
   void Dequeue();
 
  private:
-  bool stop_;
-  bool shutdown_;
+  std::atomic<bool> stop_;
+  std::atomic<bool> shutdown_;
   std::vector<moodycamel::ConcurrentQueue<std::function<void()>>> work_queues_;
   std::vector<moodycamel::ConcurrentQueue<std::function<void()>>>
       no_steal_queues_;

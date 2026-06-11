@@ -58,7 +58,8 @@ ThreadPool::ThreadPool(size_t pool_size)
 #endif
       for (;;) {
         Dequeue();
-        if (stop_ && IsEmpty() && shutdown_) {
+        if (stop_.load(std::memory_order_acquire) && IsEmpty() &&
+            shutdown_.load(std::memory_order_acquire)) {
           break;
         }
       }
@@ -67,27 +68,31 @@ ThreadPool::ThreadPool(size_t pool_size)
 }
 
 ThreadPool::~ThreadPool() {
-  stop_ = true;
-  shutdown_ = true;
+  stop_.store(true, std::memory_order_release);
+  shutdown_.store(true, std::memory_order_release);
   for (auto& thread : worker_threads_) {
     thread.join();
   }
 }
 
 size_t ThreadPool::GetPoolSize() const { return worker_threads_.size(); }
-void ThreadPool::StopAcceptingTransactions() { stop_ = true; }
-void ThreadPool::ResumeAcceptingTransactions() { stop_ = false; }
-void ThreadPool::Shutdown() { shutdown_ = true; }
+void ThreadPool::StopAcceptingTransactions() {
+  stop_.store(true, std::memory_order_release);
+}
+void ThreadPool::ResumeAcceptingTransactions() {
+  stop_.store(false, std::memory_order_release);
+}
+void ThreadPool::Shutdown() { shutdown_.store(true, std::memory_order_release); }
 
 bool ThreadPool::Enqueue(std::function<void()>&& job) {
-  if (stop_) return false;
+  if (stop_.load(std::memory_order_acquire)) return false;
   thread_local static std::mt19937 random(0xDEADBEEF);
   auto& queue = work_queues_[random() % work_queues_.size()];
   return queue.enqueue(job);
 }
 
 bool ThreadPool::EnqueueForAllThreads(std::function<void()>&& job) {
-  if (stop_) return false;
+  if (stop_.load(std::memory_order_acquire)) return false;
   for (auto& queue : no_steal_queues_) {
     while (!queue.enqueue(job)) {
     };

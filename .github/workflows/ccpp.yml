@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         compiler: [g++, clang++]
@@ -68,6 +68,9 @@ jobs:
       - name: ${{ matrix.build }} test
         run: |
           cd build
+          if [ "${{ matrix.sanitizer }}" = "tsan" ]; then
+            export TSAN_OPTIONS="suppressions=${{ github.workspace }}/tsan_suppressions.txt"
+          fi
           ctest -V
 
       - name: ${{ matrix.build }} build example/example.cpp

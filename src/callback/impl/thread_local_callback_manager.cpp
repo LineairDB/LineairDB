@@ -40,6 +40,7 @@ void ThreadLocalCallbackManager::Enqueue(
     // The caller thread manages the callback. Enqueue to thread-local queue.
     auto* my_storage = thread_key_storage_.Get();
     my_storage->callback_queue.push({epoch, callback});
+    my_storage->size.fetch_add(1, std::memory_order_release);
   }
 }
 void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
@@ -80,6 +81,7 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
       if (entry.first < stable_epoch) {
         entry.second(TxStatus::Committed);
         callback_queue.pop();
+        queues->size.fetch_sub(1, std::memory_order_release);
       } else {
         break;
       }
@@ -89,9 +91,8 @@ void ThreadLocalCallbackManager::ExecuteCallbacks(EpochNumber stable_epoch) {
 void ThreadLocalCallbackManager::WaitForAllCallbacksToBeExecuted() {
   thread_key_storage_.ForEach(
       [&](const ThreadLocalStorageNode* thread_local_node) {
-        auto& queue = thread_local_node->callback_queue;
         for (;;) {
-          if (queue.empty()) {
+          if (thread_local_node->size.load(std::memory_order_acquire) == 0) {
             break;
           }
           std::this_thread::yield();

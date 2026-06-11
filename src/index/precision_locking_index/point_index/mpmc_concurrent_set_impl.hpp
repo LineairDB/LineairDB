@@ -146,10 +146,10 @@ template <typename T>
 T* MPMCConcurrentSetImpl<T>::Get(const std::string_view key) {
 get_start:
   epoch_framework_.MakeMeOnline();
-  auto* table = table_.load(std::memory_order::memory_order_relaxed);
+  auto* table = table_.load(std::memory_order::memory_order_acquire);
   __builtin_prefetch(table, 0, PREFETCH_LOCALITY);
   size_t hash = Hash(key, table);
-  auto* bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
+  auto* bucket_p = (*table)[hash].load(std::memory_order::memory_order_acquire);
   T* return_value_p = nullptr;
 
   size_t count = 0;
@@ -160,7 +160,7 @@ get_start:
     if (__builtin_expect(IsRedirectedPtr(bucket_p), false)) {
       table = table_.load();
       hash = Hash(key, table);
-      bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
+      bucket_p = (*table)[hash].load(std::memory_order::memory_order_acquire);
       __builtin_prefetch(bucket_p, 0, PREFETCH_LOCALITY);
       count = 0;
       continue;
@@ -183,7 +183,7 @@ get_start:
     if (__builtin_expect(hash == table->size(), false)) {
       hash = 0;
     }
-    bucket_p = (*table)[hash].load(std::memory_order::memory_order_relaxed);
+    bucket_p = (*table)[hash].load(std::memory_order::memory_order_acquire);
     if (count > 100) {
       epoch_framework_.MakeMeOffline();
       force_rehash_flag_.store(true);
@@ -213,13 +213,13 @@ put_start:
   // the computational costs of find operation.
   for (;;) {
     auto& bucket_atm = (*table)[hash];
-    auto* node = bucket_atm.load(std::memory_order::memory_order_relaxed);
+    auto* node = bucket_atm.load(std::memory_order::memory_order_acquire);
 
     // redirected
     if (__builtin_expect(IsRedirectedPtr(node), false)) {
       table = table_.load(std::memory_order::memory_order_seq_cst);
       hash = Hash(key, table);
-      node = (*table)[hash].load(std::memory_order::memory_order_relaxed);
+      node = (*table)[hash].load(std::memory_order::memory_order_acquire);
       count = 0;
       continue;
     }
@@ -279,13 +279,13 @@ bool MPMCConcurrentSetImpl<T>::Rehash() {
 
   // copy and rehashing all nodes
   for (auto& bucket_atm : *table) {
-    auto* node = bucket_atm.load(std::memory_order::memory_order_relaxed);
+    auto* node = bucket_atm.load(std::memory_order::memory_order_acquire);
 
     if (node == nullptr) {
       if (bucket_atm.compare_exchange_strong(node, GetRedirectedPtr())) {
         continue;
       } else {
-        node = bucket_atm.load(std::memory_order::memory_order_relaxed);
+        node = bucket_atm.load(std::memory_order::memory_order_acquire);
       }
     }
 
