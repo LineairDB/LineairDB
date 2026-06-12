@@ -79,8 +79,18 @@ jobs:
           BUILDTYPE: ${{ matrix.build }}
         run: |
           mkdir -p example/build; cd $_
+          if [ "${{ matrix.sanitizer }}" = "asan" ]; then
+            export CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer"
+            export LDFLAGS="-fsanitize=address"
+          elif [ "${{ matrix.sanitizer }}" = "tsan" ]; then
+            export CXXFLAGS="-fsanitize=thread"
+            export LDFLAGS="-fsanitize=thread"
+          fi
           cmake .. -DCMAKE_BUILD_TYPE=$(echo $BUILDTYPE)
           make
+          if [ "${{ matrix.sanitizer }}" = "tsan" ]; then
+            export TSAN_OPTIONS="suppressions=${{ github.workspace }}/tsan_suppressions.txt"
+          fi
           ./lineairdb-example
 
       - uses: actions/upload-artifact@v4
