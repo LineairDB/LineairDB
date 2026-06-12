@@ -159,8 +159,8 @@ int main(int argc, char** argv) {
   // Update the JSON with the final write_bytes and derived metrics.
   auto& allocator = result_json.GetAllocator();
   uint64_t total_commits = result_json["commits"].GetUint64();
-  uint64_t payload_size  = workload.payload_size;
-  uint64_t recordcount   = workload.recordcount;
+  uint64_t payload_size = workload.payload_size;
+  uint64_t recordcount = workload.recordcount;
 
   // Compute average key length dynamically based on record count
   double avg_key_len = 0.0;
@@ -171,30 +171,37 @@ int main(int argc, char** argv) {
     }
     avg_key_len = static_cast<double>(total_key_chars) / recordcount;
   } else {
-    avg_key_len = 5.0; // fallback
+    avg_key_len = 5.0;  // fallback
   }
 
-  // Calculate the average number of write operations per transaction based on workload
+  // Calculate the average number of write operations per transaction based on
+  // workload
   double write_proportion = (static_cast<double>(workload.update_proportion) +
                              static_cast<double>(workload.insert_proportion) +
-                             static_cast<double>(workload.rmw_proportion)) / 100.0;
+                             static_cast<double>(workload.rmw_proportion)) /
+                            100.0;
   double avg_writes_per_tx = workload.reps_per_txn * write_proportion;
-  double logical_bytes_per_tx = avg_writes_per_tx * (avg_key_len + payload_size);
+  double logical_bytes_per_tx =
+      avg_writes_per_tx * (avg_key_len + payload_size);
 
   // write_bytes_per_commit: bytes written to storage per committed transaction
-  double write_bytes_per_commit = (total_commits > 0)
-      ? static_cast<double>(write_bytes) / total_commits
-      : 0.0;
+  double write_bytes_per_commit =
+      (total_commits > 0) ? static_cast<double>(write_bytes) / total_commits
+                          : 0.0;
 
-  // write_amplification_factor: bytes written per commit / logical bytes written per commit
-  double write_amplification_factor = (logical_bytes_per_tx > 0.0)
-      ? write_bytes_per_commit / logical_bytes_per_tx
-      : 0.0;
+  // write_amplification_factor: bytes written per commit / logical bytes
+  // written per commit
+  double write_amplification_factor =
+      (logical_bytes_per_tx > 0.0)
+          ? write_bytes_per_commit / logical_bytes_per_tx
+          : 0.0;
 
   // Overwrite the sentinel write_bytes value set in RunBenchmark
   result_json["write_bytes"].SetUint64(write_bytes);
-  result_json.AddMember("write_bytes_per_commit", write_bytes_per_commit, allocator);
-  result_json.AddMember("write_amplification_factor", write_amplification_factor, allocator);
+  result_json.AddMember("write_bytes_per_commit", write_bytes_per_commit,
+                        allocator);
+  result_json.AddMember("write_amplification_factor",
+                        write_amplification_factor, allocator);
 
   result_json.AddMember("workload",
                         rapidjson::Value(workload_type.c_str(), allocator),

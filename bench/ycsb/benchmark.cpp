@@ -100,7 +100,8 @@ struct ThreadLocalResult {
   size_t commits = 0;
   size_t aborts = 0;
   std::vector<uint64_t> precommit_latencies;  // BeginTx -> EndTx (precommit)
-  std::vector<uint64_t> callback_latencies;   // EndTx -> callback fires (durability wait)
+  std::vector<uint64_t>
+      callback_latencies;  // EndTx -> callback fires (durability wait)
 
   void RecordPrecommitLatency(uint64_t lat_us) {
     precommit_latencies.push_back(lat_us);
@@ -185,17 +186,24 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
         operation(tx, key, "", payload, workload.payload_size);
       }
     }
-    bool precommitted = db.EndTransaction(tx, [measure_lat, start_time](LineairDB::TxStatus status) {
-      if (measure_lat && status == LineairDB::TxStatus::Committed) {
-        auto callback_end_time = std::chrono::high_resolution_clock::now();
-        auto cb_lat = std::chrono::duration_cast<std::chrono::microseconds>(callback_end_time - start_time).count();
-        thread_local_result.Get()->RecordCallbackLatency(static_cast<uint64_t>(cb_lat));
-      }
-    });
+    bool precommitted = db.EndTransaction(
+        tx, [measure_lat, start_time](LineairDB::TxStatus status) {
+          if (measure_lat && status == LineairDB::TxStatus::Committed) {
+            auto callback_end_time = std::chrono::high_resolution_clock::now();
+            auto cb_lat = std::chrono::duration_cast<std::chrono::microseconds>(
+                              callback_end_time - start_time)
+                              .count();
+            thread_local_result.Get()->RecordCallbackLatency(
+                static_cast<uint64_t>(cb_lat));
+          }
+        });
     if (measure_lat && precommitted) {
       auto precommit_end_time = std::chrono::high_resolution_clock::now();
-      auto pc_lat = std::chrono::duration_cast<std::chrono::microseconds>(precommit_end_time - start_time).count();
-      thread_local_result.Get()->RecordPrecommitLatency(static_cast<uint64_t>(pc_lat));
+      auto pc_lat = std::chrono::duration_cast<std::chrono::microseconds>(
+                        precommit_end_time - start_time)
+                        .count();
+      thread_local_result.Get()->RecordPrecommitLatency(
+          static_cast<uint64_t>(pc_lat));
     }
     auto* result = thread_local_result.Get();
     if (!finish_flag.load(std::memory_order_relaxed)) {
@@ -222,15 +230,20 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
             }
           }
         },
-        // 2nd arg = durability callback: fires when epoch advances (WAL flushed, checkpoint done, etc.)
+        // 2nd arg = durability callback: fires when epoch advances (WAL
+        // flushed, checkpoint done, etc.)
         [measure_lat, start_time](LineairDB::TxStatus status) {
           if (measure_lat && status == LineairDB::TxStatus::Committed) {
             auto end_time = std::chrono::high_resolution_clock::now();
-            auto lat = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-            thread_local_result.Get()->RecordCallbackLatency(static_cast<uint64_t>(lat));
+            auto lat = std::chrono::duration_cast<std::chrono::microseconds>(
+                           end_time - start_time)
+                           .count();
+            thread_local_result.Get()->RecordCallbackLatency(
+                static_cast<uint64_t>(lat));
           }
         },
-        // 3rd arg = precommit callback: fires immediately after CC validation (before durability wait)
+        // 3rd arg = precommit callback: fires immediately after CC validation
+        // (before durability wait)
         [&, measure_lat, start_time](LineairDB::TxStatus status) {
           if (!finish_flag.load(std::memory_order_relaxed)) {
             auto* result = thread_local_result.Get();
@@ -238,7 +251,10 @@ void ExecuteWorkload(LineairDB::Database& db, Workload& workload,
               result->commits++;
               if (measure_lat) {
                 auto end_time = std::chrono::high_resolution_clock::now();
-                auto lat = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+                auto lat =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        end_time - start_time)
+                        .count();
                 result->RecordPrecommitLatency(static_cast<uint64_t>(lat));
               }
             } else {
@@ -296,8 +312,12 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   thread_local_result.ForEach([&](const ThreadLocalResult* res) {
     total_commits += res->commits;
     total_aborts += res->aborts;
-    all_precommit_lats.insert(all_precommit_lats.end(), res->precommit_latencies.begin(), res->precommit_latencies.end());
-    all_callback_lats.insert(all_callback_lats.end(), res->callback_latencies.begin(), res->callback_latencies.end());
+    all_precommit_lats.insert(all_precommit_lats.end(),
+                              res->precommit_latencies.begin(),
+                              res->precommit_latencies.end());
+    all_callback_lats.insert(all_callback_lats.end(),
+                             res->callback_latencies.begin(),
+                             res->callback_latencies.end());
   });
 
   auto elapsed = end - begin;
@@ -306,9 +326,9 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   uint64_t tps = total_commits * 1000 / milliseconds;
 
   // Helper lambda to compute percentile statistics (in microseconds)
-  auto compute_stats = [](std::vector<uint64_t>& lats,
-                          double& avg_us, uint64_t& p50_us,
-                          uint64_t& p90_us, uint64_t& p99_us) {
+  auto compute_stats = [](std::vector<uint64_t>& lats, double& avg_us,
+                          uint64_t& p50_us, uint64_t& p90_us,
+                          uint64_t& p99_us) {
     if (lats.empty()) return;
     std::sort(lats.begin(), lats.end());
     double sum = 0;
@@ -323,16 +343,20 @@ rapidjson::Document RunBenchmark(LineairDB::Database& db, Workload& workload,
   uint64_t p50_precommit_us = 0, p90_precommit_us = 0, p99_precommit_us = 0;
   uint64_t p50_callback_us = 0, p90_callback_us = 0, p99_callback_us = 0;
 
-  compute_stats(all_precommit_lats, avg_precommit_us, p50_precommit_us, p90_precommit_us, p99_precommit_us);
-  compute_stats(all_callback_lats, avg_callback_us, p50_callback_us, p90_callback_us, p99_callback_us);
+  compute_stats(all_precommit_lats, avg_precommit_us, p50_precommit_us,
+                p90_precommit_us, p99_precommit_us);
+  compute_stats(all_callback_lats, avg_callback_us, p50_callback_us,
+                p90_callback_us, p99_callback_us);
 
   // Convert us -> ms for readability in logs
   SPDLOG_INFO(
-      "YCSB: Benchmark completed. elapsed: {0}ms, commits: {1}, aborts: {2}, tps: {3}, "
-      "precommit avg/p99: {4:.2f}ms/{5:.2f}ms, callback avg/p99: {6:.2f}ms/{7:.2f}ms",
-      milliseconds, total_commits, total_aborts, tps,
-      avg_precommit_us / 1000.0, p99_precommit_us / 1000.0,
-      avg_callback_us / 1000.0, p99_callback_us / 1000.0);
+      "YCSB: Benchmark completed. elapsed: {0}ms, commits: {1}, aborts: {2}, "
+      "tps: {3}, "
+      "precommit avg/p99: {4:.2f}ms/{5:.2f}ms, callback avg/p99: "
+      "{6:.2f}ms/{7:.2f}ms",
+      milliseconds, total_commits, total_aborts, tps, avg_precommit_us / 1000.0,
+      p99_precommit_us / 1000.0, avg_callback_us / 1000.0,
+      p99_callback_us / 1000.0);
 
   // NOTE: write_bytes is read in cmdline.cpp *after* the Database is fully
   // destructed so that all background threads (checkpoint, WAL flush) have
