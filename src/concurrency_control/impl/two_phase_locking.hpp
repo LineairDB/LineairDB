@@ -122,6 +122,21 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     }
   };
   bool Precommit(bool need_to_checkpoint) final override {
+    const EpochNumber my_epoch =
+        tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
+    for (auto& snapshot : tx_ref_.write_set_ref_) {
+      auto* item = snapshot.index_cache;
+      assert(item != nullptr);
+      auto current_tid = item->transaction_id.load();
+      TransactionId new_tid;
+      if (my_epoch != current_tid.epoch) {
+        new_tid = {my_epoch, 0};
+      } else {
+        new_tid = {my_epoch, current_tid.tid + 1};
+      }
+      snapshot.data_item_copy.transaction_id.store(new_tid);
+    }
+
     if (need_to_checkpoint) {
       for (auto& snapshot : tx_ref_.write_set_ref_) {
         snapshot.index_cache->CopyLiveVersionToStableVersion();
@@ -131,7 +146,17 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     return true;
   };
 
-  void PostProcessing(TxStatus) final override { UnlockAll(); }
+  void PostProcessing(TxStatus status) final override {
+    if (status == TxStatus::Committed) {
+      for (auto& snapshot : tx_ref_.write_set_ref_) {
+        auto* item = snapshot.index_cache;
+        assert(item != nullptr);
+        item->transaction_id.store(
+            snapshot.data_item_copy.transaction_id.load());
+      }
+    }
+    UnlockAll();
+  }
 
  private:
   void Undo() {

@@ -77,7 +77,7 @@ class Database::Impl {
     checkpoint_manager_.Stop();
     epoch_framework_.Stop();
     while (!thread_pool_.IsEmpty()) {
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     thread_pool_.Shutdown();
     SPDLOG_DEBUG(
@@ -204,7 +204,7 @@ class Database::Impl {
     callback_manager_.WaitForAllCallbacksToBeExecuted();
     // Spin-wait with yield for better performance in the critical path
     while (latest_callbacked_epoch_.load() < current_epoch) {
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
     }
     // Wait for all index updates to be linearizable
     // This ensures that all insertions/deletions are visible in the index

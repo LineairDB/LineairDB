@@ -153,13 +153,15 @@ void ThreadLocalLogger::TruncateLogs(
                    deserialized_records.end());
   }
 
+  old_file.close();
   std::ofstream new_file(GetWorkingLogFileName(my_storage->thread_id));
   msgpack::pack(new_file, records);
   new_file.flush();
+  new_file.close();
 
   // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(log_filename.c_str(),
-             GetLogFileName(my_storage->thread_id).c_str())) {
+  if (rename(GetWorkingLogFileName(my_storage->thread_id).c_str(),
+             log_filename.c_str())) {
     SPDLOG_ERROR("Durability Error: fail to truncate logfile. errno: {1}",
                  errno);
     exit(1);

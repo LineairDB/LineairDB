@@ -95,7 +95,7 @@ class EpochFramework {
       auto reload_epoch = global_epoch_.load();
       while (current_epoch == reload_epoch) {
         if (stop_.load()) return reload_epoch;
-        std::this_thread::yield();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         reload_epoch = global_epoch_.load();
       }
       reload_count++;

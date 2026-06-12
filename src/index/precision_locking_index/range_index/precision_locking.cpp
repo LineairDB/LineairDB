@@ -213,7 +213,7 @@ void PrecisionLockingIndex::WaitForIndexIsLinearizable() {
 
   while (last_processed_epoch_.load(std::memory_order_acquire) <
          stable_epoch_target) {
-    std::this_thread::yield();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 

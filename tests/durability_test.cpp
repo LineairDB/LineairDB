@@ -30,13 +30,15 @@
 #include "test_helper.hpp"
 #include "util/logger.hpp"
 
-class DurabilityTest : public ::testing::Test {
+class DurabilityTest
+    : public ::testing::TestWithParam<LineairDB::Config::ConcurrencyControl> {
  protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     std::filesystem::remove_all("lineairdb_logs");
     config_.max_thread = 4;
+    config_.concurrency_control_protocol = GetParam();
     config_.enable_logging = true;
     config_.enable_recovery = true;
     config_.enable_checkpointing = true;
@@ -45,7 +47,7 @@ class DurabilityTest : public ::testing::Test {
   }
 };
 
-TEST_F(DurabilityTest, Recovery) {
+TEST_P(DurabilityTest, Recovery) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
@@ -78,7 +80,7 @@ TEST_F(DurabilityTest, Recovery) {
   }
 }
 
-TEST_F(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
+TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
@@ -105,7 +107,7 @@ TEST_F(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
   }
 }
 
-TEST_F(DurabilityTest, RecoveryKeepsDeletedKeysAbsentEvenWithCheckpoint) {
+TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsentEvenWithCheckpoint) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
@@ -134,7 +136,7 @@ TEST_F(DurabilityTest, RecoveryKeepsDeletedKeysAbsentEvenWithCheckpoint) {
   }
 }
 
-TEST_F(DurabilityTest, RecoveryLargeObject) {
+TEST_P(DurabilityTest, RecoveryLargeObject) {
   std::string initial_value(4096, 'a');
   TestHelper::DoTransactions(
       db_.get(), {[&](LineairDB::Transaction& tx) {
@@ -155,7 +157,7 @@ TEST_F(DurabilityTest, RecoveryLargeObject) {
   }
 }
 
-TEST_F(DurabilityTest, RecoveryInContendedWorkload) {
+TEST_P(DurabilityTest, RecoveryInContendedWorkload) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
@@ -182,7 +184,7 @@ TEST_F(DurabilityTest, RecoveryInContendedWorkload) {
                              }});
 }
 
-TEST_F(DurabilityTest, RecoveryWithHandlerInterface) {
+TEST_P(DurabilityTest, RecoveryWithHandlerInterface) {
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
 
@@ -220,7 +222,7 @@ size_t getLogDirectorySize(const LineairDB::Config& conf) {
   return size;
 }
 
-TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
+TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
   ASSERT_TRUE(config.enable_checkpointing);
@@ -257,7 +259,7 @@ TEST_F(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
   ASSERT_FALSE(filesize_is_monotonically_increasing);
 }
 
-TEST_F(DurabilityTest,
+TEST_P(DurabilityTest,
        LogFileSizeIsBoundedOnHandlerInterface) {  // a.k.a., checkpointing
   const LineairDB::Config config = db_->GetConfig();
   ASSERT_TRUE(config.enable_logging);
@@ -283,7 +285,7 @@ TEST_F(DurabilityTest,
       tx.Write<int>("alice", value);
       db_->EndTransaction(tx, [](auto) {});
       if (stop.load()) return;
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::nanoseconds(1));
     }
   });
 
@@ -307,7 +309,7 @@ TEST_F(DurabilityTest,
   ASSERT_FALSE(filesize_is_monotonically_increasing);
 }
 
-TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
+TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
   /**
    * CPR Consistency:
    * > Definition 1 (CPR Consistency). A database state is CPR consistent if and
@@ -354,7 +356,7 @@ TEST_F(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
                              }});
 }
 
-TEST_F(DurabilityTest,
+TEST_P(DurabilityTest,
        CPRConsistencyOnHandlerInterface) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
   config.enable_logging = false;
@@ -393,7 +395,7 @@ TEST_F(DurabilityTest,
       }});
 }
 
-TEST_F(DurabilityTest, RecoveryWithNamedTable) {
+TEST_P(DurabilityTest, RecoveryWithNamedTable) {
   const LineairDB::Config config = db_->GetConfig();
   const std::string table_name = "users";
   const std::string key = "user1";
@@ -429,3 +431,8 @@ TEST_F(DurabilityTest, RecoveryWithNamedTable) {
                                ASSERT_FALSE(data.has_value());
                              }});
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    ConcurrencyControlProtocols, DurabilityTest,
+    ::testing::Values(LineairDB::Config::ConcurrencyControl::SiloNWR,
+                      LineairDB::Config::ConcurrencyControl::TwoPhaseLocking));
