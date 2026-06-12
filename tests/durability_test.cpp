@@ -30,7 +30,8 @@
 #include "test_helper.hpp"
 #include "util/logger.hpp"
 
-class DurabilityTest : public ::testing::TestWithParam<LineairDB::Config::ConcurrencyControl> {
+class DurabilityTest
+    : public ::testing::TestWithParam<LineairDB::Config::ConcurrencyControl> {
  protected:
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
