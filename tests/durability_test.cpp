@@ -285,7 +285,7 @@ TEST_P(DurabilityTest,
       tx.Write<int>("alice", value);
       db_->EndTransaction(tx, [](auto) {});
       if (stop.load()) return;
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(std::chrono::nanoseconds(1));
     }
   });
 

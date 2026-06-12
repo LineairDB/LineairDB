@@ -81,7 +81,7 @@ size_t DoTransactionsOnMultiThreads(
       waits.fetch_add(1);
       for (;;) {
         if (barrier.load()) break;
-        std::this_thread::yield();
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
       }
       db->ExecuteTransaction(tx, [&](const auto status) {
         terminated++;
@@ -93,7 +93,7 @@ size_t DoTransactionsOnMultiThreads(
   }
   for (;;) {
     if (waits.load() == txns.size()) break;
-    std::this_thread::yield();
+    std::this_thread::sleep_for(std::chrono::nanoseconds(1));
   }
   barrier.store(true);
 
@@ -128,7 +128,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
       waits.fetch_add(1);
       for (;;) {
         if (barrier.load()) break;
-        std::this_thread::yield();
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
       }
       auto& tx = db->BeginTransaction();
       proc(tx);
@@ -142,7 +142,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
   }
   for (;;) {
     if (waits.load() == txns.size()) break;
-    std::this_thread::yield();
+    std::this_thread::sleep_for(std::chrono::nanoseconds(1));
   }
   barrier.store(true);
 
