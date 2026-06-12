@@ -76,7 +76,7 @@ size_t DoTransactionsOnMultiThreads(
   std::atomic<size_t> waits(0);
   std::atomic<bool> barrier(false);
   for (auto& tx : txns) {
-    jobs.push_back(std::async(std::launch::async, [&]() {
+    jobs.push_back(std::async(std::launch::async, [tx, &waits, &barrier, db, &terminated, &committed]() {
       waits.fetch_add(1);
       for (;;) {
         if (barrier.load()) break;
@@ -122,7 +122,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
   std::atomic<size_t> waits(0);
 
   for (auto& proc : txns) {
-    jobs.push_back(std::async(std::launch::async, [&]() {
+    jobs.push_back(std::async(std::launch::async, [proc, &waits, &barrier, db, &terminated, &committed]() {
       waits.fetch_add(1);
       for (;;) {
         if (barrier.load()) break;
