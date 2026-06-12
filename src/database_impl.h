@@ -44,11 +44,11 @@ class Database::Impl {
 
   Impl(const Config& c = Config())
       : config_(c),
-        thread_pool_(c.max_thread),
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
-        checkpoint_manager_(config_, table_dictionary_, epoch_framework_) {
+        checkpoint_manager_(config_, table_dictionary_, epoch_framework_),
+        thread_pool_(c.max_thread) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -178,7 +178,7 @@ class Database::Impl {
     callback_manager_.ExecuteCallbacks(current_epoch);
   }
 
-  const EpochNumber& GetMyThreadLocalEpoch() {
+  EpochNumber GetMyThreadLocalEpoch() {
     return epoch_framework_.GetMyThreadLocalEpoch();
   }
 
@@ -278,8 +278,7 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     epoch_framework_.MakeMeOnline();
-    auto& local_epoch = epoch_framework_.GetMyThreadLocalEpoch();
-    local_epoch = durable_epoch;
+    epoch_framework_.SetMyThreadLocalEpoch(durable_epoch);
 
     highest_epoch = std::max(highest_epoch, durable_epoch);
     auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
@@ -311,13 +310,13 @@ class Database::Impl {
 
  private:
   Config config_;
-  ThreadPool thread_pool_;
   Recovery::Logger logger_;
   Callback::CallbackManager callback_manager_;
   EpochFramework epoch_framework_;
   TableDictionary table_dictionary_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
+  ThreadPool thread_pool_;
 };
 
 }  // namespace LineairDB

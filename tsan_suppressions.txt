@@ -1,0 +1,8 @@
+# Suppress structural data races in OCC (Optimistic Concurrency Control) data item copy
+race:src/types/data_item.hpp
+race:src/types/data_buffer.hpp
+race:__interceptor_memcpy
+
+# Suppress destruction-time races/use-after-free in third-party library spdlog
+race:spdlog
+deadlock:spdlog
