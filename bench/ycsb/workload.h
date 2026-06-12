@@ -42,6 +42,7 @@ struct Workload {
   size_t payload_size;
   size_t client_thread_size;
   size_t measurement_duration;
+  bool measure_latency = false;
 
   Workload(size_t r, size_t u, size_t i, size_t s, size_t m, Distribution d)
       : read_proportion(r),
