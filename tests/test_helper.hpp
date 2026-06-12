@@ -80,6 +80,7 @@ size_t DoTransactionsOnMultiThreads(
       waits.fetch_add(1);
       for (;;) {
         if (barrier.load()) break;
+        std::this_thread::yield();
       }
       db->ExecuteTransaction(tx, [&](const auto status) {
         terminated++;
@@ -91,6 +92,7 @@ size_t DoTransactionsOnMultiThreads(
   }
   for (;;) {
     if (waits.load() == txns.size()) break;
+    std::this_thread::yield();
   }
   barrier.store(true);
 
@@ -124,6 +126,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
       waits.fetch_add(1);
       for (;;) {
         if (barrier.load()) break;
+        std::this_thread::yield();
       }
       auto& tx = db->BeginTransaction();
       proc(tx);
@@ -137,6 +140,7 @@ size_t DoHandlerTransactionsOnMultiThreads(
   }
   for (;;) {
     if (waits.load() == txns.size()) break;
+    std::this_thread::yield();
   }
   barrier.store(true);
 
