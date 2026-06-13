@@ -132,7 +132,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
       if (my_epoch != current_tid.epoch) {
         new_tid = {my_epoch, 0};
       } else {
-        new_tid = {my_epoch, current_tid.tid + 1};
+        new_tid = {my_epoch, current_tid.tid + 2};
       }
       snapshot.data_item_copy.transaction_id.store(new_tid);
     }
