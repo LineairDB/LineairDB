@@ -72,7 +72,7 @@ class Logger {
  private:
   std::unique_ptr<LoggerBase> logger_;
   EpochNumber durable_epoch_;
-  std::ofstream durable_epoch_working_file_;
+  int durable_epoch_fd_{-1};
   std::string work_dir_;
 };
 

@@ -16,8 +16,10 @@
 
 #include "logger.h"
 
+#include <fcntl.h>
 #include <glob.h>
 #include <lineairdb/config.h>
+#include <unistd.h>
 
 #include <cstring>
 #include <filesystem>
@@ -39,10 +41,15 @@ Logger::Logger(const Config& config)
       DurableEpochNumberWorkingFileName(config.work_dir +
                                         "/durable_epoch.working.json"),
       WorkingDir(config.work_dir),
-      durable_epoch_(0),
-      durable_epoch_working_file_(DurableEpochNumberWorkingFileName,
-                                  std::ofstream::trunc) {
+      durable_epoch_(0) {
   std::filesystem::create_directory(config.work_dir);
+  durable_epoch_fd_ =
+      open(DurableEpochNumberFileName.c_str(), O_RDWR | O_CREAT, 0644);
+  if (durable_epoch_fd_ < 0) {
+    SPDLOG_ERROR("Fail to open durable epoch file {}, errno: {}",
+                 DurableEpochNumberFileName, errno);
+    exit(1);
+  }
   LineairDB::Util::SetUpSPDLog();
   switch (config.logger) {
     case Config::Logger::ThreadLocalLogger:
@@ -53,7 +60,11 @@ Logger::Logger(const Config& config)
       break;
   }
 }
-Logger::~Logger() = default;
+Logger::~Logger() {
+  if (durable_epoch_fd_ >= 0) {
+    close(durable_epoch_fd_);
+  }
+}
 
 void Logger::RememberMe(const EpochNumber epoch) { logger_->RememberMe(epoch); }
 void Logger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
@@ -76,24 +87,23 @@ EpochNumber Logger::FlushDurableEpoch() {
   }
 
   assert(durable_epoch_ < min_flushed_epoch);
-  if (!durable_epoch_working_file_.is_open())
-    durable_epoch_working_file_.open(DurableEpochNumberWorkingFileName);
 
   durable_epoch_ = min_flushed_epoch;
-  durable_epoch_working_file_ << durable_epoch_;
+  char buf[20];
+  std::fill_n(buf, 20, ' ');
+  std::string val_str = std::to_string(durable_epoch_);
+  std::copy(val_str.begin(), val_str.end(), buf);
 
-  // NOTE POSIX ensures that rename syscall provides atomicity
-  if (rename(DurableEpochNumberWorkingFileName.c_str(),
-             DurableEpochNumberFileName.c_str())) {
-    SPDLOG_ERROR(
-        "Durability Error: fail to flush the durable epoch number {0:d}. "
-        "errno: {1}",
-        durable_epoch_, errno);
+  ssize_t written = pwrite(durable_epoch_fd_, buf, 20, 0);
+  if (written < 0) {
+    SPDLOG_ERROR("Fail to write durable epoch number, errno: {}", errno);
     exit(1);
   }
-  durable_epoch_working_file_.close();
-  durable_epoch_working_file_.open(DurableEpochNumberWorkingFileName,
-                                   std::fstream::trunc);
+
+  if (fdatasync(durable_epoch_fd_) != 0) {
+    SPDLOG_ERROR("Fail to sync durable epoch file, errno: {}", errno);
+    exit(1);
+  }
 
   return durable_epoch_;
 }
