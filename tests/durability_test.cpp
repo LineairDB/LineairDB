@@ -36,7 +36,9 @@ class DurabilityTest
   LineairDB::Config config_;
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
-    std::filesystem::remove_all("lineairdb_logs");
+    config_.work_dir =
+        "lineairdb_logs_" + std::to_string(reinterpret_cast<uintptr_t>(this));
+    std::filesystem::remove_all(config_.work_dir);
     config_.max_thread = 4;
     config_.concurrency_control_protocol = GetParam();
     config_.enable_logging = true;
@@ -44,6 +46,10 @@ class DurabilityTest
     config_.enable_checkpointing = true;
     config_.checkpoint_period = 1;
     db_ = std::make_unique<LineairDB::Database>(config_);
+  }
+  virtual void TearDown() {
+    db_.reset(nullptr);
+    std::filesystem::remove_all(config_.work_dir);
   }
 };
 
