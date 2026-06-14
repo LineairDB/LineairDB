@@ -21,6 +21,12 @@
 #include <lineairdb/config.h>
 #include <unistd.h>
 
+#if defined(__APPLE__)
+// macOS does not expose fdatasync in all compilation modes;
+// F_FULLFSYNC provides stronger durability guarantees anyway.
+#define fdatasync(fd) fcntl((fd), F_FULLFSYNC)
+#endif
+
 #include <cstring>
 #include <filesystem>
 #include <fstream>
