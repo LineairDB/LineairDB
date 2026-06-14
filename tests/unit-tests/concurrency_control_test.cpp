@@ -49,7 +49,7 @@ class ConcurrencyControlTest
     }
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
-  virtual void TearDown() { std::filesystem::remove_all("lineairdb_logs"); }
+  virtual void TearDown() { std::filesystem::remove_all(config_.work_dir); }
 };
 
 const std::array<std::string, 3> Protocols{"Silo", "SiloNWR", "2PL"};

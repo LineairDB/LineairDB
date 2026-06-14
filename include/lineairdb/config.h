@@ -18,6 +18,7 @@
 #define LINEAIRDB_CONFIG_H
 
 #include <cstddef>
+#include <cstdlib>
 #include <string>
 #include <thread>
 
@@ -159,7 +160,9 @@ struct Config {
    *
    * Default: "lineairdb_logs"
    */
-  std::string work_dir = "./lineairdb_logs";
+  std::string work_dir = std::getenv("LINEAIRDB_WORK_DIR")
+                             ? std::getenv("LINEAIRDB_WORK_DIR")
+                             : "./lineairdb_logs";
 
   /**
    * @brief

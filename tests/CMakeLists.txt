@@ -37,6 +37,7 @@ macro(register_test testfile testfilepath)
   add_test(
     NAME ${testfile}
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${testfile})
+  set_tests_properties(${testfile} PROPERTIES ENVIRONMENT "LINEAIRDB_WORK_DIR=lineairdb_logs_${testfile}")
 endmacro()
 
 file(GLOB_RECURSE tests RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*_test.cpp")
