@@ -43,8 +43,8 @@ class DurabilityTest
     config_.concurrency_control_protocol = GetParam();
     config_.enable_logging = true;
     config_.enable_recovery = true;
-    config_.enable_checkpointing = true;
-    config_.checkpoint_period = 1;
+    config_.enable_checkpointing = false;
+    config_.checkpoint_period = 10;
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
   virtual void TearDown() {
@@ -114,8 +114,12 @@ TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
 }
 
 TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsentEvenWithCheckpoint) {
-  // We expect LineairDB enables recovery logging by default.
-  const LineairDB::Config config = db_->GetConfig();
+  LineairDB::Config config = db_->GetConfig();
+  config.enable_checkpointing = true;
+  config.checkpoint_period = 1;
+  db_.reset(nullptr);
+  std::filesystem::remove_all(config.work_dir);
+  db_ = std::make_unique<LineairDB::Database>(config);
   ASSERT_TRUE(config.enable_logging);
 
   int initial_value = 1;
@@ -229,7 +233,12 @@ size_t getLogDirectorySize(const LineairDB::Config& conf) {
 }
 
 TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
-  const LineairDB::Config config = db_->GetConfig();
+  LineairDB::Config config = db_->GetConfig();
+  config.enable_checkpointing = true;
+  config.checkpoint_period = 1;
+  db_.reset(nullptr);
+  std::filesystem::remove_all(config.work_dir);
+  db_ = std::make_unique<LineairDB::Database>(config);
   ASSERT_TRUE(config.enable_logging);
   ASSERT_TRUE(config.enable_checkpointing);
 
@@ -267,7 +276,12 @@ TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
 
 TEST_P(DurabilityTest,
        LogFileSizeIsBoundedOnHandlerInterface) {  // a.k.a., checkpointing
-  const LineairDB::Config config = db_->GetConfig();
+  LineairDB::Config config = db_->GetConfig();
+  config.enable_checkpointing = true;
+  config.checkpoint_period = 1;
+  db_.reset(nullptr);
+  std::filesystem::remove_all(config.work_dir);
+  db_ = std::make_unique<LineairDB::Database>(config);
   ASSERT_TRUE(config.enable_logging);
   ASSERT_TRUE(config.enable_checkpointing);
 
@@ -329,9 +343,11 @@ TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
 
   LineairDB::Config config = db_->GetConfig();
   config.enable_logging = false;
-  config.checkpoint_period = 5;  // 5sec
-  ASSERT_TRUE(config.enable_checkpointing);
+  config.enable_checkpointing = true;
+  config.checkpoint_period =
+      2;  // 2sec (avoid premature checkpointing before destruction)
   db_.reset(nullptr);
+  std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
@@ -366,9 +382,11 @@ TEST_P(DurabilityTest,
        CPRConsistencyOnHandlerInterface) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
   config.enable_logging = false;
-  config.checkpoint_period = 5;  // 5sec
-  ASSERT_TRUE(config.enable_checkpointing);
+  config.enable_checkpointing = true;
+  config.checkpoint_period =
+      2;  // 2sec (avoid premature checkpointing before destruction)
   db_.reset(nullptr);
+  std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
