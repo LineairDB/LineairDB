@@ -33,7 +33,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
         while (manager_stop_flag_.load() != true) {
           epoch_manager_ref_.Sync();
           const auto global = epoch_manager_ref_.GetGlobalEpoch();
-          const auto stable_epoch = global - 2;
+          const auto stable_epoch = global >= 2 ? global - 2 : 0;
 
           {
             std::lock_guard<decltype(plock_)> p_guard(plock_);
@@ -41,7 +41,7 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
             {
               // Clear predicate list
               auto it = predicate_list_.begin();
-              if (it->first <= stable_epoch) {
+              if (it != predicate_list_.end() && it->first <= stable_epoch) {
                 const auto beg = it;
                 while (it != predicate_list_.end() &&
                        it->first <= stable_epoch) {
@@ -53,7 +53,8 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
             {
               // Clear insert_or_delete_keys
               auto it = insert_or_delete_key_set_.begin();
-              if (it->first <= stable_epoch) {
+              if (it != insert_or_delete_key_set_.end() &&
+                  it->first <= stable_epoch) {
                 const auto beg = it;
                 while (it != insert_or_delete_key_set_.end() &&
                        it->first <= stable_epoch) {
@@ -64,15 +65,15 @@ PrecisionLockingIndex::PrecisionLockingIndex(LineairDB::EpochFramework& e)
                 // Before deleting the set of insert_or_delete_keys, we update
                 // the index container to apply such outdated (already
                 // committed) insertions and deletions.
-                for (it = beg; it != end; it++) {
-                  for (const auto& event : it->second) {
+                for (auto curr = beg; curr != end; curr++) {
+                  for (const auto& event : curr->second) {
                     container_[event.key].is_deleted = event.is_delete_event;
                   }
                 }
                 insert_or_delete_key_set_.erase(beg, end);
-                last_processed_epoch_.store(stable_epoch,
-                                            std::memory_order_release);
               }
+              last_processed_epoch_.store(stable_epoch,
+                                          std::memory_order_release);
             }
           }
         }
@@ -208,8 +209,9 @@ void PrecisionLockingIndex::WaitForIndexIsLinearizable() {
   // Wait until the manager thread processes all pending insert/delete events
   // and updates the container. This ensures that all index updates are visible.
   const auto target_epoch = epoch_manager_ref_.GetGlobalEpoch();
-  const auto stable_epoch_target =
-      target_epoch - 2;  // It assumes EpochManager#Sync()
+  const auto stable_epoch_target = target_epoch >= 2
+                                       ? target_epoch - 2
+                                       : 0;  // It assumes EpochManager#Sync()
 
   while (last_processed_epoch_.load(std::memory_order_acquire) <
          stable_epoch_target) {
