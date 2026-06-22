@@ -142,3 +142,45 @@ TEST_F(PrecisionLockingIndexTest, InsertAfterFailedInsertDueToScan) {
         << "Entry should be found in Scan, proving it's properly indexed";
   }
 }
+
+TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
+  db_->CreateTable("users");
+  const std::string test_key = "concurrent_insert_test_key";
+  std::atomic<bool> scan_started(false);
+  std::atomic<bool> insert_completed(false);
+  std::atomic<bool> insert_succeeded(false);
+
+  std::thread scan_thread([&]() {
+    auto& tx = db_->BeginTransaction();
+    tx.Scan<int>(test_key, std::nullopt,
+                 [](std::string_view, int) { return false; });
+    scan_started.store(true);
+
+    while (!insert_completed.load()) {
+      std::this_thread::yield();
+    }
+    db_->EndTransaction(tx, [](auto) {});
+  });
+
+  std::thread insert_thread([&]() {
+    while (!scan_started.load()) {
+      std::this_thread::yield();
+    }
+
+    auto& tx = db_->BeginTransaction();
+    tx.Insert<int>(test_key, 100);
+    db_->EndTransaction(tx, [&](auto status) {
+      if (status == LineairDB::TxStatus::Committed) {
+        insert_succeeded.store(true);
+      }
+      insert_completed.store(true);
+    });
+  });
+
+  insert_thread.join();
+  scan_thread.join();
+
+  EXPECT_FALSE(insert_succeeded.load())
+      << "The insert transaction should have aborted due to the concurrent "
+         "scan predicate";
+}
