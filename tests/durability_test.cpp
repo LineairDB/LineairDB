@@ -355,27 +355,62 @@ TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
     tx.Write<int>("alice", value);
   });
 
-  TestHelper::DoTransactions(db_.get(), {Update});
+  std::atomic<bool> precommitted(false);
+  db_->ExecuteTransaction(
+      Update, [](const auto) {},
+      [&](const auto status) {
+        if (status == LineairDB::TxStatus::Committed) {
+          precommitted.store(true);
+        }
+      });
+  while (!precommitted.load()) {
+    std::this_thread::yield();
+  }
+
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
   // We assume that DB has been destructed within 5 seconds and there are no
-  // consisntent snapshot
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("alice");
-                               ASSERT_FALSE(alice.has_value());
-                             }});
+  // consistent snapshots.
+  {
+    std::atomic<bool> read_done(false);
+    std::optional<int> alice_val;
+    db_->ExecuteTransaction(
+        [&](LineairDB::Transaction& tx) { alice_val = tx.Read<int>("alice"); },
+        [](const auto) {}, [&](const auto) { read_done.store(true); });
+    while (!read_done.load()) {
+      std::this_thread::yield();
+    }
+    ASSERT_FALSE(alice_val.has_value());
+  }
 
-  TestHelper::DoTransactions(db_.get(), {Update});
-  std::this_thread::sleep_for(
-      std::chrono::seconds(config.checkpoint_period * 2));
+  precommitted.store(false);
+  db_->ExecuteTransaction(
+      Update, [](const auto) {},
+      [&](const auto status) {
+        if (status == LineairDB::TxStatus::Committed) {
+          precommitted.store(true);
+        }
+      });
+  while (!precommitted.load()) {
+    std::this_thread::yield();
+  }
+  db_->WaitForCheckpoint();
 
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
-  TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                               auto alice = tx.Read<int>("alice");
-                               ASSERT_TRUE(alice.has_value());
-                             }});
+
+  {
+    std::atomic<bool> read_done(false);
+    std::optional<int> alice_val;
+    db_->ExecuteTransaction(
+        [&](LineairDB::Transaction& tx) { alice_val = tx.Read<int>("alice"); },
+        [](const auto) {}, [&](const auto) { read_done.store(true); });
+    while (!read_done.load()) {
+      std::this_thread::yield();
+    }
+    ASSERT_TRUE(alice_val.has_value());
+  }
 }
 
 TEST_P(DurabilityTest,
@@ -394,29 +429,40 @@ TEST_P(DurabilityTest,
     tx.Write<int>("alice", value);
   });
 
-  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
+  {
+    auto& tx = db_->BeginTransaction();
+    Update(tx);
+    bool committed = db_->EndTransaction(tx, [](const auto) {});
+    ASSERT_TRUE(committed);
+  }
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
   // We assume that DB has been destructed within 5 seconds and there are no
-  // consisntent snapshot
-  TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-        auto alice = tx.Read<int>("alice");
-        ASSERT_FALSE(alice.has_value());
-      }});
+  // consistent snapshots.
+  {
+    auto& tx = db_->BeginTransaction();
+    auto alice = tx.Read<int>("alice");
+    ASSERT_FALSE(alice.has_value());
+    db_->EndTransaction(tx, [](const auto) {});
+  }
 
-  TestHelper::DoHandlerTransactionsOnMultiThreads(db_.get(), {Update});
-  std::this_thread::sleep_for(
-      std::chrono::seconds(config.checkpoint_period * 2));
+  {
+    auto& tx = db_->BeginTransaction();
+    Update(tx);
+    bool committed = db_->EndTransaction(tx, [](const auto) {});
+    ASSERT_TRUE(committed);
+  }
+  db_->WaitForCheckpoint();
 
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
-  TestHelper::DoHandlerTransactionsOnMultiThreads(
-      db_.get(), {[&](LineairDB::Transaction& tx) {
-        auto alice = tx.Read<int>("alice");
-        ASSERT_TRUE(alice.has_value());
-      }});
+  {
+    auto& tx = db_->BeginTransaction();
+    auto alice = tx.Read<int>("alice");
+    ASSERT_TRUE(alice.has_value());
+    db_->EndTransaction(tx, [](const auto) {});
+  }
 }
 
 TEST_P(DurabilityTest, RecoveryWithNamedTable) {
