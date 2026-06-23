@@ -116,34 +116,50 @@ class CPRManager {
               record.epoch = checkpoint_epoch_.load() + 1;
 
               dict_ref_.ForEachTable([&](LineairDB::Table& table) {
-                table.GetPrimaryIndex().ForEach(
-                    [&](std::string_view key, LineairDB::DataItem& data_item) {
-                      data_item.ExclusiveLock();
+                table.GetPrimaryIndex().ForEach([&](std::string_view key,
+                                                    LineairDB::DataItem&
+                                                        data_item) {
+                  const bool is_2pl =
+                      config_ref_.concurrency_control_protocol ==
+                      LineairDB::Config::ConcurrencyControl::TwoPhaseLocking;
+                  if (is_2pl) {
+                    data_item.ExclusiveLock2PL();
+                  } else {
+                    data_item.ExclusiveLockSilo();
+                  }
 
-                      // Skip deleted items (not initialized)
-                      if (!data_item.IsInitialized()) {
-                        data_item.ExclusiveUnlock();
-                        return true;
-                      }
+                  // Skip deleted items (not initialized)
+                  if (!data_item.IsInitialized()) {
+                    if (is_2pl) {
+                      data_item.ExclusiveUnlock2PL();
+                    } else {
+                      data_item.ExclusiveUnlockSilo();
+                    }
+                    return true;
+                  }
 
-                      Logger::LogRecord::KeyValuePair kvp;
-                      kvp.table_name = table.GetTableName();
-                      kvp.key = key;
-                      if (data_item.checkpoint_buffer.IsEmpty()) {
-                        // this data item holds version which has written before
-                        // the point of consistency.
-                        kvp.buffer = data_item.buffer.toString();
-                      } else {
-                        kvp.buffer = data_item.checkpoint_buffer.toString();
-                        data_item.checkpoint_buffer.Reset(nullptr, 0);
-                      }
-                      kvp.tid.epoch = record.epoch;
-                      kvp.tid.tid = 0;
-                      record.key_value_pairs.emplace_back(std::move(kvp));
+                  Logger::LogRecord::KeyValuePair kvp;
+                  kvp.table_name = table.GetTableName();
+                  kvp.key = key;
+                  if (data_item.checkpoint_buffer.IsEmpty()) {
+                    // this data item holds version which has written before
+                    // the point of consistency.
+                    kvp.buffer = data_item.buffer.toString();
+                  } else {
+                    kvp.buffer = data_item.checkpoint_buffer.toString();
+                    data_item.checkpoint_buffer.Reset(nullptr, 0);
+                  }
+                  kvp.tid.epoch = record.epoch;
+                  kvp.tid.tid = 0;
+                  record.key_value_pairs.emplace_back(std::move(kvp));
 
-                      data_item.ExclusiveUnlock();
-                      return true;
-                    });
+                  if (is_2pl) {
+                    data_item.ExclusiveUnlock2PL();
+                  } else {
+                    data_item.ExclusiveUnlockSilo();
+                  }
+                  return true;
+                });
               });
               records.emplace_back(std::move(record));
 
