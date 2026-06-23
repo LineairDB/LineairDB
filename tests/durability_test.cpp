@@ -442,20 +442,29 @@ TEST_P(DurabilityTest, TwoPhaseLockingDestructorGracefulShutdown) {
   LineairDB::Config config = db_->GetConfig();
   config.concurrency_control_protocol =
       LineairDB::Config::ConcurrencyControl::TwoPhaseLocking;
+  config.enable_checkpointing = true;
   config.checkpoint_period = 1;  // 1sec
   db_.reset(nullptr);
+  std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
 
-  // Execute multiple write transactions to the same key to increment the TID.
-  // This triggers the odd TID bug under 2PL which previously caused deadlocks.
-  for (int i = 0; i < 5; ++i) {
-    TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
-                                 tx.Write<int>("key", i);
-                               }});
-  }
+  // Execute continuous write transactions to the same key from a background
+  // thread to ensure concurrent checkpointing conflicts with 2PL lock updates.
+  std::atomic<bool> stop(false);
+  std::thread writer([&]() {
+    int i = 0;
+    while (!stop.load()) {
+      auto& tx = db_->BeginTransaction();
+      tx.Write<int>("key", i++);
+      db_->EndTransaction(tx, [](auto) {});
+    }
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+  stop.store(true);
+  writer.join();
 
   // Destruct the database. If there's a deadlock/hang, the test will hang here.
-  // If the bug is fixed, it will complete immediately.
   db_.reset(nullptr);
 }
 

@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstring>
 #include <msgpack.hpp>
+#include <thread>
 #include <type_traits>
 
 #include "concurrency_control/pivot_object.hpp"
@@ -79,39 +80,35 @@ struct DataItem {
     checkpoint_buffer.Reset(buffer);
   }
 
-  void ExclusiveLock() {
-    // Acquire exclusive locking for all protocols:
-
-    {
-      // for Silo, Silo+NWR. they uses transaction_id as the lock
-      for (;;) {
-        auto tid = transaction_id.load();
-        if (tid.tid & 1llu) {
-          std::this_thread::yield();
-          continue;
-        }
-        auto new_tid = tid;
-        new_tid.tid += 1llu;
-        if (transaction_id.compare_exchange_weak(tid, new_tid)) break;
+  void ExclusiveLockSilo() {
+    for (;;) {
+      auto current = transaction_id.load();
+      if (current.tid & 1u) {
+        std::this_thread::yield();
+        continue;
+      }
+      auto desired = current;
+      desired.tid |= 1u;
+      if (transaction_id.compare_exchange_weak(current, desired)) {
+        break;
       }
     }
-
-    // for TwoPhaseLocking. it uses rw_lock.
-    { GetRWLockRef().Lock(); }
   }
 
-  void ExclusiveUnlock() {
-    // Release exclusive locking for all protocols:
-
-    // for Silo, Silo+NWR. they uses transaction_id as the lock
-    {
-      auto tid = transaction_id.load();
-      tid.tid -= 1llu;
-      transaction_id.store(tid);
+  void ExclusiveUnlockSilo() {
+    for (;;) {
+      auto current = transaction_id.load();
+      auto desired = current;
+      desired.tid &= ~1u;
+      if (transaction_id.compare_exchange_weak(current, desired)) {
+        break;
+      }
     }
-    // for TwoPhaseLocking. it uses rw_lock.
-    { GetRWLockRef().UnLock(); }
   }
+
+  void ExclusiveLock2PL() { GetRWLockRef().Lock(); }
+
+  void ExclusiveUnlock2PL() { GetRWLockRef().UnLock(); }
 
   decltype(readers_writers_lock)& GetRWLockRef() {
     return readers_writers_lock;
