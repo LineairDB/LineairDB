@@ -330,22 +330,10 @@ TEST_P(DurabilityTest,
 }
 
 TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
-  /**
-   * CPR Consistency:
-   * > Definition 1 (CPR Consistency). A database state is CPR consistent if and
-   * > only if, for every client $C$ , the state contains all its transactions
-   * > committed before a unique client-local time-point $tC$ , and none after.
-   * Ref:
-   * https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf
-   *
-   * i.e., There exists the guarantee of consistent snapshot at some time point.
-   */
-
   LineairDB::Config config = db_->GetConfig();
   config.enable_logging = false;
   config.enable_checkpointing = true;
-  config.checkpoint_period =
-      2;  // 2sec (avoid premature checkpointing before destruction)
+  config.checkpoint_period = 2;  // 2sec
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -355,61 +343,45 @@ TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
     tx.Write<int>("alice", value);
   });
 
-  std::atomic<bool> precommitted(false);
-  db_->ExecuteTransaction(
-      Update, [](const auto) {},
-      [&](const auto status) {
-        if (status == LineairDB::TxStatus::Committed) {
-          precommitted.store(true);
-        }
-      });
-  while (!precommitted.load()) {
-    std::this_thread::yield();
+  std::atomic<bool> durable_done(false);
+  std::atomic<bool> committed(false);
+  db_->ExecuteTransaction(Update, [&](const auto status) {
+    if (status == LineairDB::TxStatus::Committed) {
+      committed.store(true);
+    }
+    durable_done.store(true);
+  });
+  while (!durable_done.load()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
+  ASSERT_TRUE(committed.load())
+      << "Update transaction aborted in CPRConsistency!";
 
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
-  // We assume that DB has been destructed within 5 seconds and there are no
-  // consistent snapshots.
+  // Since we waited for the durability callback, the data MUST be present in
+  // the recovered database.
   {
     std::atomic<bool> read_done(false);
+    std::atomic<bool> read_committed(false);
     std::optional<int> alice_val;
     db_->ExecuteTransaction(
         [&](LineairDB::Transaction& tx) { alice_val = tx.Read<int>("alice"); },
-        [](const auto) {}, [&](const auto) { read_done.store(true); });
+        [&](const auto status) {
+          if (status == LineairDB::TxStatus::Committed) {
+            read_committed.store(true);
+          }
+          read_done.store(true);
+        });
     while (!read_done.load()) {
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    ASSERT_FALSE(alice_val.has_value());
-  }
-
-  precommitted.store(false);
-  db_->ExecuteTransaction(
-      Update, [](const auto) {},
-      [&](const auto status) {
-        if (status == LineairDB::TxStatus::Committed) {
-          precommitted.store(true);
-        }
-      });
-  while (!precommitted.load()) {
-    std::this_thread::yield();
-  }
-  db_->WaitForCheckpoint();
-
-  db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>(config);
-
-  {
-    std::atomic<bool> read_done(false);
-    std::optional<int> alice_val;
-    db_->ExecuteTransaction(
-        [&](LineairDB::Transaction& tx) { alice_val = tx.Read<int>("alice"); },
-        [](const auto) {}, [&](const auto) { read_done.store(true); });
-    while (!read_done.load()) {
-      std::this_thread::yield();
-    }
-    ASSERT_TRUE(alice_val.has_value());
+    ASSERT_TRUE(read_committed.load())
+        << "Read transaction aborted in CPRConsistency!";
+    EXPECT_TRUE(alice_val.has_value())
+        << "The durability callback fired, so data must be durable and present "
+           "after recovery";
   }
 }
 
@@ -418,8 +390,7 @@ TEST_P(DurabilityTest,
   LineairDB::Config config = db_->GetConfig();
   config.enable_logging = false;
   config.enable_checkpointing = true;
-  config.checkpoint_period =
-      2;  // 2sec (avoid premature checkpointing before destruction)
+  config.checkpoint_period = 2;  // 2sec
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
@@ -432,35 +403,29 @@ TEST_P(DurabilityTest,
   {
     auto& tx = db_->BeginTransaction();
     Update(tx);
-    bool committed = db_->EndTransaction(tx, [](const auto) {});
-    ASSERT_TRUE(committed);
+    std::atomic<bool> durable_done(false);
+    std::atomic<bool> committed(false);
+    db_->EndTransaction(tx, [&](const auto status) {
+      if (status == LineairDB::TxStatus::Committed) {
+        committed.store(true);
+      }
+      durable_done.store(true);
+    });
+    while (!durable_done.load()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_TRUE(committed.load())
+        << "Update transaction aborted in CPRConsistencyOnHandlerInterface!";
   }
   db_.reset(nullptr);
   db_ = std::make_unique<LineairDB::Database>(config);
 
-  // We assume that DB has been destructed within 5 seconds and there are no
-  // consistent snapshots.
   {
     auto& tx = db_->BeginTransaction();
     auto alice = tx.Read<int>("alice");
-    ASSERT_FALSE(alice.has_value());
-    db_->EndTransaction(tx, [](const auto) {});
-  }
-
-  {
-    auto& tx = db_->BeginTransaction();
-    Update(tx);
-    bool committed = db_->EndTransaction(tx, [](const auto) {});
-    ASSERT_TRUE(committed);
-  }
-  db_->WaitForCheckpoint();
-
-  db_.reset(nullptr);
-  db_ = std::make_unique<LineairDB::Database>(config);
-  {
-    auto& tx = db_->BeginTransaction();
-    auto alice = tx.Read<int>("alice");
-    ASSERT_TRUE(alice.has_value());
+    EXPECT_TRUE(alice.has_value())
+        << "The durability callback fired, so data must be durable and present "
+           "after recovery";
     db_->EndTransaction(tx, [](const auto) {});
   }
 }
@@ -521,6 +486,7 @@ TEST_P(DurabilityTest, TwoPhaseLockingDestructorGracefulShutdown) {
       auto& tx = db_->BeginTransaction();
       tx.Write<int>("key", i++);
       db_->EndTransaction(tx, [](auto) {});
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
 
