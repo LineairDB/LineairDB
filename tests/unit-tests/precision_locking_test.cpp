@@ -142,3 +142,69 @@ TEST_F(PrecisionLockingIndexTest, InsertAfterFailedInsertDueToScan) {
         << "Entry should be found in Scan, proving it's properly indexed";
   }
 }
+
+TEST_F(PrecisionLockingIndexTest, FenceAtStartupDoesNotUnderflow) {
+  db_.reset(nullptr);
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  config.enable_logging = false;
+  config.enable_checkpointing = false;
+  config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
+  auto db = std::make_unique<LineairDB::Database>(config);
+
+  // Verification: Verify that calling Fence() at startup under low epoch
+  // does not underflow and hang.
+  db->Fence();
+}
+
+TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
+  db_.reset(nullptr);
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  config.enable_logging = false;
+  config.enable_checkpointing = false;
+  config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
+  auto db = std::make_unique<LineairDB::Database>(config);
+
+  db->CreateTable("users");
+  const std::string test_key = "concurrent_insert_test_key";
+  std::atomic<bool> scan_started(false);
+  std::atomic<bool> insert_completed(false);
+  std::atomic<bool> insert_succeeded(false);
+
+  std::thread scan_thread([&]() {
+    auto& tx = db->BeginTransaction();
+    tx.SetTable("users");
+    tx.Scan<int>(test_key, std::nullopt,
+                 [](std::string_view, int) { return false; });
+    scan_started.store(true);
+
+    while (!insert_completed.load()) {
+      std::this_thread::yield();
+    }
+    db->EndTransaction(tx, [](auto) {});
+  });
+
+  std::thread insert_thread([&]() {
+    while (!scan_started.load()) {
+      std::this_thread::yield();
+    }
+
+    auto& tx = db->BeginTransaction();
+    tx.SetTable("users");
+    tx.Insert<int>(test_key, 100);
+    db->EndTransaction(tx, [&](auto status) {
+      if (status == LineairDB::TxStatus::Committed) {
+        insert_succeeded.store(true);
+      }
+      insert_completed.store(true);
+    });
+  });
+
+  insert_thread.join();
+  scan_thread.join();
+
+  EXPECT_FALSE(insert_succeeded.load())
+      << "The insert transaction should have aborted due to the concurrent "
+         "scan predicate";
+}
