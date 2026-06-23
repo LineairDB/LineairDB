@@ -143,7 +143,7 @@ TEST_F(PrecisionLockingIndexTest, InsertAfterFailedInsertDueToScan) {
   }
 }
 
-TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
+TEST_F(PrecisionLockingIndexTest, FenceAtStartupDoesNotUnderflow) {
   db_.reset(nullptr);
   LineairDB::Config config;
   config.enable_recovery = false;
@@ -152,8 +152,19 @@ TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
   config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
   auto db = std::make_unique<LineairDB::Database>(config);
 
-  // This will hang indefinitely on main due to the stable_epoch underflow
+  // Verification: Verify that calling Fence() at startup under low epoch
+  // does not underflow and hang.
   db->Fence();
+}
+
+TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
+  db_.reset(nullptr);
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  config.enable_logging = false;
+  config.enable_checkpointing = false;
+  config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
+  auto db = std::make_unique<LineairDB::Database>(config);
 
   db->CreateTable("users");
   const std::string test_key = "concurrent_insert_test_key";
