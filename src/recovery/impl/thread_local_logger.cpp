@@ -37,7 +37,7 @@ std::atomic<size_t> ThreadLocalLogger::ThreadLocalStorageNode::ThreadIdCounter =
     {0};
 
 ThreadLocalLogger::ThreadLocalLogger(const Config& config)
-    : WorkingDir(config.work_dir) {
+    : WorkingDir(config.work_dir), is_alive_(std::make_shared<bool>(true)) {
   LineairDB::Util::SetUpSPDLog();
 }
 
@@ -45,14 +45,18 @@ ThreadLocalLogger::ThreadLocalStorageNode* ThreadLocalLogger::GetMyStorage() {
   auto* my_storage = thread_key_storage_.Get();
   struct ThreadExitNotifier {
     ThreadLocalStorageNode* node;
-    ThreadExitNotifier(ThreadLocalStorageNode* n) : node(n) {}
+    std::weak_ptr<bool> is_alive;
+    ThreadExitNotifier(ThreadLocalStorageNode* n, std::weak_ptr<bool> alive)
+        : node(n), is_alive(alive) {}
     ~ThreadExitNotifier() {
-      if (node) {
-        node->durable_epoch.store(EpochFramework::THREAD_OFFLINE);
+      if (auto lock = is_alive.lock()) {
+        if (node) {
+          node->durable_epoch.store(EpochFramework::THREAD_OFFLINE);
+        }
       }
     }
   };
-  thread_local ThreadExitNotifier notifier(my_storage);
+  thread_local ThreadExitNotifier notifier(my_storage, is_alive_);
   return my_storage;
 }
 

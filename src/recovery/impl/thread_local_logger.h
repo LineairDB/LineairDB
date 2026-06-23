@@ -78,6 +78,7 @@ class ThreadLocalLogger final : public LoggerBase {
 
  private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
+  std::shared_ptr<bool> is_alive_;
 };
 
 }  // namespace Recovery
