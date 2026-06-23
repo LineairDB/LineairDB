@@ -37,12 +37,31 @@ std::atomic<size_t> ThreadLocalLogger::ThreadLocalStorageNode::ThreadIdCounter =
     {0};
 
 ThreadLocalLogger::ThreadLocalLogger(const Config& config)
-    : WorkingDir(config.work_dir) {
+    : WorkingDir(config.work_dir), is_alive_(std::make_shared<bool>(true)) {
   LineairDB::Util::SetUpSPDLog();
 }
 
-void ThreadLocalLogger::RememberMe(const EpochNumber epoch) {
+ThreadLocalLogger::ThreadLocalStorageNode* ThreadLocalLogger::GetMyStorage() {
   auto* my_storage = thread_key_storage_.Get();
+  struct ThreadExitNotifier {
+    ThreadLocalStorageNode* node;
+    std::weak_ptr<bool> is_alive;
+    ThreadExitNotifier(ThreadLocalStorageNode* n, std::weak_ptr<bool> alive)
+        : node(n), is_alive(alive) {}
+    ~ThreadExitNotifier() {
+      if (auto lock = is_alive.lock()) {
+        if (node) {
+          node->durable_epoch.store(EpochFramework::THREAD_OFFLINE);
+        }
+      }
+    }
+  };
+  thread_local ThreadExitNotifier notifier(my_storage, is_alive_);
+  return my_storage;
+}
+
+void ThreadLocalLogger::RememberMe(const EpochNumber epoch) {
+  auto* my_storage = GetMyStorage();
   my_storage->durable_epoch.store(epoch);
 }
 
@@ -65,7 +84,7 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
       record.key_value_pairs.emplace_back(std::move(kvp));
     }
   }
-  auto* my_storage = thread_key_storage_.Get();
+  auto* my_storage = GetMyStorage();
   my_storage->log_records.emplace_back(std::move(record));
 
   if (entrusting) {
@@ -83,12 +102,12 @@ void ThreadLocalLogger::Enqueue(const WriteSetType& ws_ref, EpochNumber epoch,
     msgpack::pack(my_storage->log_file, my_storage->log_records);
     my_storage->log_file.flush();
     my_storage->log_records.clear();
-    my_storage->durable_epoch.store(epoch);
+    my_storage->durable_epoch.store(EpochFramework::THREAD_OFFLINE);
   }
 }
 
 void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
-  auto* my_storage = thread_key_storage_.Get();
+  auto* my_storage = GetMyStorage();
 
   if (!my_storage->log_records.empty()) {
     if (!my_storage->log_file.is_open()) {
@@ -106,7 +125,7 @@ void ThreadLocalLogger::FlushLogs(EpochNumber stable_epoch) {
 
 void ThreadLocalLogger::TruncateLogs(
     const EpochNumber checkpoint_completed_epoch) {
-  auto* my_storage = thread_key_storage_.Get();
+  auto* my_storage = GetMyStorage();
 
   assert(my_storage->truncated_epoch <= checkpoint_completed_epoch);
   if (checkpoint_completed_epoch == my_storage->truncated_epoch) return;

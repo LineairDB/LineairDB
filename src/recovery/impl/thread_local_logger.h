@@ -37,6 +37,8 @@ namespace LineairDB {
 namespace Recovery {
 
 class ThreadLocalLogger final : public LoggerBase {
+  struct ThreadLocalStorageNode;
+
  public:
   ThreadLocalLogger(const Config&);
   void RememberMe(const EpochNumber) final override;
@@ -48,6 +50,9 @@ class ThreadLocalLogger final : public LoggerBase {
   EpochNumber GetMinDurableEpochForAllThreads() final override;
   std::string GetLogFileName(size_t thread_id) const;
   std::string GetWorkingLogFileName(size_t thread_id) const;
+
+ private:
+  ThreadLocalStorageNode* GetMyStorage();
 
  private:
   std::string WorkingDir;
@@ -73,6 +78,7 @@ class ThreadLocalLogger final : public LoggerBase {
 
  private:
   ThreadKeyStorage<ThreadLocalStorageNode> thread_key_storage_;
+  std::shared_ptr<bool> is_alive_;
 };
 
 }  // namespace Recovery

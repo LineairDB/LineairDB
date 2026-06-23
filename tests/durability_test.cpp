@@ -459,6 +459,28 @@ TEST_P(DurabilityTest, TwoPhaseLockingDestructorGracefulShutdown) {
   db_.reset(nullptr);
 }
 
+TEST_P(DurabilityTest, ShortLivedThreadsDoNotBlockEpochAdvancement) {
+  // Spawn a transaction in a short-lived thread which then exits.
+  // We use handler interface directly on t1 to register t1 in thread-local
+  // storage of ThreadLocalLogger.
+  std::thread t1([&]() {
+    auto& tx = db_->BeginTransaction();
+    tx.Write<int>("key_from_t1", 42);
+    db_->EndTransaction(tx, [](auto) {});
+  });
+  t1.join();
+
+  // Execute a transaction on the main thread.
+  auto& tx = db_->BeginTransaction();
+  tx.Write<int>("key_from_main", 100);
+  db_->EndTransaction(tx, [](auto) {});
+
+  // Call Fence. If the exited thread's local storage is not offline,
+  // the min durable epoch will be stuck at E_t1, causing Fence() to
+  // hang/deadlock.
+  db_->Fence();
+}
+
 INSTANTIATE_TEST_SUITE_P(
     ConcurrencyControlProtocols, DurabilityTest,
     ::testing::Values(LineairDB::Config::ConcurrencyControl::SiloNWR,
