@@ -144,14 +144,26 @@ TEST_F(PrecisionLockingIndexTest, InsertAfterFailedInsertDueToScan) {
 }
 
 TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
-  db_->CreateTable("users");
+  db_.reset(nullptr);
+  LineairDB::Config config;
+  config.enable_recovery = false;
+  config.enable_logging = false;
+  config.enable_checkpointing = false;
+  config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
+  auto db = std::make_unique<LineairDB::Database>(config);
+
+  // This will hang indefinitely on main due to the stable_epoch underflow
+  db->Fence();
+
+  db->CreateTable("users");
   const std::string test_key = "concurrent_insert_test_key";
   std::atomic<bool> scan_started(false);
   std::atomic<bool> insert_completed(false);
   std::atomic<bool> insert_succeeded(false);
 
   std::thread scan_thread([&]() {
-    auto& tx = db_->BeginTransaction();
+    auto& tx = db->BeginTransaction();
+    tx.SetTable("users");
     tx.Scan<int>(test_key, std::nullopt,
                  [](std::string_view, int) { return false; });
     scan_started.store(true);
@@ -159,7 +171,7 @@ TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
     while (!insert_completed.load()) {
       std::this_thread::yield();
     }
-    db_->EndTransaction(tx, [](auto) {});
+    db->EndTransaction(tx, [](auto) {});
   });
 
   std::thread insert_thread([&]() {
@@ -167,9 +179,10 @@ TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
       std::this_thread::yield();
     }
 
-    auto& tx = db_->BeginTransaction();
+    auto& tx = db->BeginTransaction();
+    tx.SetTable("users");
     tx.Insert<int>(test_key, 100);
-    db_->EndTransaction(tx, [&](auto status) {
+    db->EndTransaction(tx, [&](auto status) {
       if (status == LineairDB::TxStatus::Committed) {
         insert_succeeded.store(true);
       }
