@@ -71,6 +71,7 @@ class Database::Impl {
   }
 
   ~Impl() {
+    destructing_.store(true);
     Fence();
     thread_pool_.StopAcceptingTransactions();
     epoch_framework_.Sync();
@@ -201,10 +202,16 @@ class Database::Impl {
     const auto current_epoch = epoch_framework_.GetGlobalEpoch();
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
-    callback_manager_.WaitForAllCallbacksToBeExecuted();
-    // Spin-wait with yield for better performance in the critical path
-    while (latest_callbacked_epoch_.load() < current_epoch) {
-      std::this_thread::sleep_for(std::chrono::microseconds(100));
+
+    const bool skip_checkpoint_wait = destructing_.load() &&
+                                      !config_.enable_logging &&
+                                      config_.enable_checkpointing;
+    if (!skip_checkpoint_wait) {
+      callback_manager_.WaitForAllCallbacksToBeExecuted();
+      // Spin-wait with yield for better performance in the critical path
+      while (latest_callbacked_epoch_.load() < current_epoch) {
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+      }
     }
     // Wait for all index updates to be linearizable
     // This ensures that all insertions/deletions are visible in the index
@@ -218,18 +225,21 @@ class Database::Impl {
     return [&](EpochNumber old_epoch) {
       // Logging
       if (config_.enable_logging) {
-        EpochNumber durable_epoch = logger_.FlushDurableEpoch();
         thread_pool_.EnqueueForAllThreads(
             [&, old_epoch]() { logger_.FlushLogs(old_epoch); });
-        thread_pool_.EnqueueForAllThreads([&, durable_epoch] {
-          callback_manager_.ExecuteCallbacks(durable_epoch);
-        });
+      }
+
+      EpochNumber durable = old_epoch;
+      if (config_.enable_logging) {
+        durable = logger_.FlushDurableEpoch();
+      } else if (config_.enable_checkpointing) {
+        durable = checkpoint_manager_.GetCheckpointCompletedEpoch();
       }
 
       // Execute Callbacks
-      thread_pool_.EnqueueForAllThreads([&, old_epoch]() {
-        callback_manager_.ExecuteCallbacks(old_epoch);
-        latest_callbacked_epoch_.store(old_epoch);
+      thread_pool_.EnqueueForAllThreads([&, durable]() {
+        callback_manager_.ExecuteCallbacks(durable);
+        latest_callbacked_epoch_.store(durable);
       });
 
       if (config_.enable_checkpointing) {
@@ -316,6 +326,7 @@ class Database::Impl {
   TableDictionary table_dictionary_;
   std::atomic<EpochNumber> latest_callbacked_epoch_{1};
   Recovery::CPRManager checkpoint_manager_;
+  std::atomic<bool> destructing_{false};
   ThreadPool thread_pool_;
 };
 
