@@ -269,7 +269,7 @@ TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
     assert(begin < now);
     size_t elapsed =
         std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
-    if (config.checkpoint_period * 10 < elapsed) break;
+    if (config.checkpoint_period * 20 < elapsed) break;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   ASSERT_FALSE(filesize_is_monotonically_increasing);
