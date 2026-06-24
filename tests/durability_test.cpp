@@ -251,9 +251,15 @@ TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
   ASSERT_EQ(filesize, getLogDirectorySize(config));
   bool filesize_is_monotonically_increasing = true;
 
-  auto begin = std::chrono::steady_clock::now();
+  const int max_attempts = 100;
 
-  for (;;) {
+  for (int i = 0; i < max_attempts; ++i) {
+    ASSERT_NO_THROW({
+      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
+    });
+
+    db_->WaitForCheckpoint();
+
     const size_t current_file_size = getLogDirectorySize(config);
     if (filesize <= current_file_size) {
       filesize = current_file_size;
@@ -261,16 +267,6 @@ TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
       filesize_is_monotonically_increasing = false;
       break;
     }
-    ASSERT_NO_THROW({
-      TestHelper::DoTransactions(db_.get(), {Update, Update, Update});
-    });
-
-    auto now = std::chrono::steady_clock::now();
-    assert(begin < now);
-    auto elapsed =
-        std::chrono::duration_cast<std::chrono::seconds>(now - begin).count();
-    if (static_cast<decltype(elapsed)>(config.checkpoint_period * 10) < elapsed)
-      break;
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   ASSERT_FALSE(filesize_is_monotonically_increasing);
