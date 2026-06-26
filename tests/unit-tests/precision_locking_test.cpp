@@ -149,7 +149,6 @@ TEST_F(PrecisionLockingIndexTest, FenceAtStartupDoesNotUnderflow) {
   config.enable_recovery = false;
   config.enable_logging = false;
   config.enable_checkpointing = false;
-  config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
   auto db = std::make_unique<LineairDB::Database>(config);
 
   // Verification: Verify that calling Fence() at startup under low epoch
