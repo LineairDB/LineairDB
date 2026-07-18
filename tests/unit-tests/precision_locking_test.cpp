@@ -143,6 +143,22 @@ TEST_F(PrecisionLockingIndexTest, InsertAfterFailedInsertDueToScan) {
   }
 }
 
+// Regression test: Fence() must not underflow at DB startup.
+//
+// Background:
+//   latest_callbacked_epoch_ is initialized to 1. At startup with a low
+//   global epoch, the Fence() spin-wait:
+//
+//     while (latest_callbacked_epoch_.load() < current_epoch) { ... }
+//
+//   could underflow if current_epoch were computed as 0 (unsigned wrap),
+//   causing an infinite spin. This test verifies the guard condition works.
+//
+// Note:
+//   This test uses the default epoch duration (40ms) so that Sync() — which
+//   needs 2 epoch advances — completes quickly (~80ms). An artificially long
+//   epoch (e.g. 10000ms) would cause Fence() and destructor Sync() to take
+//   tens of seconds, leading to parallel CI timeouts.
 TEST_F(PrecisionLockingIndexTest, FenceAtStartupDoesNotUnderflow) {
   db_.reset(nullptr);
   LineairDB::Config config;
@@ -162,7 +178,8 @@ TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
   config.enable_recovery = false;
   config.enable_logging = false;
   config.enable_checkpointing = false;
-  config.epoch_duration_ms = 10000;  // 10 seconds epoch duration
+  config.epoch_duration_ms =
+      2000;  // 2 seconds is enough to keep operations in the same epoch
   auto db = std::make_unique<LineairDB::Database>(config);
 
   db->CreateTable("users");
@@ -179,14 +196,14 @@ TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
     scan_started.store(true);
 
     while (!insert_completed.load()) {
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     db->EndTransaction(tx, [](auto) {});
   });
 
   std::thread insert_thread([&]() {
     while (!scan_started.load()) {
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     auto& tx = db->BeginTransaction();
