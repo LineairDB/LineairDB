@@ -37,7 +37,7 @@ namespace LineairDB {
 
 class TableDictionary;
 class EpochFramework;
-class DataItem;
+struct DataItem;
 
 namespace Recovery {
 
