@@ -124,9 +124,6 @@ struct Config {
   };
   DurabilityStrategy durability = DurabilityStrategy::CheckpointAndWAL;
 
-  // Legacy configuration flags (mapped to durability strategy at startup)
-  bool enable_logging = true;
-  bool enable_checkpointing = true;
 
   /**
    * @brief

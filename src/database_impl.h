@@ -43,17 +43,7 @@ class Database::Impl {
   inline static Database::Impl* CurrentDBInstance;
 
   Impl(const Config& c = Config())
-      : config_([&]() {
-          Config copy = c;
-          if (!copy.enable_logging && !copy.enable_checkpointing) {
-            copy.durability = Config::DurabilityStrategy::None;
-          } else if (copy.enable_logging && !copy.enable_checkpointing) {
-            copy.durability = Config::DurabilityStrategy::WAL;
-          } else if (!copy.enable_logging && copy.enable_checkpointing) {
-            copy.durability = Config::DurabilityStrategy::Checkpoint;
-          }
-          return copy;
-        }()),
+      : config_(c),
         logger_(config_),
         callback_manager_(config_),
         epoch_framework_(config_.epoch_duration_ms, EventsOnEpochIsUpdated()),

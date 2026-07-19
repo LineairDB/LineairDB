@@ -270,12 +270,25 @@ TEST_F(CPRTest, RecoveryIgnoresWorkingFiles) {
 }
 
 TEST_F(CPRTest, IntraEpochMultipleWritesConsistency) {
-  // Commit multiple writes within the same epoch window
+  // Recreate DB with a larger epoch duration to guarantee all writes land in the same epoch window
+  db_.reset();
+  std::filesystem::remove_all(config_.work_dir);
+  config_.epoch_duration_ms = 1000;
+  db_ = std::make_unique<LineairDB::Database>(config_);
+
+  // Commit multiple writes sequentially within the same epoch window
   std::atomic<int> commit_count{0};
   for (int i = 0; i < 3; ++i) {
+    std::atomic<bool> tx_done{false};
     db_->ExecuteTransaction(
         [i](LineairDB::Transaction& tx) { tx.Write<int>("same_epoch", i); },
-        [&](LineairDB::TxStatus) { commit_count.fetch_add(1); }, std::nullopt);
+        [&](LineairDB::TxStatus) {
+          commit_count.fetch_add(1);
+          tx_done.store(true);
+        }, std::nullopt);
+    while (!tx_done.load()) {
+      std::this_thread::yield();
+    }
   }
   db_->Fence();
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -283,6 +296,8 @@ TEST_F(CPRTest, IntraEpochMultipleWritesConsistency) {
 
   db_.reset();
 
+  // Restore epoch duration to a smaller value for recovery verification to speed up Fence()
+  config_.epoch_duration_ms = 10;
   config_.enable_recovery = true;
   db_ = std::make_unique<LineairDB::Database>(config_);
 
