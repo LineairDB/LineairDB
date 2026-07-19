@@ -42,7 +42,8 @@ class DataItem;
 namespace Recovery {
 
 /**
- * @brief CPRManager: Consistent Prefix Recovery via Incremental Delta Checkpointing
+ * @brief CPRManager: Consistent Prefix Recovery via Incremental Delta
+ * Checkpointing
  */
 class CPRManager {
   struct DirtyEntry {
@@ -75,7 +76,8 @@ class CPRManager {
   };
 
  public:
-  CPRManager(const Config& config, TableDictionary& dict, EpochFramework& epoch);
+  CPRManager(const Config& config, TableDictionary& dict,
+             EpochFramework& epoch);
   ~CPRManager();
 
   void Stop();
@@ -105,11 +107,10 @@ class CPRManager {
     PrecommitWriteSet(write_set, current_epoch);
   }
 
-  void OnAbort(const WriteSetType& write_set) {
-    AbortWriteSet(write_set);
-  }
+  void OnAbort(const WriteSetType& write_set) { AbortWriteSet(write_set); }
 
-  void PrecommitWriteSet(const WriteSetType& write_set, EpochNumber current_epoch);
+  void PrecommitWriteSet(const WriteSetType& write_set,
+                         EpochNumber current_epoch);
   void AbortWriteSet(const WriteSetType& write_set);
 
   // --- Recovery ---
