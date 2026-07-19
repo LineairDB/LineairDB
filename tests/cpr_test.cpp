@@ -237,9 +237,9 @@ TEST_F(CPRTest, CorruptedMsgpackRecovery) {
 
   // Re-open should succeed, ignoring corrupted part gracefully
   std::atomic<bool> read_done{false};
-  db_->ExecuteTransaction(
-      [](LineairDB::Transaction& tx) { tx.Read<int>("x"); },
-      [&](LineairDB::TxStatus) { read_done.store(true); }, std::nullopt);
+  db_->ExecuteTransaction([](LineairDB::Transaction& tx) { tx.Read<int>("x"); },
+                          [&](LineairDB::TxStatus) { read_done.store(true); },
+                          std::nullopt);
   db_->Fence();
   EXPECT_TRUE(read_done.load());
 }
@@ -262,15 +262,16 @@ TEST_F(CPRTest, RecoveryIgnoresWorkingFiles) {
   db_ = std::make_unique<LineairDB::Database>(config_);
 
   std::atomic<bool> read_done{false};
-  db_->ExecuteTransaction(
-      [](LineairDB::Transaction& tx) { tx.Read<int>("x"); },
-      [&](LineairDB::TxStatus) { read_done.store(true); }, std::nullopt);
+  db_->ExecuteTransaction([](LineairDB::Transaction& tx) { tx.Read<int>("x"); },
+                          [&](LineairDB::TxStatus) { read_done.store(true); },
+                          std::nullopt);
   db_->Fence();
   EXPECT_TRUE(read_done.load());
 }
 
 TEST_F(CPRTest, IntraEpochMultipleWritesConsistency) {
-  // Recreate DB with a larger epoch duration to guarantee all writes land in the same epoch window
+  // Recreate DB with a larger epoch duration to guarantee all writes land in
+  // the same epoch window
   db_.reset();
   std::filesystem::remove_all(config_.work_dir);
   config_.epoch_duration_ms = 1000;
@@ -285,7 +286,8 @@ TEST_F(CPRTest, IntraEpochMultipleWritesConsistency) {
         [&](LineairDB::TxStatus) {
           commit_count.fetch_add(1);
           tx_done.store(true);
-        }, std::nullopt);
+        },
+        std::nullopt);
     while (!tx_done.load()) {
       std::this_thread::yield();
     }
@@ -296,7 +298,8 @@ TEST_F(CPRTest, IntraEpochMultipleWritesConsistency) {
 
   db_.reset();
 
-  // Restore epoch duration to a smaller value for recovery verification to speed up Fence()
+  // Restore epoch duration to a smaller value for recovery verification to
+  // speed up Fence()
   config_.epoch_duration_ms = 10;
   config_.enable_recovery = true;
   db_ = std::make_unique<LineairDB::Database>(config_);

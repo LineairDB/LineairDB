@@ -29,13 +29,13 @@
 #include <vector>
 
 #include "recovery/logger.h"
+#include "table/table_dictionary.hpp"
 #include "types/data_item.hpp"
 #include "types/definitions.h"
 #include "types/snapshot.hpp"
 #include "util/epoch_framework.hpp"
 #include "util/logger.hpp"
 #include "util/thread_key_storage.h"
-#include "table/table_dictionary.hpp"
 
 namespace LineairDB {
 namespace Recovery {
@@ -57,9 +57,7 @@ std::vector<Logger::LogRecord> ReadLogFile(const std::string& path) {
   for (size_t offset = 0; offset < buf->size();) {
     try {
       Logger::LogRecords records;
-      msgpack::unpack(buf->data(), buf->size(), offset)
-          .get()
-          .convert(records);
+      msgpack::unpack(buf->data(), buf->size(), offset).get().convert(records);
       for (auto& r : records) result.push_back(std::move(r));
     } catch (...) {
       break;
@@ -68,9 +66,10 @@ std::vector<Logger::LogRecord> ReadLogFile(const std::string& path) {
   return result;
 }
 
-} // namespace anonymous
+}  // namespace
 
-CPRManager::CPRManager(const Config& config, TableDictionary& /*dict*/, EpochFramework& epoch)
+CPRManager::CPRManager(const Config& config, TableDictionary& /*dict*/,
+                       EpochFramework& epoch)
     : config_(config),
       epoch_manager_ref_(epoch),
       dirty_stable_empty_(true),
@@ -87,9 +86,7 @@ CPRManager::CPRManager(const Config& config, TableDictionary& /*dict*/, EpochFra
   }
 }
 
-CPRManager::~CPRManager() {
-  Stop();
-}
+CPRManager::~CPRManager() { Stop(); }
 
 void CPRManager::Stop() {
   if (stop_.exchange(true)) return;
@@ -136,7 +133,7 @@ void CPRManager::RotateDirtySets(EpochNumber next_checkpoint_epoch) {
 }
 
 void CPRManager::PrecommitWriteSet(const WriteSetType& write_set,
-                       EpochNumber current_epoch) {
+                                   EpochNumber current_epoch) {
   if (!IsCheckpoint() || write_set.empty()) return;
   has_dirty_writes_.store(true, std::memory_order_relaxed);
   const auto cp_epoch = checkpoint_epoch_.load(std::memory_order_acquire);
@@ -218,15 +215,13 @@ WriteSetType CPRManager::GetRecoverySetFromLogs() {
 }
 
 std::vector<std::pair<EpochNumber, std::string>> CPRManager::FindLogFiles(
-    std::string_view prefix,
-    EpochNumber max_epoch) const {
+    std::string_view prefix, EpochNumber max_epoch) const {
   namespace fs = std::filesystem;
   std::vector<std::pair<EpochNumber, std::string>> result;
   if (!fs::exists(config_.work_dir)) return result;
   for (const auto& entry : fs::directory_iterator(config_.work_dir)) {
     const std::string name = entry.path().filename().string();
-    if (name.rfind(prefix, 0) != 0 ||
-        name.find(".log") == std::string::npos ||
+    if (name.rfind(prefix, 0) != 0 || name.find(".log") == std::string::npos ||
         name.find(".working") != std::string::npos)
       continue;
     try {
@@ -334,9 +329,9 @@ void CPRManager::IncrementalWorkerLoop() {
   while (!stop_.load()) {
     {
       std::unique_lock<std::mutex> lock(worker_latch_);
-      worker_cv_.wait_for(
-          lock, std::chrono::seconds(1),
-          [&] { return stop_.load() || !dirty_stable_empty_.load(); });
+      worker_cv_.wait_for(lock, std::chrono::seconds(1), [&] {
+        return stop_.load() || !dirty_stable_empty_.load();
+      });
     }
     if (stop_.load()) break;
 
@@ -408,10 +403,10 @@ void CPRManager::RunCompaction() {
       for (const auto& kvp : log_record.key_value_pairs) {
         TableKey ref{kvp.table_name, kvp.key};
         auto [it, inserted] = merged.emplace(ref, &kvp);
-        if (!inserted && (it->second->key.empty() ||
-                          it->second->tid.epoch < kvp.tid.epoch ||
-                          (it->second->tid.epoch == kvp.tid.epoch &&
-                           it->second->tid.tid < kvp.tid.tid)))
+        if (!inserted &&
+            (it->second->key.empty() || it->second->tid.epoch < kvp.tid.epoch ||
+             (it->second->tid.epoch == kvp.tid.epoch &&
+              it->second->tid.tid < kvp.tid.tid)))
           it->second = &kvp;
       }
     }
@@ -464,5 +459,5 @@ EpochNumber CPRManager::GetDurableEpoch() const {
   return durable_epoch_.load();
 }
 
-} // namespace Recovery
-} // namespace LineairDB
+}  // namespace Recovery
+}  // namespace LineairDB

@@ -124,7 +124,6 @@ struct Config {
   };
   DurabilityStrategy durability = DurabilityStrategy::CheckpointAndWAL;
 
-
   /**
    * @brief
    * It uses as the interval time (milliseconds) for checkpointing.
