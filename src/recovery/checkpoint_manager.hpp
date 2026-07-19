@@ -46,10 +46,15 @@ namespace Recovery {
  * Checkpointing
  */
 class CPRManager {
+  // Intrusive node of a per-thread, lock-free Treiber stack (see DirtySet
+  // below): `next` links entries pushed by the owning thread; the
+  // checkpoint worker detaches the whole chain atomically via
+  // DirtySet::head.exchange() and walks it with `next`.
   struct DirtyEntry {
     std::string table_name;
     std::string key;
     DataItem* item;
+    DirtyEntry* next{nullptr};
   };
   struct TableKey {
     std::string table_name;
@@ -64,15 +69,17 @@ class CPRManager {
       }
     };
   };
+  // Lock-free Treiber stack: the owning thread is the sole producer
+  // (PrecommitWriteSet CAS-prepends DirtyEntry nodes onto `head`); the
+  // checkpoint worker is the sole consumer, detaching the entire chain in
+  // one atomic exchange (WriteDeltaCheckpoint) via ThreadKeyStorage::ForEach.
+  // Because publishing a node and detaching the whole chain are each a
+  // single atomic RMW on `head`, there is no intermediate state where a
+  // "retiring" buffer can still be concurrently mutated by the producer --
+  // unlike the previous double-buffer/active_idx design, which needed a
+  // mutex to close exactly that window.
   struct DirtySet {
-    std::vector<DirtyEntry> bufs[2];
-    std::atomic<size_t> active_idx{0};
-    std::vector<DirtyEntry>* dirty_stable{nullptr};
-
-    DirtySet() {
-      bufs[0].reserve(4096);
-      bufs[1].reserve(4096);
-    }
+    std::atomic<DirtyEntry*> head{nullptr};
   };
 
  public:
@@ -133,7 +140,6 @@ class CPRManager {
 
   void IncrementalWorkerLoop();
   void WriteRemainingDirtyEntries();
-  void ForceRotateBuffers();
 
   void CompactorLoop();
   void RunCompaction();
