@@ -43,12 +43,22 @@ class Database::Impl {
   inline static Database::Impl* CurrentDBInstance;
 
   Impl(const Config& c = Config())
-      : config_(c),
+      : config_([&]() {
+          Config copy = c;
+          if (!copy.enable_logging && !copy.enable_checkpointing) {
+            copy.durability = Config::DurabilityStrategy::None;
+          } else if (copy.enable_logging && !copy.enable_checkpointing) {
+            copy.durability = Config::DurabilityStrategy::WAL;
+          } else if (!copy.enable_logging && copy.enable_checkpointing) {
+            copy.durability = Config::DurabilityStrategy::Checkpoint;
+          }
+          return copy;
+        }()),
         logger_(config_),
         callback_manager_(config_),
-        epoch_framework_(c.epoch_duration_ms, EventsOnEpochIsUpdated()),
+        epoch_framework_(config_.epoch_duration_ms, EventsOnEpochIsUpdated()),
         checkpoint_manager_(config_, table_dictionary_, epoch_framework_),
-        thread_pool_(c.max_thread) {
+        thread_pool_(config_.max_thread) {
     if (Database::Impl::CurrentDBInstance == nullptr) {
       Database::Impl::CurrentDBInstance = this;
       SPDLOG_INFO("LineairDB instance has been constructed.");
@@ -117,7 +127,7 @@ class Database::Impl {
           }
           const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
           callback_manager_.Enqueue(std::move(callback), current_epoch);
-          if (config_.enable_logging) {
+          if (checkpoint_manager_.IsWAL()) {
             logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch);
           }
         } else {
@@ -155,7 +165,7 @@ class Database::Impl {
       const auto current_epoch = epoch_framework_.GetMyThreadLocalEpoch();
       callback_manager_.Enqueue(std::move(clbk), current_epoch, true);
 
-      if (config_.enable_logging) {
+      if (checkpoint_manager_.IsWAL()) {
         logger_.Enqueue(tx.tx_pimpl_->write_set_, current_epoch, true);
       }
 
@@ -165,10 +175,12 @@ class Database::Impl {
     }
     epoch_framework_.MakeMeOffline();
 
-    if (config_.enable_checkpointing) {
+    if (checkpoint_manager_.IsCheckpoint()) {
       auto checkpoint_completed =
           checkpoint_manager_.GetCheckpointCompletedEpoch();
-      logger_.TruncateLogs(checkpoint_completed);
+      if (checkpoint_completed > 0) {
+        logger_.TruncateLogs(checkpoint_completed);
+      }
     }
     delete &tx;
     return committed;
@@ -204,8 +216,8 @@ class Database::Impl {
     thread_pool_.WaitForQueuesToBecomeEmpty();
 
     const bool skip_checkpoint_wait = destructing_.load() &&
-                                      !config_.enable_logging &&
-                                      config_.enable_checkpointing;
+                                      !checkpoint_manager_.IsWAL() &&
+                                      checkpoint_manager_.IsCheckpoint();
     if (!skip_checkpoint_wait) {
       callback_manager_.WaitForAllCallbacksToBeExecuted();
       // Spin-wait with yield for better performance in the critical path
@@ -223,32 +235,36 @@ class Database::Impl {
   // NOTE: Called by a special thread managed by EpochFramework.
   std::function<void(EpochNumber)> EventsOnEpochIsUpdated() {
     return [&](EpochNumber old_epoch) {
+      if (checkpoint_manager_.IsCheckpoint()) {
+        checkpoint_manager_.RotateDirtySets(old_epoch + 1);
+      }
       // Logging
-      if (config_.enable_logging) {
+      if (checkpoint_manager_.IsWAL()) {
         thread_pool_.EnqueueForAllThreads(
             [&, old_epoch]() { logger_.FlushLogs(old_epoch); });
       }
 
       EpochNumber durable = old_epoch;
-      if (config_.enable_logging) {
+      if (checkpoint_manager_.IsWAL()) {
         durable = logger_.FlushDurableEpoch();
-      } else if (config_.enable_checkpointing) {
+      } else if (checkpoint_manager_.IsCheckpoint()) {
         durable = checkpoint_manager_.GetCheckpointCompletedEpoch();
       }
 
       // Execute Callbacks
-      thread_pool_.EnqueueForAllThreads([&, durable]() {
+      thread_pool_.EnqueueForAllThreads([&, old_epoch, durable]() {
         callback_manager_.ExecuteCallbacks(durable);
-        latest_callbacked_epoch_.store(durable);
+        latest_callbacked_epoch_.store(old_epoch);
       });
 
-      if (config_.enable_checkpointing) {
+      if (checkpoint_manager_.IsCheckpoint()) {
         auto checkpoint_completed =
             checkpoint_manager_.GetCheckpointCompletedEpoch();
-
-        thread_pool_.EnqueueForAllThreads([&, checkpoint_completed]() {
-          logger_.TruncateLogs(checkpoint_completed);
-        });
+        if (checkpoint_completed > 0) {
+          thread_pool_.EnqueueForAllThreads([&, checkpoint_completed]() {
+            logger_.TruncateLogs(checkpoint_completed);
+          });
+        }
       }
     };
   }
@@ -276,22 +292,34 @@ class Database::Impl {
  private:
   void Recovery() {
     SPDLOG_INFO("Start recovery process");
-    // Start recovery from logfiles
     EpochNumber highest_epoch = 1;
-    const auto durable_epoch = logger_.GetDurableEpochFromLog();
-    SPDLOG_DEBUG("  Durable epoch is resumed from {0}", highest_epoch);
-    logger_.SetDurableEpoch(durable_epoch);
-    [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(
-        [&]() { logger_.RememberMe(durable_epoch); });
-    assert(enqueued);
 
-    thread_pool_.WaitForQueuesToBecomeEmpty();
+    WriteSetType recovery_sets;
+    if (checkpoint_manager_.IsCheckpoint()) {
+      const auto durable_epoch = checkpoint_manager_.RecoverDurableEpoch();
+      SPDLOG_DEBUG("  Durable epoch is resumed from {0}", durable_epoch);
+      highest_epoch = std::max(highest_epoch, durable_epoch);
+      recovery_sets = checkpoint_manager_.GetRecoverySetFromLogs();
+    } else if (checkpoint_manager_.IsWAL()) {
+      const auto durable_epoch = logger_.GetDurableEpochFromLog();
+      SPDLOG_DEBUG("  Durable epoch is resumed from {0}", durable_epoch);
+      logger_.SetDurableEpoch(durable_epoch);
+      [[maybe_unused]] auto enqueued = thread_pool_.EnqueueForAllThreads(
+          [&]() { logger_.RememberMe(durable_epoch); });
+      assert(enqueued);
+      thread_pool_.WaitForQueuesToBecomeEmpty();
 
-    epoch_framework_.MakeMeOnline();
-    epoch_framework_.SetMyThreadLocalEpoch(durable_epoch);
+      epoch_framework_.MakeMeOnline();
+      epoch_framework_.SetMyThreadLocalEpoch(durable_epoch);
 
-    highest_epoch = std::max(highest_epoch, durable_epoch);
-    auto&& recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
+      highest_epoch = std::max(highest_epoch, durable_epoch);
+      recovery_sets = logger_.GetRecoverySetFromLogs(durable_epoch);
+    }
+
+    if (checkpoint_manager_.IsCheckpoint()) {
+      epoch_framework_.MakeMeOnline();
+      epoch_framework_.SetMyThreadLocalEpoch(highest_epoch);
+    }
 
     for (auto& recovery_set : recovery_sets) {
       // Skip deleted entries (tombstones with size=0)

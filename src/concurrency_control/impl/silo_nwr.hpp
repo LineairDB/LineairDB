@@ -86,7 +86,7 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
   void Write(const std::string_view, const std::byte* const, const size_t,
              DataItem*) final override{};
   void Abort() final override{};
-  bool Precommit(bool need_to_checkpoint) final override {
+  bool Precommit() final override {
     /** Sorting write set to prevent deadlock **/
     std::sort(tx_ref_.write_set_ref_.begin(), tx_ref_.write_set_ref_.end(),
               Snapshot::Compare);
@@ -140,24 +140,22 @@ class SiloNWRTyped final : public ConcurrencyControlBase {
         }
       }
     }
-    if (need_to_checkpoint) {
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        snapshot.index_cache->CopyLiveVersionToStableVersion();
-      }
-    }
+    const auto my_epoch = tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
+    tx_ref_.checkpoint_manager_ref_.OnPrecommit(tx_ref_.write_set_ref_,
+                                                my_epoch);
 
     /** Update Metadata for NWR **/
     if constexpr (EnableNWR) {
       UpdatePivotObjects();
     }
 
-    // CompilerFence();
     tx_ref_.epoch_framework_ref_.MakeMeOffline();
     tx_ref_.epoch_framework_ref_.MakeMeOnline();
-    // CompilerFence();
 
     /** Validation Phase **/
     if (!AntiDependencyValidation()) {
+      tx_ref_.checkpoint_manager_ref_.OnAbort(tx_ref_.write_set_ref_);
+
       // if validation failed, unlock all objects
       for (auto& snapshot : tx_ref_.write_set_ref_) {
         auto current = snapshot.index_cache->transaction_id.load();

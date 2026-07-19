@@ -46,7 +46,8 @@ Transaction::Impl::Impl(Database::Impl* db_pimpl) noexcept
   current_transaction_context = this;
 
   TransactionReferences&& tx = {read_set_, write_set_,
-                                db_pimpl_->epoch_framework_, current_status_};
+                                db_pimpl_->epoch_framework_, current_status_,
+                                db_pimpl_->checkpoint_manager_};
 
   // WANTFIX for performance
   // Here we allocate one (derived) concurrency control instance per
@@ -333,13 +334,7 @@ void Transaction::Impl::Abort() {
 }
 bool Transaction::Impl::Precommit() {
   if (IsAborted()) return false;
-
-  const bool need_to_checkpoint =
-      (db_pimpl_->GetConfig().enable_checkpointing &&
-       db_pimpl_->IsNeedToCheckpointing(
-           db_pimpl_->epoch_framework_.GetMyThreadLocalEpoch()));
-  bool committed = concurrency_control_->Precommit(need_to_checkpoint);
-  return committed;
+  return concurrency_control_->Precommit();
 }
 
 void Transaction::Impl::PostProcessing(TxStatus status) {

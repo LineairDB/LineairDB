@@ -121,7 +121,7 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
       PostProcessing(TxStatus::Aborted);
     }
   };
-  bool Precommit(bool need_to_checkpoint) final override {
+  bool Precommit() final override {
     const EpochNumber my_epoch =
         tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch();
     for (auto& snapshot : tx_ref_.write_set_ref_) {
@@ -137,12 +137,8 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
       snapshot.data_item_copy.transaction_id.store(new_tid);
     }
 
-    if (need_to_checkpoint) {
-      for (auto& snapshot : tx_ref_.write_set_ref_) {
-        snapshot.index_cache->CopyLiveVersionToStableVersion();
-      }
-    }
-
+    tx_ref_.checkpoint_manager_ref_.OnPrecommit(tx_ref_.write_set_ref_,
+                                                my_epoch);
     return true;
   };
 
@@ -154,6 +150,8 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
         item->transaction_id.store(
             snapshot.data_item_copy.transaction_id.load());
       }
+    } else if (status == TxStatus::Aborted) {
+      tx_ref_.checkpoint_manager_ref_.OnAbort(tx_ref_.write_set_ref_);
     }
     UnlockAll();
   }
