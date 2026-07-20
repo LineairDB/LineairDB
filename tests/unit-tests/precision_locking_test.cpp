@@ -16,8 +16,7 @@ class PrecisionLockingIndexTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     config_.enable_recovery = false;
-    config_.enable_logging = false;
-    config_.enable_checkpointing = false;
+    config_.durability = LineairDB::Config::DurabilityStrategy::None;
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
 };
@@ -163,8 +162,7 @@ TEST_F(PrecisionLockingIndexTest, FenceAtStartupDoesNotUnderflow) {
   db_.reset(nullptr);
   LineairDB::Config config;
   config.enable_recovery = false;
-  config.enable_logging = false;
-  config.enable_checkpointing = false;
+  config.durability = LineairDB::Config::DurabilityStrategy::None;
   auto db = std::make_unique<LineairDB::Database>(config);
 
   // Verification: Verify that calling Fence() at startup under low epoch
@@ -176,8 +174,7 @@ TEST_F(PrecisionLockingIndexTest, ConcurrentInsertMustAbortDuringScan) {
   db_.reset(nullptr);
   LineairDB::Config config;
   config.enable_recovery = false;
-  config.enable_logging = false;
-  config.enable_checkpointing = false;
+  config.durability = LineairDB::Config::DurabilityStrategy::None;
   config.epoch_duration_ms =
       2000;  // 2 seconds is enough to keep operations in the same epoch
   auto db = std::make_unique<LineairDB::Database>(config);

@@ -41,9 +41,8 @@ class DurabilityTest
     std::filesystem::remove_all(config_.work_dir);
     config_.max_thread = 4;
     config_.concurrency_control_protocol = GetParam();
-    config_.enable_logging = true;
+    config_.durability = LineairDB::Config::DurabilityStrategy::WAL;
     config_.enable_recovery = true;
-    config_.enable_checkpointing = false;
     config_.checkpoint_period = 10;
     db_ = std::make_unique<LineairDB::Database>(config_);
   }
@@ -56,7 +55,7 @@ class DurabilityTest
 TEST_P(DurabilityTest, Recovery) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
-  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
 
   int initial_value = 1;
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
@@ -89,7 +88,7 @@ TEST_P(DurabilityTest, Recovery) {
 TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
-  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
 
   int initial_value = 1;
   TestHelper::DoTransactions(db_.get(), {[&](LineairDB::Transaction& tx) {
@@ -115,12 +114,12 @@ TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsent) {
 
 TEST_P(DurabilityTest, RecoveryKeepsDeletedKeysAbsentEvenWithCheckpoint) {
   LineairDB::Config config = db_->GetConfig();
-  config.enable_checkpointing = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::CheckpointAndWAL;
   config.checkpoint_period = 1;
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
-  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
 
   int initial_value = 1;
   TestHelper::DoTransactions(
@@ -170,7 +169,7 @@ TEST_P(DurabilityTest, RecoveryLargeObject) {
 TEST_P(DurabilityTest, RecoveryInContendedWorkload) {
   // We expect LineairDB enables recovery logging by default.
   const LineairDB::Config config = db_->GetConfig();
-  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
@@ -196,7 +195,7 @@ TEST_P(DurabilityTest, RecoveryInContendedWorkload) {
 
 TEST_P(DurabilityTest, RecoveryWithHandlerInterface) {
   const LineairDB::Config config = db_->GetConfig();
-  ASSERT_TRUE(config.enable_logging);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
@@ -224,9 +223,9 @@ size_t getLogDirectorySize(const LineairDB::Config& conf) {
   namespace fs = std::filesystem;
   size_t size = 0;
   for (const auto& entry : fs::directory_iterator(conf.work_dir)) {
-    if (entry.path().filename().generic_string().find("working") !=
-        std::string::npos)
-      continue;
+    std::string filename = entry.path().filename().generic_string();
+    if (filename.find("working") != std::string::npos) continue;
+    if (filename.find("thread") == std::string::npos) continue;
     size += fs::file_size(entry.path());
   }
   return size;
@@ -234,24 +233,25 @@ size_t getLogDirectorySize(const LineairDB::Config& conf) {
 
 TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
-  config.enable_checkpointing = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::CheckpointAndWAL;
   config.checkpoint_period = 1;
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
-  ASSERT_TRUE(config.enable_logging);
-  ASSERT_TRUE(config.enable_checkpointing);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
+  ASSERT_TRUE(config.durability ==
+                  LineairDB::Config::DurabilityStrategy::CheckpointAndWAL ||
+              config.durability ==
+                  LineairDB::Config::DurabilityStrategy::Checkpoint);
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
     tx.Write<int>("alice", value);
   });
 
-  size_t filesize = 0;
-  ASSERT_EQ(filesize, getLogDirectorySize(config));
-  bool filesize_is_monotonically_increasing = true;
-
   const int max_attempts = 100;
+  bool is_bounded = true;
+  const size_t max_allowed_log_size = 1024;  // 1KB
 
   for (int i = 0; i < max_attempts; ++i) {
     ASSERT_NO_THROW({
@@ -259,29 +259,31 @@ TEST_P(DurabilityTest, LogFileSizeIsBounded) {  // a.k.a., checkpointing
     });
 
     db_->WaitForCheckpoint();
+    db_->Fence();
 
     const size_t current_file_size = getLogDirectorySize(config);
-    if (filesize <= current_file_size) {
-      filesize = current_file_size;
-    } else {
-      filesize_is_monotonically_increasing = false;
+    if (current_file_size > max_allowed_log_size) {
+      is_bounded = false;
       break;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
-  ASSERT_FALSE(filesize_is_monotonically_increasing);
+  ASSERT_TRUE(is_bounded);
 }
 
 TEST_P(DurabilityTest,
        LogFileSizeIsBoundedOnHandlerInterface) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
-  config.enable_checkpointing = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::CheckpointAndWAL;
   config.checkpoint_period = 1;
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
   db_ = std::make_unique<LineairDB::Database>(config);
-  ASSERT_TRUE(config.enable_logging);
-  ASSERT_TRUE(config.enable_checkpointing);
+  ASSERT_TRUE(config.durability != LineairDB::Config::DurabilityStrategy::None);
+  ASSERT_TRUE(config.durability ==
+                  LineairDB::Config::DurabilityStrategy::CheckpointAndWAL ||
+              config.durability ==
+                  LineairDB::Config::DurabilityStrategy::Checkpoint);
 
   TransactionProcedure Update([](LineairDB::Transaction& tx) {
     int value = 0xBEEF;
@@ -329,8 +331,7 @@ TEST_P(DurabilityTest,
 
 TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
-  config.enable_logging = false;
-  config.enable_checkpointing = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::Checkpoint;
   config.checkpoint_period = 2;  // 2sec
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
@@ -386,8 +387,7 @@ TEST_P(DurabilityTest, CPRConsistency) {  // a.k.a., checkpointing
 TEST_P(DurabilityTest,
        CPRConsistencyOnHandlerInterface) {  // a.k.a., checkpointing
   LineairDB::Config config = db_->GetConfig();
-  config.enable_logging = false;
-  config.enable_checkpointing = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::Checkpoint;
   config.checkpoint_period = 2;  // 2sec
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);
@@ -469,7 +469,7 @@ TEST_P(DurabilityTest, TwoPhaseLockingDestructorGracefulShutdown) {
   LineairDB::Config config = db_->GetConfig();
   config.concurrency_control_protocol =
       LineairDB::Config::ConcurrencyControl::TwoPhaseLocking;
-  config.enable_checkpointing = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::CheckpointAndWAL;
   config.checkpoint_period = 1;  // 1sec
   db_.reset(nullptr);
   std::filesystem::remove_all(config.work_dir);

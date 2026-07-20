@@ -40,6 +40,8 @@ struct DataItem {
   DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
   Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
+  std::atomic<EpochNumber> stable_epoch{0};
+  std::atomic<EpochNumber> dirty_epoch{0};
 
   std::byte* value() { return &buffer.value[0]; }
   const std::byte* value() const { return &buffer.value[0]; }

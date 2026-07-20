@@ -38,7 +38,7 @@ size_t benchmark(const size_t db_size, const size_t buffer_size,
   LineairDB::Config config;
   config.concurrency_control_protocol =
       LineairDB::Config::ConcurrencyControl::Silo;
-  config.enable_logging = true;
+  config.durability = LineairDB::Config::DurabilityStrategy::WAL;
   config.enable_recovery = true;
 
   {  // Populate database

@@ -31,8 +31,7 @@ class IndexTest : public ::testing::Test {
   std::unique_ptr<LineairDB::Database> db_;
   virtual void SetUp() {
     config_.enable_recovery = false;
-    config_.enable_logging = false;
-    config_.enable_checkpointing = false;
+    config_.durability = LineairDB::Config::DurabilityStrategy::None;
     db_ = std::make_unique<LineairDB::Database>(config_);
 
     TestHelper::RetryTransactionUntilCommit(db_.get(), [&](auto& tx) {

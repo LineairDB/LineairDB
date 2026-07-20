@@ -107,39 +107,42 @@ struct Config {
 
   /**
    * @brief
-   * If true, LineairDB performs logging for recovery.
+   * Durability strategy for LineairDB.
    *
-   * Default: true
+   * - None:                  No durability guarantee.
+   * - WAL:                   Write-ahead logging only. Unbounded log file size.
+   * - Checkpoint:            Full-scan checkpointing only (CPR-consistency).
+   * - CheckpointAndWAL:      Full-scan checkpointing + WAL (default).
+   *
+   * Default: CheckpointAndWAL
    */
-  bool enable_logging = true;
+  enum class DurabilityStrategy {
+    None,
+    WAL,
+    Checkpoint,
+    CheckpointAndWAL,
+  };
+  DurabilityStrategy durability = DurabilityStrategy::CheckpointAndWAL;
 
   /**
    * @brief
-   * If true, LineairDB performs logging for checkpoint-recovery.
-   * Checkpointing prevents the log file size from increasing monotonically.
-   * i.e, if this parameter is set to false, The disk space used by LineairDB is
-   * unbounded.
-   * You can also turn off enable_logging and use only Checkpointing.
-   * This configure gives the recoverability property called CPR-consistency
-   * [1]. CPR-consitency may volatilize the data of committed transactions at
-   * last the number of seconds specified at checkpoint_period; however, the
-   * persistence of the data before that time is guaranteed.
-   *
-   * Default: true
-   * @ref [1]:
-   * https://www.microsoft.com/en-us/research/uploads/prod/2019/01/cpr-sigmod19.pdf
-   */
-  bool enable_checkpointing = true;
-
-  /**
-   * @brief
-   * It uses as the interval time (seconds) for checkpointing.
+   * It uses as the interval time (milliseconds) for checkpointing.
    * The longer is the better for the performance but the larger interval time
    * causes the increasing of log file size.
    *
-   * Default: 30
+   * Default: 5000 (5 seconds)
    */
-  size_t checkpoint_period = 30;
+  size_t checkpoint_period = 5000;
+
+  /**
+   * @brief
+   * If true, CPR durability strategy executes a final checkpoint during
+   * database destruction. If false, it simulates an unclean shutdown/crash on
+   * destruction (does not write a final checkpoint).
+   *
+   * Default: false
+   */
+  bool enable_graceful_shutdown_checkpoint = false;
 
   /**
    * @brief

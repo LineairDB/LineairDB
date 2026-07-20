@@ -1,13 +1,13 @@
 /*
  *   Copyright (c) 2020 Nippon Telegraph and Telephone Corporation
  *   All rights reserved.
-
+ *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
-
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
-
+ *
  *   Unless required by applicable law or agreed to in writing, software
  *   distributed under the License is distributed on an "AS IS" BASIS,
  *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,204 +22,155 @@
 #include <lineairdb/transaction.h>
 
 #include <atomic>
-#include <chrono>
-#include <msgpack.hpp>
+#include <condition_variable>
+#include <mutex>
+#include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 
-#include "recovery/logger.h"
-#include "table/table_dictionary.hpp"
-#include "types/data_item.hpp"
 #include "types/definitions.h"
-#include "util/epoch_framework.hpp"
-#include "util/logger.hpp"
+#include "types/snapshot.hpp"
+#include "util/thread_key_storage.h"
 
 namespace LineairDB {
 
+class TableDictionary;
+class EpochFramework;
+struct DataItem;
+
 namespace Recovery {
 
+/**
+ * @brief CPRManager: Consistent Prefix Recovery via Incremental Delta
+ * Checkpointing
+ */
 class CPRManager {
- public:
-  enum class Phase { REST, IN_PROGRESS, WAIT_FLUSH };
-  const std::string CheckpointFileName;
-  const std::string CheckpointWorkingFileName;
-
-  CPRManager(const LineairDB::Config& c_ref, TableDictionary& d_ref,
-             EpochFramework& e_ref)
-      : CheckpointFileName(c_ref.work_dir + "/checkpoint.log"),
-        CheckpointWorkingFileName(c_ref.work_dir + "/checkpoint.working.log"),
-        config_ref_(c_ref),
-        dict_ref_(d_ref),
-        epoch_manager_ref_(e_ref),
-        current_phase_(Phase::REST),
-        checkpoint_epoch_(0),
-        checkpoint_completed_epoch_(0),
-        stop_(false),
-        manager_thread_([&]() {
-          if (!config_ref_.enable_checkpointing) return;
-          const auto checkpoint_period = config_ref_.checkpoint_period;
-          for (;;) {
-            {  // REST Phase: sleep
-              auto start = std::chrono::high_resolution_clock::now();
-              if (current_phase_.load() == Phase::REST) {
-                for (;;) {
-                  std::this_thread::sleep_for(std::chrono::seconds(1));
-                  if (stop_.load()) return;
-                  auto now = std::chrono::high_resolution_clock::now();
-                  if (checkpoint_period <=
-                      static_cast<size_t>(
-                          std::chrono::duration_cast<std::chrono::seconds>(
-                              now - start)
-                              .count()))
-                    break;
-                }
-              }
-            }
-
-            {  // PREPARE to checkpointing: determine the snapshot epoch (SE)
-              epoch_manager_ref_.MakeMeOnline();
-              const auto current_epoch = epoch_manager_ref_.GetGlobalEpoch();
-              SPDLOG_DEBUG("PREPARE to checkpointing. current {}",
-                           current_epoch);
-              // NOTE:
-              // epoch framework allows that there are two types of running
-              // transactions such that txns in the epoch
-              //   1) `e-1` (global epoch is bumped but they doesn't know it)
-              //   2) `e`
-              //   2) `e+1` (global epoch was bumped simultaneously)
-              // at this time.
-              // thus we choose `e+1` as the checkpoint epoch;
-              // the end of `e+1` is the `virtual point of consistency`.
-              // Transactions that start after the point and write the new
-              // version must save before image of the point of consistency.
-              // Fortunately, now we can ensure that there are no transaction
-              // in the epoch `e+2`.
-              const auto checkpoint_epoch = current_epoch + 1;
-              checkpoint_epoch_.store(checkpoint_epoch);
-              current_phase_.store(Phase::IN_PROGRESS);
-              assert(checkpoint_epoch != 0);
-              epoch_manager_ref_.MakeMeOffline();
-
-              // Wait for a stable epoch
-              epoch_manager_ref_.Sync();
-            }
-
-            {  //  WAIT_FLUSH: save consistent snapshot
-              // Note that Phase::WAIT_FLUSH is the same with IN_PROGRESS, in
-              // practice.
-              current_phase_.store(Phase::WAIT_FLUSH);
-
-              // We now create the consistent snapshot of the end of the epoch
-              // `e+1`.
-              Recovery::Logger::LogRecords records;
-              Recovery::Logger::LogRecord record;
-              record.epoch = checkpoint_epoch_.load() + 1;
-
-              dict_ref_.ForEachTable([&](LineairDB::Table& table) {
-                table.GetPrimaryIndex().ForEach([&](std::string_view key,
-                                                    LineairDB::DataItem&
-                                                        data_item) {
-                  const bool is_2pl =
-                      config_ref_.concurrency_control_protocol ==
-                      LineairDB::Config::ConcurrencyControl::TwoPhaseLocking;
-                  if (is_2pl) {
-                    data_item.ExclusiveLock2PL();
-                  } else {
-                    data_item.ExclusiveLockSilo();
-                  }
-
-                  // Skip deleted items (not initialized)
-                  if (!data_item.IsInitialized()) {
-                    if (is_2pl) {
-                      data_item.ExclusiveUnlock2PL();
-                    } else {
-                      data_item.ExclusiveUnlockSilo();
-                    }
-                    return true;
-                  }
-
-                  Logger::LogRecord::KeyValuePair kvp;
-                  kvp.table_name = table.GetTableName();
-                  kvp.key = key;
-                  if (data_item.checkpoint_buffer.IsEmpty()) {
-                    // this data item holds version which has written before
-                    // the point of consistency.
-                    kvp.buffer = data_item.buffer.toString();
-                  } else {
-                    kvp.buffer = data_item.checkpoint_buffer.toString();
-                    data_item.checkpoint_buffer.Reset(nullptr, 0);
-                  }
-                  kvp.tid.epoch = record.epoch;
-                  kvp.tid.tid = 0;
-                  record.key_value_pairs.emplace_back(std::move(kvp));
-
-                  if (is_2pl) {
-                    data_item.ExclusiveUnlock2PL();
-                  } else {
-                    data_item.ExclusiveUnlockSilo();
-                  }
-                  return true;
-                });
-              });
-              records.emplace_back(std::move(record));
-
-              std::ofstream new_file(
-                  CheckpointWorkingFileName,
-                  std::ios_base::out | std::ios_base::binary);
-              msgpack::pack(new_file, records);
-              new_file.flush();
-              SPDLOG_DEBUG("RENAME checkpoint workingfile from {0} to {1}",
-                           CheckpointWorkingFileName, CheckpointFileName);
-
-              // NOTE POSIX ensures that rename syscall provides atomicity
-              if (rename(CheckpointWorkingFileName.c_str(),
-                         CheckpointFileName.c_str())) {
-                SPDLOG_ERROR(
-                    "Durability Error: fail to rename checkpoint of the "
-                    "epoch "
-                    "{0:d}. "
-                    "errno: {1}",
-                    record.epoch, errno);
-                exit(1);
-              }
-            }
-            SPDLOG_DEBUG("FLUSH consistent snapshot of epoch {}",
-                         checkpoint_epoch_.load());
-            checkpoint_completed_epoch_.store(checkpoint_epoch_.load());
-            current_phase_.store(Phase::REST);
-          }
-        }) {}
-
-  void Stop() {
-    stop_.store(true);
-    manager_thread_.join();
-  }
-
-  EpochNumber GetCheckpointCompletedEpoch() {
-    return checkpoint_completed_epoch_.load();
-  }
-
-  bool IsNeedToCheckpointing(EpochNumber my_epoch) {
-    const auto global_phase = current_phase_.load();
-    if (global_phase == Phase::REST) {
-      return false;
+  // Intrusive node of a per-thread, lock-free Treiber stack (see DirtySet
+  // below): `next` links entries pushed by the owning thread; the
+  // checkpoint worker detaches the whole chain atomically via
+  // DirtySet::head.exchange() and walks it with `next`.
+  struct DirtyEntry {
+    std::string table_name;
+    std::string key;
+    DataItem* item;
+    DirtyEntry* next{nullptr};
+  };
+  struct TableKey {
+    std::string table_name;
+    std::string key;
+    bool operator==(const TableKey& o) const {
+      return table_name == o.table_name && key == o.key;
     }
-    return checkpoint_epoch_.load() <= my_epoch;
+    struct Hash {
+      size_t operator()(const TableKey& k) const {
+        return std::hash<std::string>{}(k.table_name) ^
+               (std::hash<std::string>{}(k.key) << 1);
+      }
+    };
+  };
+  // Lock-free Treiber stack: the owning thread is the sole producer
+  // (PrecommitWriteSet CAS-prepends DirtyEntry nodes onto `head`); the
+  // checkpoint worker is the sole consumer, detaching the entire chain in
+  // one atomic exchange (WriteDeltaCheckpoint) via ThreadKeyStorage::ForEach.
+  // Because publishing a node and detaching the whole chain are each a
+  // single atomic RMW on `head`, there is no intermediate state where a
+  // "retiring" buffer can still be concurrently mutated by the producer --
+  // unlike the previous double-buffer/active_idx design, which needed a
+  // mutex to close exactly that window.
+  struct DirtySet {
+    std::atomic<DirtyEntry*> head{nullptr};
+  };
+
+ public:
+  CPRManager(const Config& config, TableDictionary& dict,
+             EpochFramework& epoch);
+  ~CPRManager();
+
+  void Stop();
+
+  // --- Upstream compatibility API ---
+  bool IsCheckpoint() const {
+    return config_.durability == Config::DurabilityStrategy::Checkpoint ||
+           config_.durability == Config::DurabilityStrategy::CheckpointAndWAL;
   }
+  bool IsWAL() const {
+    return config_.durability == Config::DurabilityStrategy::WAL ||
+           config_.durability == Config::DurabilityStrategy::CheckpointAndWAL;
+  }
+  bool IsNone() const {
+    return config_.durability == Config::DurabilityStrategy::None;
+  }
+
+  bool IsNeedToCheckpointing(const EpochNumber /*epoch*/) const {
+    return false;
+  }
+
+  EpochNumber GetCheckpointCompletedEpoch();
+
+  void RotateDirtySets(EpochNumber next_checkpoint_epoch);
+
+  void OnPrecommit(const WriteSetType& write_set, EpochNumber current_epoch) {
+    PrecommitWriteSet(write_set, current_epoch);
+  }
+
+  void OnAbort(const WriteSetType& write_set) { AbortWriteSet(write_set); }
+
+  void PrecommitWriteSet(const WriteSetType& write_set,
+                         EpochNumber current_epoch);
+  void AbortWriteSet(const WriteSetType& write_set);
+
+  // --- Recovery ---
+  EpochNumber GetDurableEpoch() const;
+  EpochNumber RecoverDurableEpoch();
+  WriteSetType GetRecoverySetFromLogs();
 
  private:
-  const LineairDB::Config& config_ref_;
-  LineairDB::TableDictionary& dict_ref_;
-  LineairDB::EpochFramework& epoch_manager_ref_;
-  Logger::LogRecords log_records;
-  std::atomic<Phase> current_phase_;
-  std::atomic<EpochNumber> checkpoint_epoch_;  // 'v' in the CPR paper
-  std::atomic<EpochNumber> checkpoint_completed_epoch_;
-  // BloomFilter bloom_filter_for_recent_updates_;
+  std::vector<std::pair<EpochNumber, std::string>> FindLogFiles(
+      std::string_view prefix,
+      EpochNumber max_epoch = std::numeric_limits<EpochNumber>::max()) const;
+
+  std::vector<std::pair<EpochNumber, std::string>> FindDeltaFiles(
+      EpochNumber max_epoch = std::numeric_limits<EpochNumber>::max()) const;
+
+  std::pair<EpochNumber, std::string> FindLatestBase() const;
+
+  void WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown = false);
+  void FlushDurableEpoch(EpochNumber cp_epoch, bool is_shutdown);
+
+  void IncrementalWorkerLoop();
+  void WriteRemainingDirtyEntries();
+
+  void CompactorLoop();
+  void RunCompaction();
+
+  const Config& config_;
+  EpochFramework& epoch_manager_ref_;
+  ThreadKeyStorage<DirtySet> tls_;
+  std::atomic<bool> dirty_stable_empty_;
+  std::mutex worker_latch_;
+  std::condition_variable worker_cv_;
+  std::atomic<size_t> incremental_file_count_{0};
+  std::mutex compactor_latch_;
+  std::condition_variable compactor_cv_;
+  std::atomic<bool> compaction_requested_{false};
+  std::atomic<EpochNumber> checkpoint_epoch_;
+  std::atomic<EpochNumber> durable_epoch_;
   std::atomic<bool> stop_;
   std::thread manager_thread_;
-  MSGPACK_DEFINE(log_records);
+  std::thread compactor_thread_;
+
+  std::atomic<bool> has_dirty_writes_;
+
+  static constexpr std::string_view kDeltaFilePrefix = "cpr_delta_";
+  static constexpr std::string_view kBaseFilePrefix = "cpr_base_";
+  static constexpr size_t kCompactionThreshold = 5;
+
+  const std::string dep_file_;
+  const std::string dep_working_;
 };
+
+using CheckpointManager = CPRManager;
 
 }  // namespace Recovery
 }  // namespace LineairDB

@@ -84,7 +84,7 @@ TEST_F(DatabaseTest, LargeSizeBuffer) {
   LineairDB::Config conf;
   conf.checkpoint_period = 1;
   conf.max_thread = 1;
-  conf.enable_checkpointing = false;
+  conf.durability = LineairDB::Config::DurabilityStrategy::WAL;
 
   std::array<std::byte, Size> alice;
 

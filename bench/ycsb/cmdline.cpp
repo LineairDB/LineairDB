@@ -103,7 +103,9 @@ int main(int argc, char** argv) {
   auto protocol = result["cc"].as<std::string>();
   config.concurrency_control_protocol = Protocols.find(protocol)->second;
   config.enable_recovery = false;
-  config.enable_logging = result["log"].as<bool>();
+  config.durability = result["log"].as<bool>()
+                          ? LineairDB::Config::DurabilityStrategy::WAL
+                          : LineairDB::Config::DurabilityStrategy::None;
   config.max_thread = result["thread"].as<size_t>();
   config.epoch_duration_ms = result["epoch"].as<size_t>();
   config.checkpoint_period = result["checkpoint_interval"].as<size_t>();
