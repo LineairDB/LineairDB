@@ -107,6 +107,15 @@ class TwoPhaseLockingImpl final : public ConcurrencyControlBase {
     auto copy_for_undo = *index_leaf;
     undo_set_.emplace_back(std::make_pair(index_leaf, copy_for_undo));
 
+    // 2PL mutates item->buffer immediately (unlike Silo/SiloNWR, which wait
+    // until Precommit()), so a checkpoint round's stable copy must be taken
+    // here, before this write lands. GetMyThreadLocalEpoch() is frozen since
+    // MakeMeOnline(), so it matches what Precommit() will use later; the
+    // write lock acquired above already serializes this against other
+    // writers to the same item.
+    tx_ref_.checkpoint_manager_ref_.ProtectStableCopy(
+        index_leaf, tx_ref_.epoch_framework_ref_.GetMyThreadLocalEpoch());
+
     index_leaf->Reset(value, size);
   };
 

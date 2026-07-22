@@ -27,7 +27,6 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "recovery/logger.h"
@@ -75,7 +74,6 @@ CPRManager::CPRManager(const Config& config, TableDictionary& /*dict*/,
     : config_(config),
       epoch_manager_ref_(epoch),
       dirty_stable_empty_(true),
-      checkpoint_epoch_(1),
       durable_epoch_(0),
       stop_(false),
       has_dirty_writes_(false),
@@ -97,46 +95,86 @@ void CPRManager::Stop() {
   if (compactor_thread_.joinable()) compactor_thread_.join();
 }
 
-void CPRManager::RotateDirtySets(EpochNumber next_checkpoint_epoch) {
-  if (next_checkpoint_epoch <= checkpoint_epoch_.load()) {
-    return;
-  }
-  if (!has_dirty_writes_.load()) {
-    auto curr = durable_epoch_.load();
-    while (curr < next_checkpoint_epoch &&
-           !durable_epoch_.compare_exchange_weak(curr, next_checkpoint_epoch)) {
+// CPR phase state machine: REST -> IN_PROGRESS -> WAIT_PENDING -> REST.
+// CPR's classic PREPARE phase (a thread handshake confirming a phase change
+// before it takes effect) is omitted: EpochFramework's quiescence guarantee
+// -- the global epoch never advances past an online thread's stale local
+// epoch (see GetSmallestEpoch in epoch_framework.hpp) -- gives the same
+// guarantee for free, one epoch tick after a round starts.
+//
+// Called once per epoch tick (Database::Impl::EventsOnEpochIsUpdated),
+// always from the same thread.
+void CPRManager::RotateDirtySets(EpochNumber new_epoch) {
+  switch (phase_.load(std::memory_order_acquire)) {
+    case Phase::REST: {
+      const auto now = std::chrono::steady_clock::now();
+      const bool period_elapsed =
+          config_.checkpoint_period == 0 ||
+          now - last_round_started_at_ >=
+              std::chrono::milliseconds(config_.checkpoint_period);
+      if (!period_elapsed) return;
+      if (!has_dirty_writes_.exchange(false)) {
+        // No writes since the last round -- nothing to drain, just advance
+        // durable_epoch_.
+        auto curr = durable_epoch_.load();
+        while (curr < new_epoch &&
+               !durable_epoch_.compare_exchange_weak(curr, new_epoch)) {
+        }
+        return;
+      }
+      // version_ = new_epoch protects writes with current_epoch >= new_epoch.
+      version_.store(new_epoch, std::memory_order_release);
+      last_round_started_at_ = now;
+      phase_.store(Phase::IN_PROGRESS, std::memory_order_release);
+      return;
     }
-    return;
+    case Phase::IN_PROGRESS: {
+      // Safe to drain now -- one tick has passed (see class comment).
+      phase_.store(Phase::WAIT_PENDING, std::memory_order_release);
+      dirty_stable_empty_.store(false);
+      worker_cv_.notify_one();
+      return;
+    }
+    case Phase::WAIT_PENDING:
+      // Drain already in flight/queued; IncrementalWorkerLoop flips this
+      // back to REST when done.
+      return;
   }
-  has_dirty_writes_.store(false);
+}
 
-  // The per-thread DirtySet stacks (see below) don't need to be touched
-  // here: they always hold every write not yet drained, regardless of how
-  // many epochs have passed, so simply advancing checkpoint_epoch_ and
-  // waking the worker is enough. The worker's drain (WriteDeltaCheckpoint)
-  // decides how much got captured.
-  checkpoint_epoch_.store(next_checkpoint_epoch);
-  dirty_stable_empty_.store(false);
-  worker_cv_.notify_one();
+void CPRManager::ProtectStableCopy(DataItem* item, EpochNumber current_epoch) {
+  if (!IsCheckpoint()) return;
+  const auto phase = phase_.load(std::memory_order_acquire);
+  if (phase == Phase::REST) return;
+  const auto version = version_.load(std::memory_order_acquire);
+  if (current_epoch < version) return;
+  if (item->stable_version.load(std::memory_order_acquire) == version) return;
+  item->stable_buffer.Reset(item->buffer);
+  item->stable_buffer_initialized = item->IsInitialized();
+  item->stable_version.store(version, std::memory_order_release);
 }
 
 void CPRManager::PrecommitWriteSet(const WriteSetType& write_set,
                                    EpochNumber current_epoch) {
   if (!IsCheckpoint() || write_set.empty()) return;
   has_dirty_writes_.store(true, std::memory_order_relaxed);
-  const auto cp_epoch = checkpoint_epoch_.load(std::memory_order_acquire);
+
+  // Silo/SiloNWR only: item->buffer isn't mutated until after this call (see
+  // silo_nwr.hpp's Precommit()), so this is the right place to take the
+  // stable copy. 2PL already took it earlier, from Write() itself (it
+  // mutates item->buffer immediately) -- protecting again here could, if a
+  // round starts in between, capture 2PL's own new value instead of the
+  // pre-round one.
+  if (config_.concurrency_control_protocol !=
+      Config::ConcurrencyControl::TwoPhaseLocking) {
+    for (auto& snapshot : write_set) {
+      ProtectStableCopy(snapshot.index_cache, current_epoch);
+    }
+  }
+
   auto* ds = tls_.Get();
   for (auto& snapshot : write_set) {
     auto* item = snapshot.index_cache;
-    const auto stable = item->stable_epoch.load(std::memory_order_acquire);
-    if (current_epoch > stable && stable >= cp_epoch) {
-      if (item->checkpoint_buffer.IsEmpty()) {
-        item->checkpoint_buffer.Reset(item->buffer);
-      }
-    }
-    if (stable < current_epoch) {
-      item->stable_epoch.store(current_epoch, std::memory_order_release);
-    }
     if (item->dirty_epoch.load(std::memory_order_acquire) < current_epoch) {
       item->dirty_epoch.store(current_epoch, std::memory_order_release);
       // Lock-free push (Treiber stack): this thread is the sole producer
@@ -247,6 +285,16 @@ void CPRManager::WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown) {
   Logger::LogRecord record;
   record.epoch = cp_epoch;
 
+  // Two phases, deliberately kept separate: (1) detach every per-thread
+  // DirtySet's chain and dedup by item identity *globally*, not per thread
+  // -- two threads can each hold an undrained entry for the same item, and
+  // recovery's tid-tie-break never overwrites, so a per-thread dedup could
+  // let both win arbitrarily. (2) Only after every chain is detached, read
+  // each deduped item's buffer once -- reading eagerly per thread could read
+  // a value that a later-visited thread's still-undrained write should have
+  // superseded.
+  std::unordered_map<DataItem*, DirtyEntry*> deduped;
+  std::vector<std::unique_ptr<DirtyEntry>> owned_entries;
   tls_.ForEach([&](DirtySet* ds) {
     // Atomically detach the entire chain of writes accumulated since the
     // last drain. The release sequence on head (see PrecommitWriteSet's
@@ -255,49 +303,47 @@ void CPRManager::WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown) {
     // the detached chain or starts a fresh chain from nullptr afterward --
     // never both, and never a partially-published node.
     DirtyEntry* chain = ds->head.exchange(nullptr, std::memory_order_acquire);
-    // The stack has no per-epoch partitioning, so if the worker falls
-    // behind, the same item can appear more than once in one drain (e.g.
-    // written in epoch N and again in N+2 before either gets flushed).
-    // checkpoint_buffer is destructively cleared on read below, so
-    // processing the same item twice would read a real preimage the first
-    // time and silently fall back to the live value the second, then emit
-    // both under the same cp_epoch -- recovery's tid-equal case never
-    // overwrites, so the stale (first-processed) copy would win. Dedup by
-    // item identity so each item is captured at most once per drain.
-    std::unordered_set<DataItem*> seen;
     while (chain != nullptr) {
-      std::unique_ptr<DirtyEntry> entry(chain);
+      owned_entries.emplace_back(chain);
       chain = chain->next;
-      if (!seen.insert(entry->item).second) continue;
-
-      const bool is_2pl =
-          config_.concurrency_control_protocol ==
-          LineairDB::Config::ConcurrencyControl::TwoPhaseLocking;
-      if (is_2pl) {
-        entry->item->ExclusiveLock2PL();
-      } else {
-        entry->item->ExclusiveLockSilo();
-      }
-      Logger::LogRecord::KeyValuePair kvp;
-      kvp.table_name = entry->table_name;
-      kvp.key = entry->key;
-      if (!entry->item->IsInitialized()) {
-        kvp.buffer = "";
-      } else if (!entry->item->checkpoint_buffer.IsEmpty()) {
-        kvp.buffer = entry->item->checkpoint_buffer.toString();
-        entry->item->checkpoint_buffer.Reset(nullptr, 0);
-      } else {
-        kvp.buffer = entry->item->buffer.toString();
-      }
-      kvp.tid = {cp_epoch, 0};
-      record.key_value_pairs.emplace_back(std::move(kvp));
-      if (is_2pl) {
-        entry->item->ExclusiveUnlock2PL();
-      } else {
-        entry->item->ExclusiveUnlockSilo();
-      }
+      DirtyEntry* entry = owned_entries.back().get();
+      deduped[entry->item] = entry;  // last-seen wins; only identity matters
     }
   });
+
+  const bool is_2pl = config_.concurrency_control_protocol ==
+                      LineairDB::Config::ConcurrencyControl::TwoPhaseLocking;
+  for (auto& [item, entry] : deduped) {
+    if (is_2pl) {
+      item->ExclusiveLock2PL();
+    } else {
+      item->ExclusiveLockSilo();
+    }
+    Logger::LogRecord::KeyValuePair kvp;
+    kvp.table_name = entry->table_name;
+    kvp.key = entry->key;
+    // If this item has a stable copy taken for exactly this round (see
+    // PrecommitWriteSet), emit that before-image instead of the live buffer
+    // -- something wrote it at or after version_ == cp_epoch, so the live
+    // value belongs to a *future* round's snapshot, not this one. Consume
+    // (reset) the stable copy so a future round starts clean.
+    if (item->stable_version.load(std::memory_order_acquire) == cp_epoch) {
+      kvp.buffer =
+          item->stable_buffer_initialized ? item->stable_buffer.toString() : "";
+      item->stable_version.store(0, std::memory_order_release);
+    } else if (!item->IsInitialized()) {
+      kvp.buffer = "";
+    } else {
+      kvp.buffer = item->buffer.toString();
+    }
+    kvp.tid = {cp_epoch, 0};
+    record.key_value_pairs.emplace_back(std::move(kvp));
+    if (is_2pl) {
+      item->ExclusiveUnlock2PL();
+    } else {
+      item->ExclusiveUnlockSilo();
+    }
+  }
 
   bool has_new_file = false;
   if (!record.key_value_pairs.empty()) {
@@ -310,6 +356,14 @@ void CPRManager::WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown) {
     f.flush();
     has_new_file = true;
   }
+
+  // Both resets must happen before FlushDurableEpoch makes durable_epoch_'s
+  // new value observable: otherwise a caller that polls
+  // GetCheckpointCompletedEpoch() and immediately starts a new round could
+  // see phase_ still at WAIT_PENDING (a silent no-op) or clobber the new
+  // round's dirty_stable_empty_ back to true, losing its wakeup.
+  dirty_stable_empty_.store(true, std::memory_order_release);
+  phase_.store(Phase::REST, std::memory_order_release);
 
   FlushDurableEpoch(cp_epoch, is_shutdown);
 
@@ -352,20 +406,20 @@ void CPRManager::IncrementalWorkerLoop() {
       continue;
     }
 
-    EpochNumber cp_epoch = checkpoint_epoch_.load();
+    EpochNumber cp_epoch = version_.load();
+    // dirty_stable_empty_ and phase_ are reset inside WriteDeltaCheckpoint,
+    // not here (see its comment).
     WriteDeltaCheckpoint(cp_epoch, false);
-    dirty_stable_empty_.store(true);
   }
   WriteRemainingDirtyEntries();
 }
 
 void CPRManager::WriteRemainingDirtyEntries() {
-  // No further epoch tick is coming to eventually flush the tail, so force
-  // checkpoint_epoch_ to the live epoch before draining. The stack itself
-  // needs no separate "force rotate" step: WriteDeltaCheckpoint's drain
-  // already captures everything queued so far, whenever it's called.
+  // Final drain on shutdown -- tag it with the live epoch. Any stable copy
+  // taken for an in-progress round that doesn't match is simply orphaned,
+  // and the drain falls back to each item's live value, which is correct
+  // for a terminal flush.
   EpochNumber cp_epoch = epoch_manager_ref_.GetGlobalEpoch();
-  checkpoint_epoch_.store(cp_epoch);
   WriteDeltaCheckpoint(cp_epoch, true);
 }
 

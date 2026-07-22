@@ -22,6 +22,7 @@
 #include <lineairdb/transaction.h>
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <string>
@@ -120,6 +121,13 @@ class CPRManager {
                          EpochNumber current_epoch);
   void AbortWriteSet(const WriteSetType& write_set);
 
+  // Takes a per-item stable copy (before-image) for the current round, if
+  // this item hasn't already got one and current_epoch could belong to this
+  // round or a later one. Called from PrecommitWriteSet for Silo/SiloNWR,
+  // and directly from TwoPhaseLockingImpl::Write() for 2PL (which mutates
+  // item->buffer immediately, so it must protect earlier than Precommit()).
+  void ProtectStableCopy(DataItem* item, EpochNumber current_epoch);
+
   // --- Recovery ---
   EpochNumber GetDurableEpoch() const;
   EpochNumber RecoverDurableEpoch();
@@ -154,7 +162,19 @@ class CPRManager {
   std::mutex compactor_latch_;
   std::condition_variable compactor_cv_;
   std::atomic<bool> compaction_requested_{false};
-  std::atomic<EpochNumber> checkpoint_epoch_;
+
+  // CPR phase state machine: REST -> IN_PROGRESS -> WAIT_PENDING -> REST.
+  // See RotateDirtySets for the transition logic and the class-level comment
+  // in checkpoint_manager.cpp for why PREPARE (present in the classic 4-phase
+  // CPR protocol) is unnecessary here. Together, (phase_, version_) is this
+  // class's SystemState, in CPR's terminology.
+  enum class Phase : uint8_t { REST, IN_PROGRESS, WAIT_PENDING };
+  std::atomic<Phase> phase_{Phase::REST};
+  std::atomic<EpochNumber> version_{0};
+  // Only ever touched by the single thread that calls RotateDirtySets (the
+  // EpochFramework ticker thread), so this doesn't need to be atomic.
+  std::chrono::steady_clock::time_point last_round_started_at_{};
+
   std::atomic<EpochNumber> durable_epoch_;
   std::atomic<bool> stop_;
   std::thread manager_thread_;

@@ -37,11 +37,16 @@ struct DataItem {
   std::atomic<TransactionId> transaction_id;
   bool initialized;
   DataBuffer buffer;
-  DataBuffer checkpoint_buffer;                     // a.k.a. stable version
   std::atomic<NWRPivotObject> pivot_object;         // for NWR
   Lock::ReadersWritersLockBO readers_writers_lock;  // for 2PL
-  std::atomic<EpochNumber> stable_epoch{0};
   std::atomic<EpochNumber> dirty_epoch{0};
+
+  // CPR per-item stable copy (see CPRManager::ProtectStableCopy).
+  // stable_version == 0 means none held; otherwise it names the checkpoint
+  // version whose before-image stable_buffer holds.
+  DataBuffer stable_buffer;
+  bool stable_buffer_initialized{false};
+  std::atomic<EpochNumber> stable_version{0};
 
   std::byte* value() { return &buffer.value[0]; }
   const std::byte* value() const { return &buffer.value[0]; }
@@ -73,13 +78,6 @@ struct DataItem {
     buffer.Reset(v, s);
     if (!tid.IsEmpty()) transaction_id.store(tid);
     initialized = (v != nullptr && s != 0);
-  }
-
-  void CopyLiveVersionToStableVersion() {
-    if (!checkpoint_buffer.IsEmpty()) return;  // snapshot is already taken
-    // There is an assumption that this thread can `exclusively` access this
-    // data item.
-    checkpoint_buffer.Reset(buffer);
   }
 
   void ExclusiveLockSilo() {
