@@ -242,9 +242,12 @@ class Database::Impl {
       }
 
       // Execute Callbacks
-      thread_pool_.EnqueueForAllThreads([&, old_epoch, durable]() {
+      thread_pool_.EnqueueForAllThreads([&, durable]() {
         callback_manager_.ExecuteCallbacks(durable);
-        latest_callbacked_epoch_.store(old_epoch);
+        auto curr = latest_callbacked_epoch_.load();
+        while (curr < durable &&
+               !latest_callbacked_epoch_.compare_exchange_weak(curr, durable)) {
+        }
       });
 
       if (checkpoint_manager_.IsCheckpoint()) {
