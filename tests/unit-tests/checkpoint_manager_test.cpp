@@ -108,11 +108,10 @@ TEST_F(CPRManagerWhiteBoxTest,
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;  // unused by CPRManager, only needed for the ctor
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string key = "k";
   DataItem item;
+  CPRManager cpr(config_, dict, epoch);
 
   auto write_set_for = [&](const std::string& value) {
     WriteSetType ws;
@@ -162,11 +161,10 @@ TEST_F(CPRManagerWhiteBoxTest,
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string key = "k";
   DataItem item;
+  CPRManager cpr(config_, dict, epoch);
 
   auto write_set_for = [&](const std::string& value) {
     WriteSetType ws;
@@ -205,11 +203,11 @@ TEST_F(CPRManagerWhiteBoxTest, FirstTouchDuringInProgressProtectsPreimage) {
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string key = "k";
   DataItem item;
+  CPRManager cpr(config_, dict, epoch);
+
   auto write_set_for = [&](const std::string& value) {
     WriteSetType ws;
     ws.emplace_back(key, reinterpret_cast<const std::byte*>(value.data()),
@@ -247,11 +245,11 @@ TEST_F(CPRManagerWhiteBoxTest, SecondTouchSameRoundDoesNotReprotect) {
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string key = "k";
   DataItem item;
+  CPRManager cpr(config_, dict, epoch);
+
   auto write_set_for = [&](const std::string& value) {
     WriteSetType ws;
     ws.emplace_back(key, reinterpret_cast<const std::byte*>(value.data()),
@@ -287,13 +285,13 @@ TEST_F(CPRManagerWhiteBoxTest,
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string touched_key = "touched";
   const std::string untouched_key = "untouched";
   DataItem touched_item;
   DataItem untouched_item;
+  CPRManager cpr(config_, dict, epoch);
+
   auto write_set_for = [&](DataItem& item, const std::string& key,
                            const std::string& value) {
     WriteSetType ws;
@@ -335,15 +333,83 @@ TEST_F(CPRManagerWhiteBoxTest,
   }
 }
 
+// Regression test for a data-loss bug: a write combined into an already-
+// protected round's DirtyEntry (see FirstTouchDuringInProgressProtectsPreimage
+// above) trusts that entry to be read live at drain time, but the drain
+// instead emits the protected pre-round value for it. Without re-flagging
+// the item as dirty when a drain consumes a protected snapshot, nothing
+// would ever prompt a future round to revisit it, losing the combined
+// write's true value from every checkpoint file forever.
+TEST_F(CPRManagerWhiteBoxTest,
+       WriteCombinedWithProtectedEntryIsCapturedByFutureRound) {
+  EpochFramework epoch;
+  epoch.Start();
+  TableDictionary dict;
+  const std::string table_name = "t";
+  const std::string key = "k";
+  DataItem item;
+  CPRManager cpr(config_, dict, epoch);
+
+  auto write_set_for = [&](const std::string& value) {
+    WriteSetType ws;
+    ws.emplace_back(key, reinterpret_cast<const std::byte*>(value.data()),
+                    value.size(), &item, table_name);
+    return ws;
+  };
+
+  cpr.OnPrecommit(write_set_for("OLD1"), /*current_epoch=*/3);
+  item.Reset(reinterpret_cast<const std::byte*>("OLD1"), 4);
+
+  cpr.RotateDirtySets(/*next_checkpoint_epoch=*/10);
+
+  // First touch during the round: protects "OLD1", pushes a DirtyEntry, and
+  // sets dirty_epoch = 10.
+  cpr.OnPrecommit(write_set_for("MID1"), /*current_epoch=*/10);
+  item.Reset(reinterpret_cast<const std::byte*>("MID1"), 4);
+  // Second touch, same epoch: dirty_epoch is already 10, so this combines
+  // (no new push) -- it trusts the existing entry to be read live at drain
+  // time.
+  cpr.OnPrecommit(write_set_for("NEW1"), /*current_epoch=*/10);
+  item.Reset(reinterpret_cast<const std::byte*>("NEW1"), 4);
+
+  cpr.RotateDirtySets(11);
+  WaitForCheckpointCompleted(cpr, 10);
+
+  auto round1 = ReadDeltaFile(config_.work_dir, 10);
+  ASSERT_EQ(round1.size(), 1u);
+  ASSERT_EQ(round1[0].key_value_pairs.size(), 1u);
+  ASSERT_EQ(round1[0].key_value_pairs[0].buffer, "OLD1")
+      << "Sanity check: round 10 must still emit the protected pre-round "
+         "value, exactly as FirstTouchDuringInProgressProtectsPreimage "
+         "verifies in isolation.";
+
+  // Nothing writes this item again. A later round must still pick it up on
+  // its own and capture "NEW1" -- the true live value that round 10 could
+  // not (and should not) have captured.
+  cpr.RotateDirtySets(/*next_checkpoint_epoch=*/20);
+  cpr.RotateDirtySets(21);
+  WaitForCheckpointCompleted(cpr, 20);
+
+  auto round2 = ReadDeltaFile(config_.work_dir, 20);
+  ASSERT_EQ(round2.size(), 1u);
+  ASSERT_EQ(round2[0].key_value_pairs.size(), 1u)
+      << "No later round ever re-examined this item after round 10 consumed "
+         "its protected snapshot -- \"NEW1\" would be lost from every "
+         "checkpoint file forever.";
+  EXPECT_EQ(round2[0].key_value_pairs[0].buffer, "NEW1")
+      << "The live value combined into round 10's (protected, and thus "
+         "ignored) entry must still reach some future checkpoint file.";
+}
+
 TEST_F(CPRManagerWhiteBoxTest, SubsequentRoundStartsCleanNoStaleProtection) {
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string key = "k";
   DataItem item;
+  CPRManager cpr(config_, dict, epoch);
+
   auto write_set_for = [&](const std::string& value) {
     WriteSetType ws;
     ws.emplace_back(key, reinterpret_cast<const std::byte*>(value.data()),
@@ -400,11 +466,11 @@ TEST_F(CPRManagerWhiteBoxTest, ProtectStableCopyProtectsBeforeEagerMutation) {
   EpochFramework epoch;
   epoch.Start();
   TableDictionary dict;
-  CPRManager cpr(config_, dict, epoch);
-
   const std::string table_name = "t";
   const std::string key = "k";
   DataItem item;
+  CPRManager cpr(config_, dict, epoch);
+
   auto write_set_for = [&](const std::string& value) {
     WriteSetType ws;
     ws.emplace_back(key, reinterpret_cast<const std::byte*>(value.data()),

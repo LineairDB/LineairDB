@@ -201,9 +201,14 @@ class Database::Impl {
    * used as a workaround to ensure proper waiting.
    */
   void Fence() {
-    const auto current_epoch = epoch_framework_.GetGlobalEpoch();
     epoch_framework_.Sync();
     thread_pool_.WaitForQueuesToBecomeEmpty();
+
+    // Must be captured after the wait above: a transaction's epoch is
+    // assigned at dequeue time, not submission time, so a still-queued
+    // transaction could get tagged with a later epoch than one sampled
+    // earlier, letting Fence() return before it's actually durable.
+    const auto current_epoch = epoch_framework_.GetGlobalEpoch();
 
     const bool skip_checkpoint_wait = destructing_.load() &&
                                       !checkpoint_manager_.IsWAL() &&
