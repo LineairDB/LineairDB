@@ -17,6 +17,15 @@
 
 #include "recovery/checkpoint_manager.hpp"
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#if defined(__APPLE__)
+// macOS does not expose fdatasync in all compilation modes;
+// F_FULLFSYNC provides stronger durability guarantees anyway.
+#define fdatasync(fd) fcntl((fd), F_FULLFSYNC)
+#endif
+
 #include <algorithm>
 #include <condition_variable>
 #include <filesystem>
@@ -65,6 +74,29 @@ std::vector<Logger::LogRecord> ReadLogFile(const std::string& path) {
     }
   }
   return result;
+}
+
+// std::ofstream::flush() only pushes data into the OS page cache -- it does
+// not survive a power loss, only a process crash. These two are what turn a
+// working-file-then-rename() sequence into an actually crash-safe publish:
+// the data must be synced before the rename is visible (else the rename
+// could survive a crash while the data it points to didn't), and the
+// directory entry created by rename() is itself metadata that needs its own
+// sync to be durable.
+bool SyncFileAt(const std::string& path) {
+  int fd = open(path.c_str(), O_RDWR);
+  if (fd < 0) return false;
+  const bool ok = fdatasync(fd) == 0;
+  close(fd);
+  return ok;
+}
+
+bool SyncDirectory(const std::string& dir_path) {
+  int fd = open(dir_path.c_str(), O_RDONLY);
+  if (fd < 0) return false;
+  const bool ok = fsync(fd) == 0;
+  close(fd);
+  return ok;
 }
 
 }  // namespace
@@ -374,13 +406,28 @@ void CPRManager::WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown) {
 
   bool has_new_file = false;
   if (!record.key_value_pairs.empty()) {
-    std::string filename = config_.work_dir + "/" +
-                           std::string(kDeltaFilePrefix) +
-                           std::to_string(cp_epoch) + ".log";
-    std::ofstream f(filename, std::ios_base::out | std::ios_base::binary);
-    Logger::LogRecords records{std::move(record)};
-    msgpack::pack(f, records);
-    f.flush();
+    const std::string filename = config_.work_dir + "/" +
+                                 std::string(kDeltaFilePrefix) +
+                                 std::to_string(cp_epoch) + ".log";
+    const std::string working_filename = filename + ".working";
+    {
+      std::ofstream f(working_filename,
+                      std::ios_base::out | std::ios_base::binary);
+      Logger::LogRecords records{std::move(record)};
+      msgpack::pack(f, records);
+      f.flush();
+    }
+    if (!SyncFileAt(working_filename)) {
+      SPDLOG_ERROR("Failed to sync delta file {}, errno: {}", working_filename,
+                   errno);
+      if (!is_shutdown) exit(1);
+    }
+    if (rename(working_filename.c_str(), filename.c_str()) != 0) {
+      SPDLOG_ERROR("Failed to rename delta file {} to {}, errno: {}",
+                   working_filename, filename, errno);
+      if (!is_shutdown) exit(1);
+    }
+    SyncDirectory(config_.work_dir);
     has_new_file = true;
   }
 
@@ -404,18 +451,28 @@ void CPRManager::WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown) {
 }
 
 void CPRManager::FlushDurableEpoch(EpochNumber cp_epoch, bool is_shutdown) {
-  auto curr = durable_epoch_.load();
-  while (curr < cp_epoch &&
-         !durable_epoch_.compare_exchange_weak(curr, cp_epoch)) {
-  }
+  // durable_epoch_ must not advance until the marker naming cp_epoch is
+  // actually on disk: it's what Fence()/ExecuteCallbacks() read to decide a
+  // transaction is durable, so bumping it any earlier would let a client be
+  // acked for a round that a crash right afterward could still roll back.
   {
     std::ofstream f(dep_working_, std::ios_base::out | std::ios_base::binary);
     msgpack::pack(f, cp_epoch);
     f.flush();
   }
+  if (!SyncFileAt(dep_working_)) {
+    SPDLOG_ERROR("Failed to sync durable epoch file, errno: {}", errno);
+    if (!is_shutdown) exit(1);
+  }
   if (rename(dep_working_.c_str(), dep_file_.c_str()) != 0) {
     SPDLOG_ERROR("durable epoch rename failed, errno: {}", errno);
     if (!is_shutdown) exit(1);
+  }
+  SyncDirectory(config_.work_dir);
+
+  auto curr = durable_epoch_.load();
+  while (curr < cp_epoch &&
+         !durable_epoch_.compare_exchange_weak(curr, cp_epoch)) {
   }
 }
 
@@ -523,11 +580,20 @@ void CPRManager::RunCompaction() {
     }
     f.flush();
   }
+  // Must be durable before any of the delta/base files it was derived from
+  // are deleted below -- otherwise a crash could lose both the new base
+  // file (rename not yet durable) and the sources it replaced.
+  if (!SyncFileAt(new_base_working)) {
+    SPDLOG_ERROR("Failed to sync compacted base file, errno: {}", errno);
+    fs::remove(new_base_working);
+    return;
+  }
   if (rename(new_base_working.c_str(), new_base.c_str()) != 0) {
     SPDLOG_ERROR("Compaction rename failed, errno: {}", errno);
     fs::remove(new_base_working);
     return;
   }
+  SyncDirectory(config_.work_dir);
 
   for (const auto& [epoch, filename] : delta_files) {
     fs::remove(filename);
