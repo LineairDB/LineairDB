@@ -357,18 +357,45 @@ void CPRManager::WriteDeltaCheckpoint(EpochNumber cp_epoch, bool is_shutdown) {
     // If this item has a stable copy taken for exactly this round (see
     // PrecommitWriteSet), emit that before-image instead of the live buffer
     // -- something wrote it at or after version_ == cp_epoch, so the live
-    // value belongs to a *future* round's snapshot, not this one. Consume
-    // (reset) the stable copy so a future round starts clean.
-    if (item->stable_version.load(std::memory_order_acquire) == cp_epoch) {
+    // value belongs to a *future* round's snapshot, not this one.
+    //
+    // Excluded at shutdown: cp_epoch can coincidentally equal an
+    // in-progress round's version_ there, and there's no future round left
+    // to defer to, so always emit the live value instead.
+    bool used_stable_snapshot = false;
+    if (!is_shutdown &&
+        item->stable_version.load(std::memory_order_acquire) == cp_epoch) {
       kvp.buffer =
           item->stable_buffer_initialized ? item->stable_buffer.toString() : "";
       item->stable_version.store(0, std::memory_order_release);
+      used_stable_snapshot = true;
     } else if (!item->IsInitialized()) {
       kvp.buffer = "";
     } else {
       kvp.buffer = item->buffer.toString();
     }
     kvp.tid = {cp_epoch, 0};
+    // Reset here, under the item's lock: a write that finds dirty_epoch
+    // already current skips pushing a new entry, trusting this drain to
+    // read its value live. Leaving dirty_epoch stale after the drain would
+    // let a later write silently skip tracking too, with nothing left to
+    // prompt a future drain to revisit it.
+    item->dirty_epoch.store(0, std::memory_order_release);
+    if (used_stable_snapshot) {
+      // We emitted the protected pre-round value, not the live buffer, so
+      // any write that combined into this entry (skipped its own push,
+      // above) had its result stranded -- this entry is consumed and gone.
+      // Re-push a fresh one so the next drain picks up whatever the live
+      // buffer holds by then.
+      auto* mds = tls_.Get();
+      auto* node = new DirtyEntry{entry->table_name, entry->key, item, nullptr};
+      DirtyEntry* old_head = mds->head.load(std::memory_order_relaxed);
+      do {
+        node->next = old_head;
+      } while (!mds->head.compare_exchange_weak(old_head, node,
+                                                std::memory_order_release,
+                                                std::memory_order_relaxed));
+    }
     record.key_value_pairs.emplace_back(std::move(kvp));
     if (is_2pl) {
       item->ExclusiveUnlock2PL();
@@ -473,9 +500,8 @@ void CPRManager::IncrementalWorkerLoop() {
 
 void CPRManager::WriteRemainingDirtyEntries() {
   // Final drain on shutdown -- tag it with the live epoch. Any stable copy
-  // taken for an in-progress round that doesn't match is simply orphaned,
-  // and the drain falls back to each item's live value, which is correct
-  // for a terminal flush.
+  // from an in-progress round is left orphaned; WriteDeltaCheckpoint's
+  // is_shutdown=true path always reads each item's live value instead.
   EpochNumber cp_epoch = epoch_manager_ref_.GetGlobalEpoch();
   WriteDeltaCheckpoint(cp_epoch, true);
 }
